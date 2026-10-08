@@ -13,7 +13,7 @@ const demoAccounts = [
 ]
 
 export function Login() {
-  const { user, login, toast } = useApp()
+  const { user, login, toast, isSupabaseConfigured } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('')
@@ -24,21 +24,19 @@ export function Login() {
 
   if (user) return <Navigate to={roleMeta[user.role]?.home || '/login'} replace />
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     setError('')
     setLoading(true)
-    setTimeout(() => {
-      const res = login(email, password)
-      setLoading(false)
-      if (!res.ok) {
-        setError(res.error)
-        return
-      }
-      toast(`Welcome back, ${res.user.name.split(' ')[0]}!`, 'success', 'Signed in')
-      const dest = location.state?.from || roleMeta[res.user.role]?.home || '/'
-      navigate(dest, { replace: true })
-    }, 350)
+    const res = await login(email, password)
+    setLoading(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    toast(`Welcome back, ${res.user.name.split(' ')[0]}!`, 'success', 'Signed in')
+    const dest = location.state?.from || roleMeta[res.user.role]?.home || '/'
+    navigate(dest, { replace: true })
   }
 
   const quickFill = (acct) => {
@@ -177,33 +175,35 @@ export function Login() {
             </Link>
           </p>
 
-          <div className="mt-8">
-            <div className="relative mb-4 text-center">
-              <span className="relative z-10 bg-slate-50 px-3 text-xs font-medium uppercase tracking-wide text-slate-400">
-                Demo accounts
-              </span>
-              <span className="absolute left-0 top-1/2 h-px w-full bg-slate-200" />
+          {!isSupabaseConfigured && (
+            <div className="mt-8">
+              <div className="relative mb-4 text-center">
+                <span className="relative z-10 bg-slate-50 px-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+                  Demo accounts
+                </span>
+                <span className="absolute left-0 top-1/2 h-px w-full bg-slate-200" />
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {demoAccounts.map((a) => (
+                  <button
+                    key={a.role}
+                    onClick={() => quickFill(a)}
+                    className={cn(
+                      'flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-center transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-card',
+                    )}
+                  >
+                    <span className={cn('flex h-9 w-9 items-center justify-center rounded-lg text-white', a.tone)}>
+                      <a.icon className="h-4 w-4" />
+                    </span>
+                    <span className="text-xs font-semibold text-slate-700">{a.label}</span>
+                  </button>
+                ))}
+              </div>
+              <p className="mt-3 text-center text-xs text-slate-400">
+                Click a role to auto-fill credentials, then press Sign in.
+              </p>
             </div>
-            <div className="grid grid-cols-3 gap-2">
-              {demoAccounts.map((a) => (
-                <button
-                  key={a.role}
-                  onClick={() => quickFill(a)}
-                  className={cn(
-                    'flex flex-col items-center gap-2 rounded-xl border border-slate-200 bg-white p-3 text-center transition hover:-translate-y-0.5 hover:border-brand-300 hover:shadow-card',
-                  )}
-                >
-                  <span className={cn('flex h-9 w-9 items-center justify-center rounded-lg text-white', a.tone)}>
-                    <a.icon className="h-4 w-4" />
-                  </span>
-                  <span className="text-xs font-semibold text-slate-700">{a.label}</span>
-                </button>
-              ))}
-            </div>
-            <p className="mt-3 text-center text-xs text-slate-400">
-              Click a role to auto-fill credentials, then press Sign in.
-            </p>
-          </div>
+          )}
         </div>
       </div>
     </div>

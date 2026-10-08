@@ -28,7 +28,6 @@ import {
 } from 'recharts'
 import { useApp } from '../../store/AppContext'
 import { revenueStats, programStats, attendanceStats } from '../../store/selectors'
-import { trainees, trainers } from '../../data/users'
 import { Card, CardBody, CardHeader, StatCard, Badge, Button, ProgressBar, EmptyState, SectionTitle, Avatar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { formatDate, currency, average, cn } from '../../lib/utils'

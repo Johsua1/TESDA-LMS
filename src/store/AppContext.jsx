@@ -1,14 +1,42 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { buildSeed } from '../data/seed'
 import { setLivePrograms } from '../data/programs'
 import { uid } from '../lib/utils'
+import { isSupabaseConfigured } from '../lib/supabase'
+import * as backend from '../lib/backend'
 
 const DB_KEY = 'tesda-lms-db-v2'
 const SESSION_KEY = 'tesda-lms-session-v1'
+const SETTINGS_KEY = 'tesda-lms-settings-v1'
+
+const DEFAULT_SETTINGS = {
+  institution: 'TESDA Training Center',
+  academicYear: '2026 - 2027',
+  passingScore: 75,
+  typingPassingRate: 40,
+  attendanceRequirement: 80,
+  allowSelfEnroll: true,
+  maintenanceMode: false,
+  notifyEmail: true,
+}
+
+const EMPTY_DB = {
+  users: [],
+  programs: [],
+  schedules: [],
+  enrollments: [],
+  attendance: [],
+  quizAttempts: [],
+  examAttempts: [],
+  typingTests: [],
+  evaluations: [],
+  announcements: [],
+}
 
 const AppContext = createContext(null)
 
-function loadDB() {
+// Offline (demo) mode: the whole db lives in localStorage.
+function loadLocalDB() {
   try {
     const raw = localStorage.getItem(DB_KEY)
     if (raw) return JSON.parse(raw)
@@ -24,40 +52,41 @@ function loadDB() {
   return seed
 }
 
+function loadLocalSession() {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY)
+    return raw ? JSON.parse(raw) : null
+  } catch {
+    return null
+  }
+}
+
+function loadLocalSettings() {
+  try {
+    const raw = localStorage.getItem(SETTINGS_KEY)
+    return raw ? { ...DEFAULT_SETTINGS, ...JSON.parse(raw) } : { ...DEFAULT_SETTINGS }
+  } catch {
+    return { ...DEFAULT_SETTINGS }
+  }
+}
+
 export function AppProvider({ children }) {
-  const [db, setDb] = useState(loadDB)
+  // When Supabase is configured the seed is never shown — we start empty and
+  // load everything from the server behind a `ready` gate.
+  const [db, setDb] = useState(() => (isSupabaseConfigured ? EMPTY_DB : loadLocalDB()))
+  const [user, setUser] = useState(() => (isSupabaseConfigured ? null : loadLocalSession()))
+  const [settings, setSettings] = useState(() => (isSupabaseConfigured ? { ...DEFAULT_SETTINGS } : loadLocalSettings()))
+  const [toasts, setToasts] = useState([])
+  const [ready, setReady] = useState(!isSupabaseConfigured)
+
+  // Keep a synchronous mirror of db so mutations can compute the next state and
+  // persist it without relying on the async setState updater.
+  const dbRef = useRef(db)
+  const settingsRef = useRef(settings)
 
   // Keep the pure program/lesson helpers in data/programs.js in sync with the
   // persisted store so trainer/admin content edits are visible everywhere.
   setLivePrograms(db.programs)
-  const [user, setUser] = useState(() => {
-    try {
-      const raw = localStorage.getItem(SESSION_KEY)
-      return raw ? JSON.parse(raw) : null
-    } catch {
-      return null
-    }
-  })
-  const [toasts, setToasts] = useState([])
-
-  // persist db
-  useEffect(() => {
-    try {
-      localStorage.setItem(DB_KEY, JSON.stringify(db))
-    } catch (e) {
-      console.warn('Failed to persist LMS data.', e)
-    }
-  }, [db])
-
-  // persist session
-  useEffect(() => {
-    try {
-      if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-      else localStorage.removeItem(SESSION_KEY)
-    } catch {
-      /* ignore */
-    }
-  }, [user])
 
   // ------------------------------- Toasts -----------------------------------
   const toast = useCallback((message, type = 'success', title) => {
@@ -68,58 +97,244 @@ export function AppProvider({ children }) {
 
   const dismissToast = useCallback((id) => setToasts((t) => t.filter((x) => x.id !== id)), [])
 
+  // --------------------------- Commit / persistence -------------------------
+  // commit() replaces every setDb() call: it computes the next db synchronously,
+  // updates state, and (online) pushes the diff to Supabase.
+  const commit = useCallback(
+    (updater) => {
+      const prev = dbRef.current
+      const next = typeof updater === 'function' ? updater(prev) : updater
+      dbRef.current = next
+      setDb(next)
+      if (isSupabaseConfigured) {
+        backend.syncCollections(prev, next).catch((e) => {
+          console.error('Failed to sync to Supabase', e)
+          toast('Failed to save to the server. Check your connection.', 'error')
+        })
+      }
+      return next
+    },
+    [toast],
+  )
+
+  // Safety net: if db is replaced directly (initial load), keep the ref aligned.
+  useEffect(() => {
+    dbRef.current = db
+  }, [db])
+  useEffect(() => {
+    settingsRef.current = settings
+  }, [settings])
+
+  // ------------------------- Initial load (online) --------------------------
+  // RLS only returns rows to an authenticated session, so we restore the
+  // session first and only then fetch the data.
+  useEffect(() => {
+    if (!isSupabaseConfigured) return
+    let cancelled = false
+    ;(async () => {
+      try {
+        const session = await backend.getSession()
+        if (session?.user) {
+          const profile = await backend.fetchProfile(session.user.id)
+          if (!cancelled && profile) setUser(profile)
+          const { db: loaded, settings: loadedSettings } = await backend.loadAll()
+          if (cancelled) return
+          dbRef.current = loaded
+          setDb(loaded)
+          if (loadedSettings) {
+            const merged = { ...DEFAULT_SETTINGS, ...loadedSettings }
+            settingsRef.current = merged
+            setSettings(merged)
+          }
+        }
+      } catch (e) {
+        console.error('Failed to load data from Supabase', e)
+      } finally {
+        if (!cancelled) setReady(true)
+      }
+    })()
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  // --------------------- Offline persistence (demo mode) --------------------
+  useEffect(() => {
+    if (isSupabaseConfigured) return
+    try {
+      localStorage.setItem(DB_KEY, JSON.stringify(db))
+    } catch (e) {
+      console.warn('Failed to persist LMS data.', e)
+    }
+  }, [db])
+
+  useEffect(() => {
+    if (isSupabaseConfigured) return
+    try {
+      if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user))
+      else localStorage.removeItem(SESSION_KEY)
+    } catch {
+      /* ignore */
+    }
+  }, [user])
+
+  useEffect(() => {
+    if (isSupabaseConfigured) return
+    try {
+      localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings))
+    } catch {
+      /* ignore */
+    }
+  }, [settings])
+
   // -------------------------------- Auth ------------------------------------
+  const loadRemoteData = useCallback(async () => {
+    const { db: loaded, settings: loadedSettings } = await backend.loadAll()
+    dbRef.current = loaded
+    setDb(loaded)
+    if (loadedSettings) {
+      const merged = { ...DEFAULT_SETTINGS, ...loadedSettings }
+      settingsRef.current = merged
+      setSettings(merged)
+    }
+  }, [])
+
   const login = useCallback(
-    (email, password) => {
-      const found = db.users.find(
+    async (email, password) => {
+      if (isSupabaseConfigured) {
+        try {
+          const res = await backend.signIn(email, password)
+          if (!res.ok) return res
+          await loadRemoteData()
+          setUser(res.user)
+          return res
+        } catch (e) {
+          console.error(e)
+          return { ok: false, error: e?.message || 'Unable to sign in. Please try again.' }
+        }
+      }
+      const found = dbRef.current.users.find(
         (u) => u.email.toLowerCase() === String(email).toLowerCase().trim() && u.password === password,
       )
       if (!found) return { ok: false, error: 'Invalid email or password.' }
       setUser(found)
       return { ok: true, user: found }
     },
-    [db.users],
+    [loadRemoteData],
   )
 
-  const logout = useCallback(() => setUser(null), [])
+  const logout = useCallback(() => {
+    if (isSupabaseConfigured) {
+      backend.signOut().catch(() => {})
+      dbRef.current = EMPTY_DB
+      setDb(EMPTY_DB)
+    }
+    setUser(null)
+  }, [])
 
   const updateProfile = useCallback(
     (patch) => {
-      setDb((d) => ({ ...d, users: d.users.map((u) => (u.id === user.id ? { ...u, ...patch } : u)) }))
-      setUser((u) => ({ ...u, ...patch }))
+      const nextUser = { ...user, ...patch }
+      commit((d) => ({ ...d, users: d.users.map((u) => (u.id === user.id ? { ...u, ...patch } : u)) }))
+      setUser(nextUser)
+      if (isSupabaseConfigured) {
+        backend.upsertProfile(nextUser).catch((e) => {
+          console.error(e)
+          toast('Failed to update your profile.', 'error')
+        })
+      }
       toast('Profile updated successfully.')
     },
-    [user, toast],
+    [user, commit, toast],
   )
 
   // ------------------------------ Users (admin) -----------------------------
   const saveUser = useCallback(
     (payload) => {
-      setDb((d) => {
-        if (payload.id && d.users.some((u) => u.id === payload.id)) {
-          return { ...d, users: d.users.map((u) => (u.id === payload.id ? { ...u, ...payload } : u)) }
+      const isEdit = payload.id && dbRef.current.users.some((u) => u.id === payload.id)
+      const role = payload.role === 'trainer' ? 'trainer' : payload.role === 'trainee' ? 'trainee' : 'admin'
+      const id = payload.id || uid(role === 'trainer' ? 'tr' : role === 'trainee' ? 'tn' : 'sa')
+
+      if (isEdit) {
+        commit((d) => ({ ...d, users: d.users.map((u) => (u.id === payload.id ? { ...u, ...payload } : u)) }))
+        if (isSupabaseConfigured) {
+          const updated = dbRef.current.users.find((u) => u.id === payload.id)
+          if (updated) {
+            backend.upsertProfile(updated).catch((e) => {
+              console.error(e)
+              toast('Failed to update the account.', 'error')
+            })
+          }
         }
-        const id = payload.id || uid(payload.role === 'trainer' ? 'tr' : payload.role === 'trainee' ? 'tn' : 'sa')
-        return { ...d, users: [...d.users, { ...payload, id }] }
-      })
-      toast(payload.id ? 'Record updated.' : 'Record created.')
+        toast('Record updated.')
+        return { ok: true, user: payload }
+      }
+
+      // Create
+      if (isSupabaseConfigured) {
+        if (!payload.password) {
+          toast('A temporary password is required to create an account.', 'error')
+          return { ok: false, error: 'Password required.' }
+        }
+        const { password, id: _ignoredId, role: _ignoredRole, ...rest } = payload
+        const { email, name, ...data } = rest
+        backend
+          .adminCreateUser({ id, email, password, role, name, data })
+          .then(() => backend.fetchProfiles())
+          .then((users) => {
+            dbRef.current = { ...dbRef.current, users }
+            setDb(dbRef.current)
+            toast('Account created.')
+          })
+          .catch((e) => {
+            console.error(e)
+            toast(e?.message || 'Failed to create the account.', 'error')
+          })
+        return { ok: true, user: { ...payload, id } }
+      }
+
+      commit((d) => ({ ...d, users: [...d.users, { ...payload, id }] }))
+      toast('Record created.')
+      return { ok: true, user: { ...payload, id } }
     },
-    [toast],
+    [commit, toast],
   )
 
   const deleteUser = useCallback(
     (id) => {
-      setDb((d) => ({ ...d, users: d.users.filter((u) => u.id !== id) }))
+      if (isSupabaseConfigured) {
+        backend
+          .deleteProfile(id)
+          .then(() => {
+            dbRef.current = { ...dbRef.current, users: dbRef.current.users.filter((u) => u.id !== id) }
+            setDb(dbRef.current)
+            toast('Record deleted.', 'info')
+          })
+          .catch((e) => {
+            console.error(e)
+            toast('Failed to delete the account.', 'error')
+          })
+        return
+      }
+      commit((d) => ({ ...d, users: d.users.filter((u) => u.id !== id) }))
       toast('Record deleted.', 'info')
     },
-    [toast],
+    [commit, toast],
   )
 
   // Public self-registration — always creates a TRAINEE account.
   const registerTrainee = useCallback(
-    (payload) => {
+    async (payload) => {
+      if (isSupabaseConfigured) {
+        try {
+          return await backend.signUpTrainee(payload)
+        } catch (e) {
+          console.error(e)
+          return { ok: false, error: e?.message || 'Unable to create your account. Please try again.' }
+        }
+      }
       const email = String(payload.email || '').trim().toLowerCase()
-      if (db.users.some((u) => u.email.toLowerCase() === email)) {
+      if (dbRef.current.users.some((u) => u.email.toLowerCase() === email)) {
         return { ok: false, error: 'An account with this email already exists.' }
       }
       const id = uid('tn')
@@ -130,6 +345,7 @@ export function AppProvider({ children }) {
         email: payload.email.trim(),
         password: payload.password,
         avatarColor: payload.avatarColor || 'from-brand-500 to-brand-700',
+        avatarUrl: payload.avatarUrl || '',
         phone: payload.phone || '',
         address: payload.address || '',
         birthDate: payload.birthDate || null,
@@ -139,26 +355,26 @@ export function AppProvider({ children }) {
         enrolledPrograms: [],
         since: new Date().toISOString().slice(0, 10),
       }
-      setDb((d) => ({ ...d, users: [...d.users, account] }))
+      commit((d) => ({ ...d, users: [...d.users, account] }))
       return { ok: true, user: account }
     },
-    [db.users],
+    [commit],
   )
 
   // ------------------------------ Programs ----------------------------------
   const saveProgram = useCallback(
     (id, patch) => {
-      setDb((d) => ({ ...d, programs: d.programs.map((p) => (p.id === id ? { ...p, ...patch } : p)) }))
+      commit((d) => ({ ...d, programs: d.programs.map((p) => (p.id === id ? { ...p, ...patch } : p)) }))
       toast('Course updated.')
     },
-    [toast],
+    [commit, toast],
   )
 
   // --------------------------- Program content ------------------------------
   // Lessons live nested in competencies (Basic/Common) or competency units (Core).
   const saveLesson = useCallback(
     (programId, { competencyId, unitId, lesson }) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         programs: d.programs.map((p) => {
           if (p.id !== programId) return p
@@ -186,12 +402,12 @@ export function AppProvider({ children }) {
       }))
       toast('Lesson saved.')
     },
-    [toast],
+    [commit, toast],
   )
 
   const deleteLesson = useCallback(
     (programId, lessonId) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         programs: d.programs.map((p) => {
           if (p.id !== programId) return p
@@ -207,12 +423,12 @@ export function AppProvider({ children }) {
       }))
       toast('Lesson deleted.', 'info')
     },
-    [toast],
+    [commit, toast],
   )
 
   const saveQuiz = useCallback(
     (programId, quiz) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         programs: d.programs.map((p) => {
           if (p.id !== programId) return p
@@ -223,23 +439,23 @@ export function AppProvider({ children }) {
       }))
       toast('Quiz saved.')
     },
-    [toast],
+    [commit, toast],
   )
 
   const deleteQuiz = useCallback(
     (programId, quizId) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         programs: d.programs.map((p) => (p.id === programId ? { ...p, quizzes: p.quizzes.filter((q) => q.id !== quizId) } : p)),
       }))
       toast('Quiz deleted.', 'info')
     },
-    [toast],
+    [commit, toast],
   )
 
   const saveExam = useCallback(
     (programId, exam) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         programs: d.programs.map((p) => {
           if (p.id !== programId) return p
@@ -250,44 +466,44 @@ export function AppProvider({ children }) {
       }))
       toast('Exam saved.')
     },
-    [toast],
+    [commit, toast],
   )
 
   const deleteExam = useCallback(
     (programId, examId) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         programs: d.programs.map((p) => (p.id === programId ? { ...p, exams: p.exams.filter((e) => e.id !== examId) } : p)),
       }))
       toast('Exam deleted.', 'info')
     },
-    [toast],
+    [commit, toast],
   )
 
   // ---------------------------- Enrollments ---------------------------------
   const createEnrollment = useCallback(
     (payload) => {
       const id = uid('enr')
-      setDb((d) => ({ ...d, enrollments: [...d.enrollments, { ...payload, id, progress: payload.progress || {} }] }))
+      commit((d) => ({ ...d, enrollments: [...d.enrollments, { ...payload, id, progress: payload.progress || {} }] }))
       toast('Enrollment submitted successfully.')
       return id
     },
-    [toast],
+    [commit, toast],
   )
 
   const updateEnrollment = useCallback(
     (id, patch) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         enrollments: d.enrollments.map((e) => (e.id === id ? { ...e, ...patch } : e)),
       }))
     },
-    [],
+    [commit],
   )
 
   const setEnrollmentStatus = useCallback(
     (id, status) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         enrollments: d.enrollments.map((e) =>
           e.id === id ? { ...e, status, certificateIssued: status === 'Completed' ? true : e.certificateIssued } : e,
@@ -295,18 +511,18 @@ export function AppProvider({ children }) {
       }))
       toast(`Enrollment marked as ${status}.`)
     },
-    [toast],
+    [commit, toast],
   )
 
   const updatePayment = useCallback(
     (enrollmentId, payment) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         enrollments: d.enrollments.map((e) => (e.id === enrollmentId ? { ...e, payment: { ...e.payment, ...payment } } : e)),
       }))
       toast('Payment record updated.')
     },
-    [toast],
+    [commit, toast],
   )
 
   // Record a trainee payment (partial or full). Appends to the transaction
@@ -319,7 +535,7 @@ export function AppProvider({ children }) {
         return false
       }
       let ok = true
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         enrollments: d.enrollments.map((e) => {
           if (e.id !== enrollmentId) return e
@@ -360,7 +576,7 @@ export function AppProvider({ children }) {
       if (ok) toast('Payment recorded successfully.')
       return ok
     },
-    [toast],
+    [commit, toast],
   )
 
   const cancelEnrollment = useCallback(
@@ -373,7 +589,7 @@ export function AppProvider({ children }) {
   // ------------------------------- Progress ---------------------------------
   const toggleLessonComplete = useCallback(
     (traineeId, programId, lessonId) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         enrollments: d.enrollments.map((e) => {
           if (e.traineeId !== traineeId || e.programId !== programId) return e
@@ -384,12 +600,12 @@ export function AppProvider({ children }) {
         }),
       }))
     },
-    [],
+    [commit],
   )
 
   const setLessonComplete = useCallback(
     (traineeId, programId, lessonId, complete = true) => {
-      setDb((d) => ({
+      commit((d) => ({
         ...d,
         enrollments: d.enrollments.map((e) => {
           if (e.traineeId !== traineeId || e.programId !== programId) return e
@@ -400,36 +616,36 @@ export function AppProvider({ children }) {
         }),
       }))
     },
-    [],
+    [commit],
   )
 
   // ----------------------------- Quiz attempts ------------------------------
   const recordQuizAttempt = useCallback(
     (attempt) => {
-      setDb((d) => ({ ...d, quizAttempts: [...d.quizAttempts, { ...attempt, id: uid('qa') }] }))
+      commit((d) => ({ ...d, quizAttempts: [...d.quizAttempts, { ...attempt, id: uid('qa') }] }))
     },
-    [],
+    [commit],
   )
 
   const recordExamAttempt = useCallback(
     (attempt) => {
-      setDb((d) => ({ ...d, examAttempts: [...d.examAttempts, { ...attempt, id: uid('ea') }] }))
+      commit((d) => ({ ...d, examAttempts: [...d.examAttempts, { ...attempt, id: uid('ea') }] }))
     },
-    [],
+    [commit],
   )
 
   const recordTypingTest = useCallback(
     (test) => {
-      setDb((d) => ({ ...d, typingTests: [...d.typingTests, { ...test, id: uid('typing') }] }))
+      commit((d) => ({ ...d, typingTests: [...d.typingTests, { ...test, id: uid('typing') }] }))
       toast('Typing test result submitted.')
     },
-    [toast],
+    [commit, toast],
   )
 
   // ------------------------------ Attendance --------------------------------
   const saveAttendance = useCallback(
     (record) => {
-      setDb((d) => {
+      commit((d) => {
         const existing = d.attendance.find(
           (a) => a.traineeId === record.traineeId && a.scheduleId === record.scheduleId,
         )
@@ -443,13 +659,13 @@ export function AppProvider({ children }) {
       })
       toast('Attendance saved.')
     },
-    [toast],
+    [commit, toast],
   )
 
   const bulkSaveAttendance = useCallback(
     (records) => {
-      setDb((d) => {
-        let attendance = [...d.attendance]
+      commit((d) => {
+        const attendance = [...d.attendance]
         records.forEach((record) => {
           const idx = attendance.findIndex(
             (a) => a.traineeId === record.traineeId && a.scheduleId === record.scheduleId,
@@ -461,13 +677,13 @@ export function AppProvider({ children }) {
       })
       toast('Attendance records saved.')
     },
-    [toast],
+    [commit, toast],
   )
 
   // ------------------------------- Schedules --------------------------------
   const saveSchedule = useCallback(
     (payload) => {
-      setDb((d) => {
+      commit((d) => {
         if (payload.id && d.schedules.some((s) => s.id === payload.id)) {
           return { ...d, schedules: d.schedules.map((s) => (s.id === payload.id ? { ...s, ...payload } : s)) }
         }
@@ -475,21 +691,21 @@ export function AppProvider({ children }) {
       })
       toast(payload.id ? 'Schedule updated.' : 'Schedule created.')
     },
-    [toast],
+    [commit, toast],
   )
 
   const deleteSchedule = useCallback(
     (id) => {
-      setDb((d) => ({ ...d, schedules: d.schedules.filter((s) => s.id !== id) }))
+      commit((d) => ({ ...d, schedules: d.schedules.filter((s) => s.id !== id) }))
       toast('Schedule deleted.', 'info')
     },
-    [toast],
+    [commit, toast],
   )
 
   // ----------------------------- Announcements ------------------------------
   const saveAnnouncement = useCallback(
     (payload) => {
-      setDb((d) => {
+      commit((d) => {
         if (payload.id && d.announcements.some((a) => a.id === payload.id)) {
           return { ...d, announcements: d.announcements.map((a) => (a.id === payload.id ? { ...a, ...payload } : a)) }
         }
@@ -497,21 +713,21 @@ export function AppProvider({ children }) {
       })
       toast(payload.id ? 'Announcement updated.' : 'Announcement posted.')
     },
-    [toast],
+    [commit, toast],
   )
 
   const deleteAnnouncement = useCallback(
     (id) => {
-      setDb((d) => ({ ...d, announcements: d.announcements.filter((a) => a.id !== id) }))
+      commit((d) => ({ ...d, announcements: d.announcements.filter((a) => a.id !== id) }))
       toast('Announcement deleted.', 'info')
     },
-    [toast],
+    [commit, toast],
   )
 
   // ------------------------------ Evaluations -------------------------------
   const saveEvaluation = useCallback(
     (payload) => {
-      setDb((d) => {
+      commit((d) => {
         const existing = d.evaluations.find(
           (e) => e.traineeId === payload.traineeId && e.programId === payload.programId,
         )
@@ -522,48 +738,42 @@ export function AppProvider({ children }) {
       })
       toast('Evaluation saved.')
     },
-    [toast],
+    [commit, toast],
   )
 
   // ------------------------------- Settings ---------------------------------
-  const [settings, setSettings] = useState(() => {
-    try {
-      const raw = localStorage.getItem('tesda-lms-settings-v1')
-      return raw
-        ? JSON.parse(raw)
-        : {
-            institution: 'TESDA Training Center',
-            academicYear: '2026 - 2027',
-            passingScore: 75,
-            typingPassingRate: 40,
-            attendanceRequirement: 80,
-            allowSelfEnroll: true,
-            maintenanceMode: false,
-            notifyEmail: true,
-          }
-    } catch {
-      return {}
-    }
-  })
-
-  useEffect(() => {
-    try {
-      localStorage.setItem('tesda-lms-settings-v1', JSON.stringify(settings))
-    } catch {
-      /* ignore */
-    }
-  }, [settings])
-
   const updateSettings = useCallback(
     (patch) => {
-      setSettings((s) => ({ ...s, ...patch }))
+      const next = { ...settingsRef.current, ...patch }
+      settingsRef.current = next
+      setSettings(next)
+      if (isSupabaseConfigured) {
+        backend.saveSettings(next).catch((e) => {
+          console.error(e)
+          toast('Failed to save settings.', 'error')
+        })
+      }
       toast('Settings saved.')
     },
     [toast],
   )
 
-  const resetData = useCallback(() => {
+  const resetData = useCallback(async () => {
+    if (isSupabaseConfigured) {
+      // Never wipe the shared database — reload the latest server state instead.
+      try {
+        const { db: loaded } = await backend.loadAll()
+        dbRef.current = loaded
+        setDb(loaded)
+        toast('Data reloaded from the server.', 'info')
+      } catch (e) {
+        console.error(e)
+        toast('Failed to reload data.', 'error')
+      }
+      return
+    }
     const seed = buildSeed()
+    dbRef.current = seed
     setDb(seed)
     toast('All data has been reset to defaults.', 'info')
   }, [toast])
@@ -574,6 +784,8 @@ export function AppProvider({ children }) {
       user,
       settings,
       toasts,
+      ready,
+      isSupabaseConfigured,
       toast,
       dismissToast,
       // auth
@@ -626,6 +838,7 @@ export function AppProvider({ children }) {
       user,
       settings,
       toasts,
+      ready,
       toast,
       dismissToast,
       login,
@@ -663,6 +876,17 @@ export function AppProvider({ children }) {
       resetData,
     ],
   )
+
+  if (!ready) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-50">
+        <div className="flex flex-col items-center gap-3">
+          <div className="h-9 w-9 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600" />
+          <p className="text-sm text-slate-500">Loading your data…</p>
+        </div>
+      </div>
+    )
+  }
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>
 }

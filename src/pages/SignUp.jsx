@@ -43,7 +43,7 @@ export function SignUp() {
     reader.readAsDataURL(file)
   }
 
-  const submit = (e) => {
+  const submit = async (e) => {
     e.preventDefault()
     setError('')
     if (!form.firstName.trim() || !form.lastName.trim()) return setError('Please enter your first and last name.')
@@ -53,25 +53,23 @@ export function SignUp() {
     if (!agree) return setError('Please agree to the Terms and Conditions and Privacy Policy.')
 
     setLoading(true)
-    setTimeout(() => {
-      const res = registerTrainee({
-        name: `${form.firstName.trim()} ${form.lastName.trim()}`,
-        email: form.email,
-        password: form.password,
-        phone: form.phone,
-        address: form.address,
-        birthDate: form.birthDate || null,
-        gender: form.gender,
-        avatarUrl: form.avatarUrl || '',
-      })
-      setLoading(false)
-      if (!res.ok) {
-        setError(res.error)
-        return
-      }
-      toast('Account created successfully! You can now sign in.', 'success', 'Welcome!')
-      navigate('/login')
-    }, 400)
+    const res = await registerTrainee({
+      name: `${form.firstName.trim()} ${form.lastName.trim()}`,
+      email: form.email,
+      password: form.password,
+      phone: form.phone,
+      address: form.address,
+      birthDate: form.birthDate || null,
+      gender: form.gender,
+      avatarUrl: form.avatarUrl || '',
+    })
+    setLoading(false)
+    if (!res.ok) {
+      setError(res.error)
+      return
+    }
+    toast('Account created successfully! You can now sign in.', 'success', 'Welcome!')
+    navigate('/login')
   }
 
   return (
