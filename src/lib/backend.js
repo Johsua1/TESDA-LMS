@@ -333,13 +333,15 @@ export async function adminCreateUser({ id, email, password, role, name, data })
   return newId
 }
 
-// Email a newly created account (trainer or trainee) an activation link so they
+// Email a newly created account (trainer or trainee) an onboarding link so they
 // can set their own password. Uses Supabase Auth's mailer (the project's
 // configured SMTP, e.g. Gmail), so it needs no third-party provider.
+// The link lands on /welcome (which creates the session, lets them choose a
+// password, then sends them straight to their dashboard).
 // Best-effort — the caller decides whether a failure should surface.
 export async function sendActivationEmail(email) {
   const { error } = await supabase.auth.resetPasswordForEmail(String(email).trim().toLowerCase(), {
-    redirectTo: `${window.location.origin}/login`,
+    redirectTo: `${window.location.origin}/welcome`,
   })
   if (error) throw error
 }

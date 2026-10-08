@@ -7,6 +7,7 @@ import { ToastContainer } from './components/ui/Toasts'
 import { Login } from './pages/Login'
 import { SignUp } from './pages/SignUp'
 import { ResetPassword } from './pages/ResetPassword'
+import { Welcome } from './pages/Welcome'
 import { NotFound } from './pages/NotFound'
 
 // Trainee
@@ -67,6 +68,7 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
         <Route path="/reset-password" element={<ResetPassword />} />
+        <Route path="/welcome" element={<Welcome />} />
 
         {/* ------------------- IN-APP MEETING ROOM (full screen) ------------------- */}
         <Route
