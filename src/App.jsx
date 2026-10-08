@@ -20,6 +20,7 @@ import { ClassSchedules } from './pages/trainee/ClassSchedules'
 import { TraineeAttendance } from './pages/trainee/TraineeAttendance'
 import { Grades } from './pages/trainee/Grades'
 import { Enrollment } from './pages/trainee/Enrollment'
+import { Payments } from './pages/trainee/Payments'
 import { TypingTest } from './pages/trainee/TypingTest'
 
 // Trainer
@@ -114,6 +115,7 @@ export default function App() {
           <Route path="/trainee/attendance" element={<TraineeAttendance />} />
           <Route path="/trainee/grades" element={<Grades />} />
           <Route path="/trainee/enrollment" element={<Enrollment />} />
+          <Route path="/trainee/payments" element={<Payments />} />
           <Route path="/trainee/typing-test" element={<TypingTest />} />
           <Route path="/trainee/announcements" element={<AnnouncementsPage />} />
           <Route path="/trainee/profile" element={<ProfilePage />} />

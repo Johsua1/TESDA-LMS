@@ -164,6 +164,60 @@ export function AppProvider({ children }) {
     [toast],
   )
 
+  // Record a trainee payment (partial or full). Appends to the transaction
+  // history and recomputes amountPaid / balance / status.
+  const recordPayment = useCallback(
+    (enrollmentId, { amount, method, referenceNo, date, note } = {}) => {
+      const value = Math.max(0, Number(amount) || 0)
+      if (!value) {
+        toast('Enter a valid payment amount.', 'error')
+        return false
+      }
+      let ok = true
+      setDb((d) => ({
+        ...d,
+        enrollments: d.enrollments.map((e) => {
+          if (e.id !== enrollmentId) return e
+          const fee = Number(e.payment?.fee) || 0
+          const alreadyPaid = Number(e.payment?.amountPaid) || 0
+          const applied = Math.min(value, Math.max(0, fee - alreadyPaid))
+          if (applied <= 0) {
+            ok = false
+            return e
+          }
+          const amountPaid = alreadyPaid + applied
+          const balance = Math.max(0, fee - amountPaid)
+          const status = amountPaid <= 0 ? 'Unpaid' : balance === 0 ? 'Fully Paid' : 'Partially Paid'
+          const paidDate = date || new Date().toISOString().slice(0, 10)
+          const tx = {
+            id: uid('pay'),
+            amount: applied,
+            method: method || 'GCash',
+            referenceNo: referenceNo || `REF-${Date.now().toString().slice(-8)}`,
+            date: paidDate,
+            note: note || null,
+          }
+          return {
+            ...e,
+            payment: {
+              ...e.payment,
+              amountPaid,
+              balance,
+              status,
+              paymentDate: paidDate,
+              referenceNo: tx.referenceNo,
+              method: tx.method,
+              transactions: [...(e.payment?.transactions || []), tx],
+            },
+          }
+        }),
+      }))
+      if (ok) toast('Payment recorded successfully.')
+      return ok
+    },
+    [toast],
+  )
+
   const cancelEnrollment = useCallback(
     (id) => {
       setEnrollmentStatus(id, 'Cancelled')
@@ -391,6 +445,7 @@ export function AppProvider({ children }) {
       updateEnrollment,
       setEnrollmentStatus,
       updatePayment,
+      recordPayment,
       cancelEnrollment,
       // progress
       toggleLessonComplete,
@@ -431,6 +486,7 @@ export function AppProvider({ children }) {
       updateEnrollment,
       setEnrollmentStatus,
       updatePayment,
+      recordPayment,
       cancelEnrollment,
       toggleLessonComplete,
       setLessonComplete,

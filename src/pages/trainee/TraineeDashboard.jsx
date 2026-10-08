@@ -12,6 +12,7 @@ import {
   Clock,
   GraduationCap,
   Target,
+  CreditCard,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import {
@@ -23,6 +24,7 @@ import {
   overallProgress,
   announcementsFor,
   nextScheduleFor,
+  outstandingPayments,
 } from '../../store/selectors'
 import { programById, programLessonCount } from '../../data/programs'
 import {
@@ -38,7 +40,7 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { ScheduleCard, AnnouncementCard } from '../../components/cards/Cards'
-import { formatDate, formatTime, relativeDay, cn } from '../../lib/utils'
+import { formatDate, formatTime, relativeDay, currency, cn } from '../../lib/utils'
 import { meetPath } from '../../config/navigation'
 
 export function TraineeDashboard() {
@@ -54,6 +56,8 @@ export function TraineeDashboard() {
   const scores = traineeQuizAttempts(db, user.id).slice(0, 4)
   const announcements = announcementsFor(db, user).slice(0, 3)
   const overall = overallProgress(db, user.id)
+  const duePayments = outstandingPayments(db, user.id)
+  const paymentDue = duePayments.reduce((sum, e) => sum + (Number(e.payment?.balance) || 0), 0)
 
   // next quiz to take (unattempted or not yet passed)
   let nextQuiz = null
@@ -135,6 +139,31 @@ export function TraineeDashboard() {
           )}
         </div>
       </div>
+
+      {/* Outstanding balance nudge */}
+      {paymentDue > 0 && (
+        <Card className="border-amber-200 bg-amber-50">
+          <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex items-start gap-3">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+                <CreditCard className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-amber-900">You have an outstanding balance</p>
+                <p className="text-xs text-amber-700">
+                  {currency(paymentDue)} due across {duePayments.length} program{duePayments.length > 1 ? 's' : ''}. Settle
+                  it to keep your enrollment in good standing.
+                </p>
+              </div>
+            </div>
+            <Link to="/trainee/payments" className="shrink-0">
+              <Button size="sm" icon={CreditCard}>
+                Pay Now
+              </Button>
+            </Link>
+          </div>
+        </Card>
+      )}
 
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">

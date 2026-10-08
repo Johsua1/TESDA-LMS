@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   UserPlus,
   CheckCircle2,
@@ -10,6 +11,7 @@ import {
   FileText,
   Info,
   Search,
+  CreditCard,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { enrollmentsOf, programById } from '../../store/selectors'
@@ -133,9 +135,18 @@ export function Enrollment() {
                         </p>
                       </div>
                     </div>
-                    <div className="flex items-center gap-3">
+                    <div className="flex flex-wrap items-center gap-3">
                       {e.type === 'self-pay' && <StatusBadge status={e.payment?.status} />}
                       <StatusBadge status={e.status} />
+                      {e.type === 'self-pay' &&
+                        (e.payment?.balance || 0) > 0 &&
+                        !['Cancelled', 'Rejected'].includes(e.status) && (
+                          <Link to="/trainee/payments">
+                            <Button size="sm" icon={CreditCard}>
+                              Pay Now
+                            </Button>
+                          </Link>
+                        )}
                     </div>
                   </div>
                 )

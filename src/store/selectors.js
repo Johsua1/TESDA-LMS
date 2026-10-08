@@ -143,4 +143,33 @@ export const nextScheduleFor = (db, programId) => {
     .sort((a, b) => new Date(a.date) - new Date(b.date))[0]
 }
 
+// Payment transaction history for an enrollment. Older records predate the
+// transactions array, so synthesize a single entry from the base payment.
+export const paymentTransactions = (enrollment) => {
+  const payment = enrollment?.payment
+  if (!payment) return []
+  if (payment.transactions?.length) {
+    return [...payment.transactions].sort((a, b) => new Date(b.date) - new Date(a.date))
+  }
+  if (payment.amountPaid > 0) {
+    return [
+      {
+        id: `${enrollment.id}-opening`,
+        amount: payment.amountPaid,
+        method: payment.method || 'Over-the-counter',
+        referenceNo: payment.referenceNo || '—',
+        date: payment.paymentDate,
+        note: payment.note || null,
+      },
+    ]
+  }
+  return []
+}
+
+// Self-pay enrollments with an outstanding balance the trainee can settle.
+export const outstandingPayments = (db, traineeId) =>
+  enrollmentsOf(db, traineeId).filter(
+    (e) => e.type === 'self-pay' && (e.payment?.balance || 0) > 0 && !['Cancelled', 'Rejected'].includes(e.status),
+  )
+
 export { programById, programLessons, programLessonCount, programQuizCount, toISODate }

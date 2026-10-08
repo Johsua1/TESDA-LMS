@@ -128,6 +128,7 @@ export const navConfig = {
       group: 'Account',
       items: [
         { to: '/trainee/enrollment', label: 'Enrollment', icon: UserPlus },
+        { to: '/trainee/payments', label: 'My Payments', icon: Wallet },
         { to: '/trainee/announcements', label: 'Announcements', icon: Megaphone },
         { to: '/trainee/profile', label: 'Profile', icon: UserCircle },
       ],
