@@ -1,7 +1,7 @@
 import { Link } from 'react-router-dom'
 import { BookOpen, Users, ClipboardList, FileCheck2, ArrowRight, TrendingUp } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { trainerPrograms, courseProgress } from '../../store/selectors'
+import { trainerPrograms, trainerEnrollments, courseProgress } from '../../store/selectors'
 import { programLessonCount, programQuizCount } from '../../data/programs'
 import { PageHeader, Card, CardBody, ProgressBar, Button, Badge, EmptyState } from '../../components/ui'
 import { average, cn, formatDate } from '../../lib/utils'
@@ -20,7 +20,7 @@ export function TrainerCourses() {
       {programs.length ? (
         <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
           {programs.map((p) => {
-            const enrs = db.enrollments.filter((e) => e.programId === p.id)
+            const enrs = trainerEnrollments(db, user.id, p.id)
             const active = enrs.filter((e) => ['Enrolled', 'Approved'].includes(e.status))
             const avg = active.length ? Math.round(average(active.map((e) => courseProgress(e, p.id).percent))) : 0
             const completed = enrs.filter((e) => e.status === 'Completed').length

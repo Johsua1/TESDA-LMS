@@ -95,7 +95,10 @@ export function Topbar({ onMenuClick, title }) {
           {
             label: 'My Profile',
             icon: UserCircle,
-            onClick: () => navigate(`/${user?.role === 'admin' ? 'admin' : user?.role}/profile`),
+            onClick: () => {
+              const base = roleMeta[user?.role]?.home
+              if (base) navigate(`${base}/profile`)
+            },
           },
           { divider: true },
           { label: 'Sign out', icon: LogOut, danger: true, onClick: handleLogout },

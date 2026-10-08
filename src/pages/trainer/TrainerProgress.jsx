@@ -131,7 +131,7 @@ export function TrainerProgress() {
           columns={columns}
           data={rows}
           searchable
-          searchKeys={['name']}
+          searchKeys={['trainee.name', 'trainee.email']}
           pageSize={10}
           emptyState={<EmptyState icon={LineIcon} title="No trainees found" />}
         />

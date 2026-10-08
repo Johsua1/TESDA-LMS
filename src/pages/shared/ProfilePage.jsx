@@ -1,13 +1,16 @@
 import { useState } from 'react'
 import { UserCircle, Mail, Phone, MapPin, Calendar, Save, Shield, GraduationCap, BookOpen, Star } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { programById, activeEnrollmentsOf, courseProgress } from '../../store/selectors'
+import { programById, activeEnrollmentsOf, courseProgress, trainerPrograms, trainerRatingSummary } from '../../store/selectors'
 import { PageHeader, Card, CardBody, CardHeader, Avatar, Button, Input, Select, FormField, FormRow, Badge, ProgressBar } from '../../components/ui'
 import { roleMeta } from '../../config/navigation'
 import { formatDate } from '../../lib/utils'
 
 export function ProfilePage() {
-  const { db, user, updateProfile } = useApp()
+  const { db, user, updateProfile, changePassword } = useApp()
+  const [pw, setPw] = useState({ current: '', next: '', confirm: '' })
+  const [pwLoading, setPwLoading] = useState(false)
+  const [pwError, setPwError] = useState('')
   const [form, setForm] = useState({
     name: user.name,
     email: user.email,
@@ -20,11 +23,37 @@ export function ProfilePage() {
 
   const meta = roleMeta[user.role]
   const enrollments = user.role === 'trainee' ? activeEnrollmentsOf(db, user.id) : []
-  const trainerPrograms = user.role === 'trainer' ? db.programs.filter((p) => p.trainerId === user.id) : []
+  const assignedPrograms = user.role === 'trainer' ? trainerPrograms(db, user.id) : []
+  const ratingSummary = user.role === 'trainer' ? trainerRatingSummary(db, user.id) : null
 
   const save = (e) => {
     e.preventDefault()
     updateProfile(form)
+  }
+
+  const submitPassword = async (e) => {
+    e.preventDefault()
+    setPwError('')
+    if (!pw.current) {
+      setPwError('Enter your current password.')
+      return
+    }
+    if (pw.next.length < 6) {
+      setPwError('New password must be at least 6 characters.')
+      return
+    }
+    if (pw.next !== pw.confirm) {
+      setPwError('The new passwords do not match.')
+      return
+    }
+    setPwLoading(true)
+    const res = await changePassword(pw.current, pw.next)
+    setPwLoading(false)
+    if (res.ok) {
+      setPw({ current: '', next: '', confirm: '' })
+    } else {
+      setPwError(res.error)
+    }
   }
 
   return (
@@ -170,9 +199,16 @@ export function ProfilePage() {
               <CardBody className="space-y-3">
                 <div className="flex items-center gap-2 text-sm text-slate-600">
                   <Star className="h-4 w-4 text-amber-500" />
-                  Trainer rating: <strong>{user.rating || '—'}</strong> / 5.0
+                  {ratingSummary.count ? (
+                    <>
+                      Trainee rating: <strong>{ratingSummary.average.toFixed(1)}</strong> / 5.0
+                      <span className="text-xs text-slate-400">({ratingSummary.count})</span>
+                    </>
+                  ) : (
+                    <>No trainee ratings yet</>
+                  )}
                 </div>
-                {trainerPrograms.map((p) => (
+                {assignedPrograms.map((p) => (
                   <div key={p.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3">
                     <span className="text-2xl">{p.emoji}</span>
                     <div>
@@ -187,18 +223,43 @@ export function ProfilePage() {
 
           <Card>
             <CardHeader title="Account Security" icon={Shield} />
-            <CardBody className="space-y-4">
-              <FormRow>
+            <CardBody>
+              <form onSubmit={submitPassword} className="space-y-4">
                 <FormField label="Current Password">
-                  <Input type="password" placeholder="••••••••" />
+                  <Input
+                    type="password"
+                    autoComplete="current-password"
+                    placeholder="••••••••"
+                    value={pw.current}
+                    onChange={(e) => setPw({ ...pw, current: e.target.value })}
+                  />
                 </FormField>
-                <FormField label="New Password">
-                  <Input type="password" placeholder="••••••••" />
-                </FormField>
-              </FormRow>
-              <p className="text-xs text-slate-400">
-                Password changes are simulated in this frontend demonstration and are not persisted.
-              </p>
+                <FormRow>
+                  <FormField label="New Password">
+                    <Input
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="••••••••"
+                      value={pw.next}
+                      onChange={(e) => setPw({ ...pw, next: e.target.value })}
+                    />
+                  </FormField>
+                  <FormField label="Confirm New Password" error={pwError}>
+                    <Input
+                      type="password"
+                      autoComplete="new-password"
+                      placeholder="••••••••"
+                      value={pw.confirm}
+                      onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
+                    />
+                  </FormField>
+                </FormRow>
+                <div className="flex justify-end">
+                  <Button type="submit" icon={Shield} loading={pwLoading}>
+                    Update Password
+                  </Button>
+                </div>
+              </form>
             </CardBody>
           </Card>
         </div>

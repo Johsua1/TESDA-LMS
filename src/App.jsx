@@ -6,6 +6,7 @@ import { ToastContainer } from './components/ui/Toasts'
 // Auth / misc
 import { Login } from './pages/Login'
 import { SignUp } from './pages/SignUp'
+import { ResetPassword } from './pages/ResetPassword'
 import { NotFound } from './pages/NotFound'
 
 // Trainee
@@ -21,6 +22,7 @@ import { Grades } from './pages/trainee/Grades'
 import { Enrollment } from './pages/trainee/Enrollment'
 import { Payments } from './pages/trainee/Payments'
 import { TypingTest } from './pages/trainee/TypingTest'
+import { RateTrainer } from './pages/trainee/RateTrainer'
 
 // Trainer
 import { TrainerDashboard } from './pages/trainer/TrainerDashboard'
@@ -64,6 +66,7 @@ export default function App() {
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<SignUp />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
 
         {/* ------------------- IN-APP MEETING ROOM (full screen) ------------------- */}
         <Route
@@ -111,6 +114,7 @@ export default function App() {
           <Route path="/trainee/enrollment" element={<Enrollment />} />
           <Route path="/trainee/payments" element={<Payments />} />
           <Route path="/trainee/typing-test" element={<TypingTest />} />
+          <Route path="/trainee/ratings" element={<RateTrainer />} />
           <Route path="/trainee/announcements" element={<AnnouncementsPage />} />
           <Route path="/trainee/profile" element={<ProfilePage />} />
         </Route>

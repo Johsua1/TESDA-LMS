@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { BookOpen, Search, Filter, GraduationCap, Plus } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { enrollmentsOf, courseProgress, nextScheduleFor, hasCourseAccess } from '../../store/selectors'
+import { enrollmentsOf, courseProgress, nextScheduleFor, hasCourseAccess, enrollmentTrainerId } from '../../store/selectors'
 import { programById } from '../../data/programs'
 import { CourseCard } from '../../components/cards/CourseCard'
 import { PageHeader, EmptyState, Tabs, Button, SearchInput, Select } from '../../components/ui'
@@ -66,7 +66,7 @@ export function MyCourses() {
                 key={enr.id}
                 program={program}
                 enrollment={enr}
-                trainer={db.users.find((u) => u.id === program.trainerId)}
+                trainer={db.users.find((u) => u.id === enrollmentTrainerId(db, enr))}
                 nextSchedule={nextScheduleFor(db, program.id)}
                 progress={courseProgress(enr, program.id).percent}
                 basePath="/trainee/courses"

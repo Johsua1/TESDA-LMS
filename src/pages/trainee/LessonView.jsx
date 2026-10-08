@@ -2,7 +2,7 @@ import { Link, useParams, Navigate } from 'react-router-dom'
 import {
   ArrowLeft,
   ArrowRight,
-  Play,
+  VideoOff,
   FileText,
   Download,
   CheckCircle2,
@@ -17,7 +17,7 @@ import { enrollmentOf, programById, traineeQuizAttempts, hasCourseAccess } from 
 import { programLessons } from '../../data/programs'
 import { Card, CardBody, CardHeader, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
-import { cn } from '../../lib/utils'
+import { cn, videoEmbed } from '../../lib/utils'
 
 const fileIcon = { pdf: '📄', doc: '📝', xls: '📊', zip: '🗜️' }
 
@@ -69,17 +69,40 @@ export function LessonView() {
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         <div className="space-y-5 lg:col-span-2">
           <Card className="overflow-hidden">
-            {/* Video placeholder */}
-            <div className="relative flex aspect-video items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
-              <div className="text-center text-white/80">
-                <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/15 backdrop-blur transition hover:scale-105">
-                  <Play className="h-7 w-7 translate-x-0.5" />
-                </span>
-                <p className="mt-3 text-sm font-medium">{lesson.video || lesson.title}</p>
-                <p className="text-xs text-white/50">Video lesson placeholder · {lesson.duration} minutes</p>
-              </div>
-              <Badge className="absolute left-4 top-4 bg-black/40 text-white ring-white/20">{lesson.competency}</Badge>
-            </div>
+            {/* Video (real embed when the lesson has a video URL) */}
+            {(() => {
+              const embed = videoEmbed(lesson.videoUrl)
+              if (embed) {
+                return (
+                  <div className="relative aspect-video bg-black">
+                    {embed.type === 'iframe' ? (
+                      <iframe
+                        src={embed.src}
+                        title={lesson.title}
+                        className="h-full w-full"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
+                    ) : (
+                      <video src={embed.src} controls className="h-full w-full" />
+                    )}
+                    <Badge className="absolute left-4 top-4 bg-black/40 text-white ring-white/20">{lesson.competency}</Badge>
+                  </div>
+                )
+              }
+              return (
+                <div className="relative flex aspect-video items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+                  <div className="px-6 text-center text-white/70">
+                    <VideoOff className="mx-auto h-9 w-9 text-white/40" />
+                    <p className="mt-3 text-sm font-medium text-white/80">{lesson.video || lesson.title}</p>
+                    <p className="text-xs text-white/40">
+                      No video attached to this lesson · {lesson.duration} minutes of study material
+                    </p>
+                  </div>
+                  <Badge className="absolute left-4 top-4 bg-black/40 text-white ring-white/20">{lesson.competency}</Badge>
+                </div>
+              )
+            })()}
 
             <div className="p-5 sm:p-6">
               <div className="flex flex-wrap items-center gap-2">
@@ -153,20 +176,42 @@ export function LessonView() {
             <CardHeader title="Learning Materials" icon={FileText} />
             <CardBody className="space-y-2 pt-4">
               {lesson.materials?.length ? (
-                lesson.materials.map((m) => (
-                  <button
-                    key={m.name}
-                    onClick={() => toast('Material download is disabled in this demo.', 'info')}
-                    className="flex w-full items-center gap-3 rounded-lg border border-slate-100 p-3 text-left transition hover:border-brand-200 hover:bg-brand-50/40"
-                  >
-                    <span className="text-xl">{fileIcon[m.type] || '📎'}</span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-slate-700">{m.name}</span>
-                      <span className="block text-xs uppercase text-slate-400">{m.type}</span>
-                    </span>
-                    <Download className="h-4 w-4 shrink-0 text-slate-400" />
-                  </button>
-                ))
+                lesson.materials.map((m) => {
+                  const hasFile = Boolean(m.url)
+                  const inner = (
+                    <>
+                      <span className="text-xl">{fileIcon[m.type] || '📎'}</span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-slate-700">{m.name}</span>
+                        <span className="block text-xs uppercase text-slate-400">
+                          {hasFile ? m.type : 'No file attached'}
+                        </span>
+                      </span>
+                      <Download className={cn('h-4 w-4 shrink-0', hasFile ? 'text-brand-500' : 'text-slate-300')} />
+                    </>
+                  )
+                  const base = 'flex w-full items-center gap-3 rounded-lg border border-slate-100 p-3 text-left transition'
+                  return hasFile ? (
+                    <a
+                      key={m.id || m.name}
+                      href={m.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      download
+                      className={cn(base, 'hover:border-brand-200 hover:bg-brand-50/40')}
+                    >
+                      {inner}
+                    </a>
+                  ) : (
+                    <div
+                      key={m.id || m.name}
+                      title="No file attached to this material"
+                      className={cn(base, 'cursor-not-allowed opacity-60')}
+                    >
+                      {inner}
+                    </div>
+                  )
+                })
               ) : (
                 <p className="py-3 text-center text-sm text-slate-400">No materials for this lesson</p>
               )}

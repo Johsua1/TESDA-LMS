@@ -139,7 +139,7 @@ export function TrainerTrainees() {
           columns={columns}
           data={rows}
           searchable
-          searchKeys={['name']}
+          searchKeys={['trainee.name', 'trainee.email']}
           pageSize={10}
           emptyState={<EmptyState icon={Users} title="No trainees found" />}
         />

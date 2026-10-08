@@ -106,6 +106,7 @@ export function TrainerTypingTests() {
           data={tests}
           searchable
           searchPlaceholder="Search by trainee…"
+          searchKeys={[(r) => db.users.find((u) => u.id === r.traineeId)?.name]}
           pageSize={10}
           emptyState={<EmptyState icon={Keyboard} title="No typing test results" description="Results will appear once VA trainees take the test." />}
         />

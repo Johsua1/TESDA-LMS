@@ -70,6 +70,41 @@ const confirmTones = {
   success: { icon: CheckCircle2, ring: 'bg-emerald-50 text-emerald-600', button: 'success' },
 }
 
+// Single-action informational dialog (e.g. a validation error). Unlike
+// ConfirmDialog it shows one dismiss button, so it reads as a notice rather
+// than a decision.
+export function AlertDialog({
+  open,
+  onClose,
+  title = 'Something went wrong',
+  message,
+  tone = 'error',
+  buttonLabel = 'OK',
+}) {
+  const cfg = confirmTones[tone] || confirmTones.danger
+  const Icon = cfg.icon
+  return (
+    <Modal
+      open={open}
+      onClose={onClose}
+      size="sm"
+      title={title}
+      footer={
+        <Button variant={cfg.button} onClick={onClose}>
+          {buttonLabel}
+        </Button>
+      }
+    >
+      <div className="flex items-start gap-4">
+        <span className={cn('flex h-11 w-11 shrink-0 items-center justify-center rounded-full', cfg.ring)}>
+          <Icon className="h-5 w-5" />
+        </span>
+        <p className="pt-1.5 text-sm text-slate-600">{message}</p>
+      </div>
+    </Modal>
+  )
+}
+
 export function ConfirmDialog({
   open,
   onClose,

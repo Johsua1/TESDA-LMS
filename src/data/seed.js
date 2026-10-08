@@ -349,6 +349,37 @@ export function buildEvaluations(enrollments) {
   return list
 }
 
+// --------------------------- Trainer ratings --------------------------------
+// Trainee -> trainer ratings (5 stars + optional comment). One row per
+// (trainee, trainer), so dedupe by that pair.
+export function buildTrainerRatings(enrollments) {
+  const seen = new Set()
+  const list = []
+  enrollments.forEach((enr, i) => {
+    if (enr.status === 'Pending' || enr.status === 'Under Review') return
+    const trainerId = programById(enr.programId)?.trainerId
+    const key = `${enr.traineeId}-${trainerId}`
+    if (!trainerId || seen.has(key)) return
+    seen.add(key)
+    const rating = 3 + (i % 3) // 3..5
+    list.push({
+      id: `trr-${key}`,
+      traineeId: enr.traineeId,
+      trainerId,
+      programId: enr.programId,
+      rating,
+      comment:
+        rating >= 5
+          ? 'Excellent trainer — very clear and helpful.'
+          : rating >= 4
+            ? 'Good sessions and well organized.'
+            : 'Decent, but could improve the pacing.',
+      date: toISODate(addDays(startOfDay(), -8 + i)),
+    })
+  })
+  return list
+}
+
 // ----------------------------- Announcements --------------------------------
 export function buildAnnouncements() {
   const today = startOfDay()
@@ -431,6 +462,7 @@ export function buildSeed() {
   const examAttempts = buildExamAttempts(enrollments)
   const typingTests = buildTypingTests()
   const evaluations = buildEvaluations(enrollments)
+  const trainerRatings = buildTrainerRatings(enrollments)
   const announcements = buildAnnouncements()
 
   return {
@@ -443,6 +475,7 @@ export function buildSeed() {
     examAttempts,
     typingTests,
     evaluations,
+    trainerRatings,
     announcements,
   }
 }

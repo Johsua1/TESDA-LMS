@@ -147,6 +147,7 @@ export function Accounting() {
           data={records}
           searchable
           searchPlaceholder="Search by trainee…"
+          searchKeys={['trainee.name', 'program.title', 'enrollment.status']}
           pageSize={10}
           emptyState={<EmptyState icon={Wallet} title="No payment records" />}
         />

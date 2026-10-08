@@ -18,7 +18,6 @@ import {
   TrendingUp,
   Timer,
   Video,
-  Download,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import {
@@ -29,6 +28,7 @@ import {
   nextScheduleFor,
   programById,
   hasCourseAccess,
+  enrollmentTrainerId,
 } from '../../store/selectors'
 import { programLessonCount, programQuizCount } from '../../data/programs'
 import { Card, CardBody, CardHeader, Badge, Button, ProgressBar, Tabs, EmptyState } from '../../components/ui'
@@ -222,7 +222,7 @@ export function CourseDetail() {
     )
   }
 
-  const trainer = db.users.find((u) => u.id === program.trainerId)
+  const trainer = db.users.find((u) => u.id === enrollmentTrainerId(db, enrollment))
   const next = nextScheduleFor(db, programId)
   const tabs = [
     { key: 'overview', label: 'Overview' },

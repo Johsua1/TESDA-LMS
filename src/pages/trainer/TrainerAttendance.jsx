@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CalendarCheck, Save, Users, CheckCircle2, Clock, UserX, FileCheck2 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { trainerPrograms, programById } from '../../store/selectors'
+import { trainerPrograms, trainerEnrollments, programById } from '../../store/selectors'
 import { PageHeader, Card, CardBody, CardHeader, Button, Select, Badge, EmptyState, StatCard, Avatar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { formatDate, formatTime, startOfDay, cn } from '../../lib/utils'
@@ -32,7 +32,10 @@ export function TrainerAttendance() {
 
   const roster = useMemo(() => {
     if (!programId) return []
-    const enrs = db.enrollments.filter((e) => e.programId === programId && ['Enrolled', 'Approved', 'Completed'].includes(e.status))
+    // Only this trainer's own students for the program, not every enrollee.
+    const enrs = trainerEnrollments(db, user.id, programId).filter((e) =>
+      ['Enrolled', 'Approved', 'Completed'].includes(e.status),
+    )
     return enrs.map((e) => {
       const trainee = db.users.find((u) => u.id === e.traineeId)
       const existing = schedule
@@ -40,7 +43,7 @@ export function TrainerAttendance() {
         : null
       return { trainee, existing }
     })
-  }, [db, programId, schedule])
+  }, [db, programId, schedule, user.id])
 
   const [marks, setMarks] = useState({})
 

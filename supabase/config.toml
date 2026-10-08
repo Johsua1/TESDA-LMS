@@ -1,0 +1,11 @@
+# Supabase project configuration (Supabase CLI).
+# Used by `supabase link` / `supabase functions deploy`.
+# Adjust project_id to your own project ref if you deploy from the CLI.
+
+project_id = "tesda-lms"
+
+[functions.create-trainer]
+verify_jwt = true
+
+[functions.resend-trainer-invitation]
+verify_jwt = true

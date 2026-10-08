@@ -18,6 +18,7 @@ import {
   LineChart,
   Keyboard,
   Award,
+  Star,
   UserCircle,
 } from 'lucide-react'
 
@@ -122,6 +123,8 @@ export const navConfig = {
         { to: '/trainee/schedules', label: 'Class Schedules', icon: CalendarDays },
         { to: '/trainee/attendance', label: 'Attendance', icon: CalendarCheck },
         { to: '/trainee/grades', label: 'Grades & Scores', icon: Award },
+        { to: '/trainee/typing-test', label: 'Typing Test', icon: Keyboard },
+        { to: '/trainee/ratings', label: 'Rate Trainer', icon: Star },
       ],
     },
     {

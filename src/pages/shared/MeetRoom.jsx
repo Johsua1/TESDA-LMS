@@ -574,20 +574,42 @@ export function MeetRoom() {
                     <FileText className="h-3.5 w-3.5" /> Learning Materials
                   </p>
                   <div className="space-y-2">
-                    {sessionMaterials.map((m) => (
-                      <button
-                        key={m.name}
-                        onClick={() => toast('Material download is disabled in this demo.', 'info')}
-                        className="flex w-full items-center gap-3 rounded-lg border border-slate-800 p-3 text-left transition hover:border-brand-500/50 hover:bg-slate-800/60"
-                      >
-                        <FileText className="h-4 w-4 shrink-0 text-slate-400" />
-                        <span className="min-w-0 flex-1">
-                          <span className="block truncate text-xs font-medium text-slate-200">{m.name}</span>
-                          <span className="block text-[10px] uppercase text-slate-500">{m.type}</span>
-                        </span>
-                        <Download className="h-3.5 w-3.5 shrink-0 text-slate-500" />
-                      </button>
-                    ))}
+                    {sessionMaterials.map((m) => {
+                      const hasFile = Boolean(m.url)
+                      const inner = (
+                        <>
+                          <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-xs font-medium text-slate-200">{m.name}</span>
+                            <span className="block text-[10px] uppercase text-slate-500">
+                              {hasFile ? m.type : 'No file attached'}
+                            </span>
+                          </span>
+                          <Download className={`h-3.5 w-3.5 shrink-0 ${hasFile ? 'text-brand-400' : 'text-slate-600'}`} />
+                        </>
+                      )
+                      const base = 'flex w-full items-center gap-3 rounded-lg border border-slate-800 p-3 text-left transition'
+                      return hasFile ? (
+                        <a
+                          key={m.id || m.name}
+                          href={m.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          download
+                          className={`${base} hover:border-brand-500/50 hover:bg-slate-800/60`}
+                        >
+                          {inner}
+                        </a>
+                      ) : (
+                        <div
+                          key={m.id || m.name}
+                          title="No file attached to this material"
+                          className={`${base} cursor-not-allowed opacity-60`}
+                        >
+                          {inner}
+                        </div>
+                      )
+                    })}
                     {sessionMaterials.length === 0 && (
                       <p className="text-xs text-slate-500">No materials attached to this session.</p>
                     )}

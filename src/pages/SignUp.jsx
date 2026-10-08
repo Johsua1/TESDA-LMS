@@ -2,7 +2,7 @@ import { useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, UserPlus, Upload, ArrowLeft, ShieldCheck, BookOpen, Award } from 'lucide-react'
 import { useApp } from '../store/AppContext'
-import { Button, FormField, FormRow, Input, Textarea, Checkbox } from '../components/ui'
+import { Button, FormField, FormRow, Input, Textarea, Checkbox, Modal } from '../components/ui'
 
 const BENEFITS = [
   { icon: BookOpen, text: 'Enroll in the Virtual Assistant program' },
@@ -26,6 +26,7 @@ export function SignUp() {
     avatarUrl: '',
   })
   const [agree, setAgree] = useState(false)
+  const [legal, setLegal] = useState(null) // 'terms' | 'privacy' | null
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -176,8 +177,31 @@ export function SignUp() {
               onChange={(e) => setAgree(e.target.checked)}
               label={
                 <span>
-                  I agree to the <span className="font-semibold text-brand-600">Terms and Conditions</span> and{' '}
-                  <span className="font-semibold text-brand-600">Privacy Policy</span>.
+                  I agree to the{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setLegal('terms')
+                    }}
+                    className="font-semibold text-brand-600 underline decoration-dotted underline-offset-2 hover:text-brand-700"
+                  >
+                    Terms and Conditions
+                  </button>{' '}
+                  and{' '}
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.preventDefault()
+                      e.stopPropagation()
+                      setLegal('privacy')
+                    }}
+                    className="font-semibold text-brand-600 underline decoration-dotted underline-offset-2 hover:text-brand-700"
+                  >
+                    Privacy Policy
+                  </button>
+                  .
                 </span>
               }
             />
@@ -199,6 +223,49 @@ export function SignUp() {
           </p>
         </div>
       </div>
+
+      <Modal
+        open={!!legal}
+        onClose={() => setLegal(null)}
+        title={legal === 'terms' ? 'Terms and Conditions' : 'Privacy Policy'}
+        icon={ShieldCheck}
+        size="md"
+        footer={
+          <Button variant="secondary" onClick={() => setLegal(null)}>
+            Close
+          </Button>
+        }
+      >
+        {legal === 'terms' ? (
+          <div className="space-y-3 text-sm leading-relaxed text-slate-600">
+            <p>
+              By creating an account you agree to use this Learning Management System for its intended training purposes
+              only.
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>Provide accurate personal information and keep your account credentials private.</li>
+              <li>Do not share, copy or redistribute course materials without permission.</li>
+              <li>Follow your trainer&apos;s instructions and the institution&apos;s code of conduct.</li>
+              <li>Misuse of the platform may result in suspension of your account.</li>
+            </ul>
+            <p className="text-xs text-slate-400">This is a summary provided for convenience.</p>
+          </div>
+        ) : (
+          <div className="space-y-3 text-sm leading-relaxed text-slate-600">
+            <p>
+              We collect the information you enter when registering (name, contact details and enrollment data) to
+              operate your training account.
+            </p>
+            <ul className="list-disc space-y-1.5 pl-5">
+              <li>Your data is used to manage enrollment, attendance, grades and certification.</li>
+              <li>We do not sell your personal information to third parties.</li>
+              <li>Access is limited to authorised administrators and trainers.</li>
+              <li>You may request correction or deletion of your data by contacting the administrator.</li>
+            </ul>
+            <p className="text-xs text-slate-400">This is a summary provided for convenience.</p>
+          </div>
+        )}
+      </Modal>
     </div>
   )
 }

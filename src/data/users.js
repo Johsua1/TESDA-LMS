@@ -29,7 +29,6 @@ export const users = [
     programs: ['housekeeping'],
     phone: '+63 917 100 0001',
     address: 'Quezon City',
-    rating: 4.8,
     since: '2019-06-01',
   },
   {
@@ -44,7 +43,6 @@ export const users = [
     programs: ['barista'],
     phone: '+63 917 100 0002',
     address: 'Makati City',
-    rating: 4.9,
     since: '2020-02-15',
   },
   {
@@ -59,7 +57,6 @@ export const users = [
     programs: ['hilot'],
     phone: '+63 917 100 0003',
     address: 'Pasig City',
-    rating: 4.7,
     since: '2018-09-10',
   },
   {
@@ -74,7 +71,6 @@ export const users = [
     programs: ['event-management'],
     phone: '+63 917 100 0004',
     address: 'Mandaluyong City',
-    rating: 4.6,
     since: '2021-01-20',
   },
   {
@@ -89,7 +85,6 @@ export const users = [
     programs: ['virtual-assistant'],
     phone: '+63 917 100 0005',
     address: 'Taguig City',
-    rating: 4.9,
     since: '2022-03-05',
   },
 

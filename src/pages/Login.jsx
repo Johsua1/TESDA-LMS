@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, ShieldCheck, UserCog, User, ArrowRight } from 'lucide-react'
+import { Mail, Lock, Eye, EyeOff, ShieldCheck, UserCog, User, ArrowRight, KeyRound } from 'lucide-react'
 import { useApp } from '../store/AppContext'
-import { Button, Input, FormField } from '../components/ui'
+import { Button, Input, FormField, Modal } from '../components/ui'
 import { roleMeta } from '../config/navigation'
+import { REMEMBER_KEY } from '../lib/supabase'
+import * as backend from '../lib/backend'
 import { cn } from '../lib/utils'
 
 const demoAccounts = [
@@ -13,7 +15,7 @@ const demoAccounts = [
 ]
 
 export function Login() {
-  const { user, login, toast, isSupabaseConfigured } = useApp()
+  const { user, login, completeMfa, toast, isSupabaseConfigured } = useApp()
   const navigate = useNavigate()
   const location = useLocation()
   const [email, setEmail] = useState('')
@@ -21,6 +23,12 @@ export function Login() {
   const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [mfa, setMfa] = useState(null)
+  const [code, setCode] = useState('')
+  const [remember, setRemember] = useState(true)
+  const [forgotOpen, setForgotOpen] = useState(false)
+  const [forgotEmail, setForgotEmail] = useState('')
+  const [forgotLoading, setForgotLoading] = useState(false)
 
   if (user) return <Navigate to={roleMeta[user.role]?.home || '/login'} replace />
 
@@ -28,10 +36,37 @@ export function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
+    // Persist the "Remember me" preference before signing in — the Supabase
+    // client reads it when deciding where to store the session.
+    try {
+      localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0')
+    } catch {
+      /* ignore */
+    }
+
+    // Step 2 — verify the authenticator code (MFA enabled accounts).
+    if (mfa) {
+      const res = await completeMfa(mfa.factorId, code, mfa.profile)
+      setLoading(false)
+      if (!res.ok) {
+        setError(res.error)
+        return
+      }
+      toast(`Welcome back, ${res.user.name.split(' ')[0]}!`, 'success', 'Signed in')
+      navigate(location.state?.from || roleMeta[res.user.role]?.home || '/', { replace: true })
+      return
+    }
+
+    // Step 1 — password sign-in.
     const res = await login(email, password)
     setLoading(false)
     if (!res.ok) {
       setError(res.error)
+      return
+    }
+    if (res.mfaRequired) {
+      setMfa({ factorId: res.factorId, profile: res.user })
+      setCode('')
       return
     }
     toast(`Welcome back, ${res.user.name.split(' ')[0]}!`, 'success', 'Signed in')
@@ -43,6 +78,29 @@ export function Login() {
     setEmail(acct.email)
     setPassword(acct.password)
     setError('')
+  }
+
+  const sendReset = async (e) => {
+    e.preventDefault()
+    if (!isSupabaseConfigured) {
+      toast('Password reset is unavailable in demo mode.', 'info')
+      return
+    }
+    if (!forgotEmail.trim()) {
+      toast('Enter your account email address.', 'error')
+      return
+    }
+    setForgotLoading(true)
+    try {
+      await backend.sendPasswordResetEmail(forgotEmail)
+      toast('If an account exists for that email, a reset link is on its way.', 'success', 'Check your inbox')
+      setForgotOpen(false)
+      setForgotEmail('')
+    } catch (err) {
+      toast(err?.message || 'Could not send the reset email. Please try again.', 'error')
+    } finally {
+      setForgotLoading(false)
+    }
   }
 
   return (
@@ -109,63 +167,115 @@ export function Login() {
             </div>
           </div>
 
-          <h2 className="text-2xl font-bold text-slate-800">Sign in to your account</h2>
-          <p className="mt-1 text-sm text-slate-500">Enter your credentials to access the portal.</p>
+          <h2 className="text-2xl font-bold text-slate-800">
+            {mfa ? 'Two-factor authentication' : 'Sign in to your account'}
+          </h2>
+          <p className="mt-1 text-sm text-slate-500">
+            {mfa ? 'Enter the 6-digit code from your authenticator app.' : 'Enter your credentials to access the portal.'}
+          </p>
 
           <form onSubmit={submit} className="mt-7 space-y-4">
-            <FormField label="Email address" htmlFor="email">
-              <div className="relative">
-                <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  autoComplete="username"
-                  placeholder="you@tesda.gov.ph"
-                  className="pl-9"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  required
-                />
-              </div>
-            </FormField>
+            {mfa ? (
+              <FormField label="Verification code" htmlFor="mfa-code" error={error}>
+                <div className="relative">
+                  <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <Input
+                    id="mfa-code"
+                    inputMode="numeric"
+                    autoComplete="one-time-code"
+                    maxLength={6}
+                    placeholder="000000"
+                    className="pl-9 tracking-[0.4em]"
+                    value={code}
+                    onChange={(e) => setCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                    autoFocus
+                    required
+                  />
+                </div>
+              </FormField>
+            ) : (
+              <>
+                <FormField label="Email address" htmlFor="email">
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      id="email"
+                      type="email"
+                      autoComplete="username"
+                      placeholder="you@tesda.gov.ph"
+                      className="pl-9"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                </FormField>
 
-            <FormField label="Password" htmlFor="password" error={error}>
-              <div className="relative">
-                <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <Input
-                  id="password"
-                  type={showPass ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  placeholder="••••••••"
-                  className="pl-9 pr-10"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  required
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPass((s) => !s)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600"
-                  aria-label={showPass ? 'Hide password' : 'Show password'}
-                >
-                  {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                </button>
-              </div>
-            </FormField>
+                <FormField label="Password" htmlFor="password" error={error}>
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <Input
+                      id="password"
+                      type={showPass ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      placeholder="••••••••"
+                      className="pl-9 pr-10"
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      required
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPass((s) => !s)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600"
+                      aria-label={showPass ? 'Hide password' : 'Show password'}
+                    >
+                      {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
+                  </div>
+                </FormField>
 
-            <div className="flex items-center justify-between">
-              <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-                <input type="checkbox" className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500" />
-                Remember me
-              </label>
-              <button type="button" className="text-sm font-medium text-brand-600 hover:text-brand-700">
-                Forgot password?
-              </button>
-            </div>
+                <div className="flex items-center justify-between">
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+                    <input
+                      type="checkbox"
+                      checked={remember}
+                      onChange={(e) => setRemember(e.target.checked)}
+                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+                    />
+                    Remember me
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setForgotEmail(email)
+                      setForgotOpen(true)
+                    }}
+                    className="text-sm font-medium text-brand-600 hover:text-brand-700"
+                  >
+                    Forgot password?
+                  </button>
+                </div>
+              </>
+            )}
 
             <Button type="submit" className="w-full" size="lg" loading={loading} iconRight={ArrowRight}>
-              Sign in
+              {mfa ? 'Verify & sign in' : 'Sign in'}
             </Button>
+
+            {mfa && (
+              <button
+                type="button"
+                onClick={() => {
+                  setMfa(null)
+                  setCode('')
+                  setError('')
+                }}
+                className="w-full text-center text-sm font-medium text-brand-600 hover:text-brand-700"
+              >
+                Use a different account
+              </button>
+            )}
           </form>
 
           <p className="mt-6 text-center text-sm text-slate-500">
@@ -206,6 +316,42 @@ export function Login() {
           )}
         </div>
       </div>
+
+      {/* Forgot password */}
+      <Modal
+        open={forgotOpen}
+        onClose={() => setForgotOpen(false)}
+        title="Reset your password"
+        subtitle="We'll email you a secure link to choose a new password."
+        icon={KeyRound}
+        size="sm"
+      >
+        <form onSubmit={sendReset} className="space-y-4">
+          <FormField label="Email address" htmlFor="forgot-email">
+            <div className="relative">
+              <Mail className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+              <Input
+                id="forgot-email"
+                type="email"
+                autoComplete="username"
+                placeholder="you@tesda.gov.ph"
+                className="pl-9"
+                value={forgotEmail}
+                onChange={(e) => setForgotEmail(e.target.value)}
+                required
+              />
+            </div>
+          </FormField>
+          <div className="flex justify-end gap-2">
+            <Button type="button" variant="secondary" onClick={() => setForgotOpen(false)}>
+              Cancel
+            </Button>
+            <Button type="submit" loading={forgotLoading}>
+              Send reset link
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }

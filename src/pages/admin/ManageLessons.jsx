@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { FileText, Clock, Eye, BookOpen, Play, Layers } from 'lucide-react'
+import { FileText, Clock, Eye, BookOpen, VideoOff, Layers } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { programLessons } from '../../data/programs'
+import { videoEmbed } from '../../lib/utils'
 import { PageHeader, Card, CardHeader, Badge, StatCard, Select, Modal, Button, EmptyState, SearchInput } from '../../components/ui'
 import { DataTable } from '../../components/ui/Table'
 
@@ -108,14 +109,27 @@ export function ManageLessons() {
       >
         {selected && (
           <div className="space-y-4">
-            <div className="flex aspect-video items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white/80">
-              <div className="text-center">
-                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/15">
-                  <Play className="h-6 w-6 translate-x-0.5" />
-                </span>
-                <p className="mt-2 text-sm">{selected.video || selected.title}</p>
-              </div>
-            </div>
+            {(() => {
+              const embed = videoEmbed(selected.videoUrl)
+              if (embed) {
+                return (
+                  <div className="aspect-video overflow-hidden rounded-xl bg-black">
+                    {embed.type === 'iframe' ? (
+                      <iframe src={embed.src} title={selected.title} className="h-full w-full" allowFullScreen />
+                    ) : (
+                      <video src={embed.src} controls className="h-full w-full" />
+                    )}
+                  </div>
+                )
+              }
+              return (
+                <div className="flex aspect-video flex-col items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white/70">
+                  <VideoOff className="h-8 w-8 text-white/40" />
+                  <p className="mt-2 text-sm">{selected.video || selected.title}</p>
+                  <p className="text-xs text-white/40">No video attached</p>
+                </div>
+              )
+            })()}
             <p className="text-sm leading-relaxed text-slate-600">{selected.content}</p>
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Materials</p>

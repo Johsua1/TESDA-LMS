@@ -9,6 +9,7 @@ import {
   CardHeader,
   Button,
   Modal,
+  AlertDialog,
   Input,
   Select,
   FormField,
@@ -21,7 +22,7 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, formatTime, startOfDay } from '../../lib/utils'
+import { formatDate, formatTime, startOfDay, combineDateTime } from '../../lib/utils'
 
 const emptyForm = {
   programId: '',
@@ -46,6 +47,7 @@ export function ManageSchedules() {
   const [confirm, setConfirm] = useState(null)
   const [programFilter, setProgramFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
+  const [formError, setFormError] = useState(null)
 
   const lessons = useMemo(() => (form.programId ? programLessons(form.programId) : []), [form.programId])
 
@@ -73,6 +75,15 @@ export function ManageSchedules() {
   const save = () => {
     if (!form.programId || !form.lessonId || !form.date) {
       toast('Please complete the required fields.', 'warning')
+      return
+    }
+    const start = combineDateTime(form.date, form.startTime)
+    const originalStart = editing ? combineDateTime(editing.date, editing.startTime) : null
+    const unchanged = originalStart && start && start.getTime() === originalStart.getTime()
+    if (start && !unchanged && start < new Date()) {
+      setFormError(
+        `The session start (${formatDate(form.date, { month: 'long', day: 'numeric', year: 'numeric' })} at ${formatTime(form.startTime)}) is already in the past. Please choose a date and time that is not earlier than the current date and time.`,
+      )
       return
     }
     const lesson = programLessons(form.programId).find((l) => l.id === form.lessonId)
@@ -251,6 +262,13 @@ export function ManageSchedules() {
           )}
         </div>
       </Modal>
+
+      <AlertDialog
+        open={!!formError}
+        onClose={() => setFormError(null)}
+        title="Invalid schedule date/time"
+        message={formError}
+      />
 
       <ConfirmDialog
         open={!!confirm}

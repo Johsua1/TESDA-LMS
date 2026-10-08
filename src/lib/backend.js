@@ -5,7 +5,7 @@
 // is `{ id, <a few scalar columns>, data jsonb }`. The nested parts of an object
 // (program content, enrollment progress/payment, etc.) round-trip inside `data`.
 // ---------------------------------------------------------------------------
-import { supabase } from './supabase'
+import { supabase, verifyPassword } from './supabase'
 
 // app collection -> { table, scalars: { appKey: column } }
 const COLLECTIONS = {
@@ -31,6 +31,10 @@ const COLLECTIONS = {
   evaluations: {
     table: 'evaluations',
     scalars: { traineeId: 'trainee_id', programId: 'program_id', trainerId: 'trainer_id' },
+  },
+  trainerRatings: {
+    table: 'trainer_ratings',
+    scalars: { traineeId: 'trainee_id', trainerId: 'trainer_id', programId: 'program_id' },
   },
   announcements: {
     table: 'announcements',
@@ -99,10 +103,25 @@ export async function fetchProfiles() {
   return (data || []).map(fromProfileRow)
 }
 
+// The authoritative trainer <-> program assignments (migration 019). Read-only
+// in the store: it is written through assignTrainerPrograms/syncTrainerPrograms.
+// A trainer sees only their own rows; a Super Admin sees every row (RLS).
+export async function fetchTrainerPrograms() {
+  const { data, error } = await supabase.from('trainer_programs').select('*')
+  if (error) throw error
+  return (data || []).map((row) => ({
+    id: row.id,
+    trainerId: row.trainer_id,
+    programId: row.program_id,
+    status: row.status,
+  }))
+}
+
 export async function loadAll() {
   const queries = COLLECTION_NAMES.map((n) => supabase.from(COLLECTIONS[n].table).select('*'))
   queries.push(supabase.from('profiles').select('*'))
   queries.push(supabase.from('settings').select('*').eq('id', 'global').limit(1))
+  queries.push(supabase.from('trainer_programs').select('*'))
 
   const results = await Promise.all(queries)
 
@@ -119,6 +138,21 @@ export async function loadAll() {
 
   const settingsRes = results[COLLECTION_NAMES.length + 1]
   const settings = settingsRes.data?.[0]?.data || null
+
+  // Authoritative assignments — non-fatal if the table is unavailable so the
+  // rest of the LMS still loads.
+  const tpRes = results[COLLECTION_NAMES.length + 2]
+  if (tpRes.error) {
+    console.warn('Failed to load trainer_programs:', tpRes.error)
+    db.trainerPrograms = []
+  } else {
+    db.trainerPrograms = (tpRes.data || []).map((row) => ({
+      id: row.id,
+      trainerId: row.trainer_id,
+      programId: row.program_id,
+      status: row.status,
+    }))
+  }
 
   return { db, settings }
 }
@@ -219,6 +253,38 @@ export async function signOut() {
   await supabase.auth.signOut()
 }
 
+// ------------------------------- MFA (AAL) ----------------------------------
+// Whether the signed-in user must complete an MFA challenge to reach AAL2.
+export async function getMfaAssurance() {
+  const { data, error } = await supabase.auth.mfa.getAuthenticatorAssuranceLevel()
+  if (error) return { needsChallenge: false, currentLevel: 'aal1', nextLevel: 'aal1' }
+  const needsChallenge = data.nextLevel === 'aal2' && data.currentLevel !== 'aal2'
+  let factorId = null
+  if (needsChallenge) {
+    const { data: factors } = await supabase.auth.mfa.listFactors()
+    const totp = (factors?.totp || []).find((f) => f.status === 'verified')
+    factorId = totp?.id || null
+  }
+  return {
+    needsChallenge: needsChallenge && Boolean(factorId),
+    currentLevel: data.currentLevel,
+    nextLevel: data.nextLevel,
+    factorId,
+  }
+}
+
+export async function verifyMfa(factorId, code) {
+  const { data: challenge, error: challengeError } = await supabase.auth.mfa.challenge({ factorId })
+  if (challengeError) return { ok: false, error: challengeError.message }
+  const { error: verifyError } = await supabase.auth.mfa.verify({
+    factorId,
+    challengeId: challenge.id,
+    code: String(code).trim(),
+  })
+  if (verifyError) return { ok: false, error: verifyError.message }
+  return { ok: true }
+}
+
 export async function signUpTrainee(payload) {
   const email = String(payload.email || '').trim().toLowerCase()
   const { data, error } = await supabase.auth.signUp({ email, password: payload.password })
@@ -265,4 +331,87 @@ export async function adminCreateUser({ id, email, password, role, name, data })
   })
   if (error) throw error
   return newId
+}
+
+// Email a newly created account (trainer or trainee) an activation link so they
+// can set their own password. Uses Supabase Auth's mailer (the project's
+// configured SMTP, e.g. Gmail), so it needs no third-party provider.
+// Best-effort — the caller decides whether a failure should surface.
+export async function sendActivationEmail(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(String(email).trim().toLowerCase(), {
+    redirectTo: `${window.location.origin}/login`,
+  })
+  if (error) throw error
+}
+
+// Send a password-reset link to any account (used by the Login page's
+// "Forgot password?"). The link lands on /reset-password where the user sets a
+// new password. Supabase never reveals whether the email exists.
+export async function sendPasswordResetEmail(email) {
+  const { error } = await supabase.auth.resetPasswordForEmail(String(email).trim().toLowerCase(), {
+    redirectTo: `${window.location.origin}/reset-password`,
+  })
+  if (error) throw error
+}
+
+// Set a new password for the currently signed-in user (used by /reset-password
+// after a recovery link, which establishes a session).
+export async function updatePassword(newPassword) {
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
+}
+
+// Change the password of a signed-in user, re-verifying the current password
+// first so a borrowed session cannot silently change it.
+//
+// The current password is checked with a stateless token-endpoint call rather
+// than signInWithPassword: signing in again on the main client would replace
+// the session and, for an MFA-enabled account, drop it from AAL2 to AAL1 —
+// after which Supabase refuses the password update ("AAL2 session is required
+// to update email or password when MFA is enabled"). The stateless check leaves
+// the session untouched.
+export async function changePassword(currentPassword, newPassword) {
+  const { data } = await supabase.auth.getUser()
+  const email = data?.user?.email
+  if (email && currentPassword) {
+    const ok = await verifyPassword(email, currentPassword)
+    if (!ok) throw new Error('Your current password is incorrect.')
+  }
+  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  if (error) throw error
+}
+
+// Assign a trainer to programs (the authoritative many-to-many used by RLS).
+// Super Admin only — enforced by the trainer_programs RLS policy.
+export async function assignTrainerPrograms(trainerId, programIds) {
+  const ids = (programIds || []).filter(Boolean)
+  if (!trainerId || !ids.length) return
+  const rows = ids.map((programId) => ({ trainer_id: trainerId, program_id: programId, status: 'active' }))
+  const { error } = await supabase
+    .from('trainer_programs')
+    .upsert(rows, { onConflict: 'trainer_id,program_id' })
+  if (error) throw error
+}
+
+// Reconcile a trainer's program assignments to exactly `programIds`
+// (Super Admin only). Used when editing a trainer so RLS stays in sync.
+export async function syncTrainerPrograms(trainerId, programIds) {
+  if (!trainerId) return
+  const ids = (programIds || []).filter(Boolean)
+  const { error: delError } = await supabase.from('trainer_programs').delete().eq('trainer_id', trainerId)
+  if (delError) throw delError
+  if (!ids.length) return
+  const rows = ids.map((programId) => ({ trainer_id: trainerId, program_id: programId, status: 'active' }))
+  const { error } = await supabase
+    .from('trainer_programs')
+    .upsert(rows, { onConflict: 'trainer_id,program_id' })
+  if (error) throw error
+}
+
+// Idempotently flip the signed-in trainer's own profile from pending_activation
+// to active. Without this a freshly created trainer passes the login but RLS
+// (is_active_trainer) blocks every trainer write. Safe to call on every login.
+export async function activateMyAccount() {
+  const { error } = await supabase.rpc('activate_my_account')
+  if (error) throw error
 }

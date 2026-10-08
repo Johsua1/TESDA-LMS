@@ -22,23 +22,64 @@ export const courseProgress = (enrollment, programId) => {
   return { completed, total, percent: total ? Math.round((completed / total) * 100) : 0 }
 }
 
-export const trainerPrograms = (db, trainerId) =>
-  db.programs.filter((p) => p.trainerId === trainerId)
+// A trainer's assigned programs. Three sources are unioned so a course shows up
+// however the assignment was made:
+//   1. `trainer_programs` — the authoritative many-to-many table (loaded into
+//      db.trainerPrograms); this is what RLS and the Super Admin assignment UI
+//      actually write.
+//   2. the trainer profile's `programs` array (legacy display field, kept in
+//      sync by createTrainer/updateTrainer).
+//   3. the program-side `trainerId` link (courses assigned from Manage Courses).
+export const trainerPrograms = (db, trainerId) => {
+  const trainer = db.users.find((u) => u.id === trainerId)
+  const ids = new Set(Array.isArray(trainer?.programs) ? trainer.programs : [])
+  for (const tp of db.trainerPrograms || []) {
+    if (tp.trainerId === trainerId && tp.status !== 'revoked') ids.add(tp.programId)
+  }
+  return db.programs.filter((p) => ids.has(p.id) || p.trainerId === trainerId)
+}
 
+// Trainers qualified to handle a program (assigned to it). Used to populate the
+// admin's trainer picker when assigning a trainee.
+export const programTrainers = (db, programId) =>
+  db.users.filter((u) => u.role === 'trainer' && trainerPrograms(db, u.id).some((p) => p.id === programId))
+
+// Which trainer handles a given enrollment. The admin-set `enrollment.trainerId`
+// wins; otherwise fall back to the program's sole assigned trainer, then its
+// legacy `trainerId`. With several trainers and no explicit assignment it is
+// ambiguous, so it returns null until the admin assigns one.
+export const enrollmentTrainerId = (db, enrollment) => {
+  if (!enrollment) return null
+  if (enrollment.trainerId) return enrollment.trainerId
+  const assigned = (db.trainerPrograms || []).filter(
+    (tp) => tp.programId === enrollment.programId && tp.status !== 'revoked',
+  )
+  if (assigned.length === 1) return assigned[0].trainerId
+  const program = (db.programs || []).find((p) => p.id === enrollment.programId)
+  return program?.trainerId || null
+}
+
+// A trainer's trainees: everyone whose enrollment is assigned to them. This is
+// the admin-set link (enrollment.trainerId), NOT merely "everyone in my
+// programs" — several trainers may share one program with different students.
 export const trainerTrainees = (db, trainerId) => {
-  const programIds = trainerPrograms(db, trainerId).map((p) => p.id)
   const map = new Map()
   db.enrollments.forEach((e) => {
-    if (programIds.includes(e.programId)) {
-      if (!map.has(e.traineeId)) map.set(e.traineeId, [])
-      map.get(e.traineeId).push(e)
-    }
+    if (enrollmentTrainerId(db, e) !== trainerId) return
+    if (!map.has(e.traineeId)) map.set(e.traineeId, [])
+    map.get(e.traineeId).push(e)
   })
   return [...map.entries()].map(([traineeId, enrollments]) => ({
     trainee: db.users.find((u) => u.id === traineeId),
     enrollments,
   })).filter((x) => x.trainee)
 }
+
+// A trainer's enrollments, optionally limited to one program.
+export const trainerEnrollments = (db, trainerId, programId) =>
+  db.enrollments.filter(
+    (e) => enrollmentTrainerId(db, e) === trainerId && (!programId || e.programId === programId),
+  )
 
 export const attendanceStats = (db, traineeId, programId) => {
   let records = db.attendance.filter((a) => a.traineeId === traineeId)
@@ -91,6 +132,22 @@ export const traineeEvaluations = (db, traineeId) =>
 
 export const trainerEvaluations = (db, trainerId) =>
   db.evaluations.filter((e) => e.trainerId === trainerId)
+
+// Trainee -> trainer ratings. `trainerRatings` is the db collection key, so the
+// selector names are distinct. A trainer's rating is the average of the stars
+// their trainees submitted.
+export const trainerRatingsFor = (db, trainerId) =>
+  (db.trainerRatings || []).filter((r) => r.trainerId === trainerId)
+
+export const trainerRatingSummary = (db, trainerId) => {
+  const list = trainerRatingsFor(db, trainerId)
+  const count = list.length
+  const average = count ? list.reduce((s, r) => s + (Number(r.rating) || 0), 0) / count : 0
+  return { count, average }
+}
+
+export const traineeTrainerRating = (db, traineeId, trainerId) =>
+  (db.trainerRatings || []).find((r) => r.traineeId === traineeId && r.trainerId === trainerId)
 
 export const announcementsFor = (db, user) => {
   if (!user) return []

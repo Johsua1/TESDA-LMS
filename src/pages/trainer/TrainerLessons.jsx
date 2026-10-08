@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react'
-import { FileText, Clock, Play, BookOpen, Plus, Pencil, Trash2, EyeOff, Link2 } from 'lucide-react'
+import { FileText, Clock, VideoOff, BookOpen, Plus, Pencil, Trash2, EyeOff, Link2 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerPrograms } from '../../store/selectors'
 import { programLessons } from '../../data/programs'
@@ -20,7 +20,7 @@ import {
   Checkbox,
 } from '../../components/ui'
 import { MaterialEditor } from '../../components/content/MaterialEditor'
-import { cn } from '../../lib/utils'
+import { cn, videoEmbed } from '../../lib/utils'
 
 const blankLesson = () => ({
   id: '',
@@ -209,15 +209,27 @@ export function TrainerLessons() {
       >
         {viewing && (
           <div className="space-y-4">
-            <div className="flex aspect-video items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white/80">
-              <div className="text-center">
-                <span className="mx-auto flex h-14 w-14 items-center justify-center rounded-full bg-white/15">
-                  <Play className="h-6 w-6 translate-x-0.5" />
-                </span>
-                <p className="mt-2 text-sm">{viewing.videoUrl || viewing.video || viewing.title}</p>
-                <p className="text-xs text-white/50">{viewing.videoUrl ? 'External video link' : 'Video placeholder'}</p>
-              </div>
-            </div>
+            {(() => {
+              const embed = videoEmbed(viewing.videoUrl)
+              if (embed) {
+                return (
+                  <div className="aspect-video overflow-hidden rounded-xl bg-black">
+                    {embed.type === 'iframe' ? (
+                      <iframe src={embed.src} title={viewing.title} className="h-full w-full" allowFullScreen />
+                    ) : (
+                      <video src={embed.src} controls className="h-full w-full" />
+                    )}
+                  </div>
+                )
+              }
+              return (
+                <div className="flex aspect-video flex-col items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white/70">
+                  <VideoOff className="h-8 w-8 text-white/40" />
+                  <p className="mt-2 text-sm">{viewing.video || viewing.title}</p>
+                  <p className="text-xs text-white/40">No video attached</p>
+                </div>
+              )
+            })()}
             {viewing.videoUrl && (
               <a href={viewing.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm font-medium text-brand-600 hover:text-brand-700">
                 <Link2 className="h-4 w-4" /> Open video link

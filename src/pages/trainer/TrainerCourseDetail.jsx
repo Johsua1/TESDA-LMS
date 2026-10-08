@@ -15,7 +15,7 @@ import {
   Settings2,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { programById, courseProgress, attendanceStats, courseGrade } from '../../store/selectors'
+import { programById, trainerPrograms, trainerEnrollments, courseProgress, attendanceStats, courseGrade } from '../../store/selectors'
 import { programLessons, programLessonCount } from '../../data/programs'
 import { Card, CardBody, CardHeader, StatCard, Tabs, Badge, ProgressBar, EmptyState, Avatar, Button } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
@@ -29,11 +29,16 @@ export function TrainerCourseDetail() {
   const [tab, setTab] = useState('overview')
   const [openComp, setOpenComp] = useState('Core')
 
-  if (!program) return <Navigate to="/trainer/courses" replace />
-  if (program.trainerId !== user.id) return <Navigate to="/trainer/courses" replace />
+  // Access is decided by the resolved assignments (authoritative
+  // trainer_programs + profile array + program-side trainerId link), not by the
+  // legacy single-trainer `program.trainerId`.
+  const assigned = trainerPrograms(db, user.id)
+  if (!program || !assigned.some((p) => p.id === programId)) {
+    return <Navigate to="/trainer/courses" replace />
+  }
 
   const lessons = programLessons(programId)
-  const enrollments = db.enrollments.filter((e) => e.programId === programId)
+  const enrollments = trainerEnrollments(db, user.id, programId)
   const activeEnrs = enrollments.filter((e) => ['Enrolled', 'Approved'].includes(e.status))
   const avgProgress = activeEnrs.length ? Math.round(average(activeEnrs.map((e) => courseProgress(e, programId).percent))) : 0
 
@@ -339,7 +344,7 @@ export function TrainerCourseDetail() {
             columns={traineeCols}
             data={traineeRows}
             searchable
-            searchKeys={['name']}
+            searchKeys={['trainee.name', 'trainee.email']}
             pageSize={10}
             emptyState={<EmptyState icon={Users} title="No trainees enrolled" />}
           />

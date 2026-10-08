@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Users, Plus, Pencil, Trash2, Eye, Mail, Phone, MapPin, GraduationCap, TrendingUp } from 'lucide-react'
+import { Users, Plus, Pencil, Trash2, Eye, Mail, Phone, MapPin, GraduationCap, TrendingUp, Copy, CheckCircle2 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { courseProgress, attendanceStats, programById } from '../../store/selectors'
+import { courseProgress, attendanceStats, programById, programTrainers as trainersForProgram, enrollmentTrainerId } from '../../store/selectors'
 import { programs } from '../../data/programs'
 import {
   PageHeader,
@@ -30,29 +30,45 @@ const emptyForm = {
   role: 'trainee',
   name: '',
   email: '',
-  password: 'trainee123',
+  password: '',
   phone: '',
   address: '',
   birthDate: '',
   gender: '',
   education: 'High School Graduate',
   enrolledPrograms: [],
+  programTrainers: {}, // programId -> trainerId (who handles this trainee)
 }
 
 export function ManageTrainees() {
-  const { db, user, saveUser, deleteUser, toast } = useApp()
+  const { db, createTrainee, updateTrainee, deleteUser, toast, isSupabaseConfigured } = useApp()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
   const [confirm, setConfirm] = useState(null)
   const [viewing, setViewing] = useState(null)
+  const [created, setCreated] = useState(null)
+  const [saving, setSaving] = useState(false)
 
   const trainees = db.users.filter((u) => u.role === 'trainee')
+
+  // A trainee's courses = their profile assignments UNION their actual
+  // enrollments (a trainee may also self-enroll, which only creates an
+  // enrollment). Keeping both in view means an unrelated edit never silently
+  // drops a self-enrolled course.
+  const courseProgramIds = (t) =>
+    [...new Set([...(t.enrolledPrograms || []), ...db.enrollments.filter((e) => e.traineeId === t.id).map((e) => e.programId)])]
+
   const rows = trainees.map((t) => {
     const enrs = db.enrollments.filter((e) => e.traineeId === t.id)
     const active = enrs.filter((e) => ['Enrolled', 'Approved'].includes(e.status))
     const progress = active.length ? Math.round(average(active.map((e) => courseProgress(e, e.programId).percent))) : 0
-    return { id: t.id, trainee: t, enrs, progress, att: attendanceStats(db, t.id) }
+    const trainerNames = [
+      ...new Set(enrs.map((e) => enrollmentTrainerId(db, e)).filter(Boolean)),
+    ]
+      .map((id) => db.users.find((u) => u.id === id)?.name)
+      .filter(Boolean)
+    return { id: t.id, trainee: t, enrs, assigned: courseProgramIds(t), trainerNames, progress, att: attendanceStats(db, t.id) }
   })
 
   const openCreate = () => {
@@ -62,34 +78,93 @@ export function ManageTrainees() {
   }
 
   const openEdit = (t) => {
+    // Pre-fill the trainer assigned to each of the trainee's existing courses.
+    const programTrainers = {}
+    db.enrollments
+      .filter((e) => e.traineeId === t.id)
+      .forEach((e) => {
+        const tid = enrollmentTrainerId(db, e)
+        if (tid) programTrainers[e.programId] = tid
+      })
     setEditing(t)
-    setForm({ ...emptyForm, ...t, enrolledPrograms: t.enrolledPrograms || [] })
+    setForm({ ...emptyForm, ...t, enrolledPrograms: courseProgramIds(t), programTrainers })
     setModalOpen(true)
   }
 
-  const save = () => {
+  const save = async () => {
     if (!form.name.trim() || !form.email.trim()) {
       toast('Name and email are required.', 'warning')
       return
     }
+    // A course may only be assigned when it has a trainer. A course with no
+    // assigned trainer can't be checked, but guard against stale state too.
+    const missing = form.enrolledPrograms.filter((pid) => !form.programTrainers[pid])
+    if (missing.length) {
+      const names = missing.map((pid) => programById(pid)?.title || pid).join(', ')
+      toast(`Select a trainer for: ${names}. Uncheck any course with no assigned trainer.`, 'warning')
+      return
+    }
     const colors = ['from-rose-500 to-pink-600', 'from-cyan-500 to-sky-600', 'from-violet-500 to-purple-600', 'from-teal-500 to-emerald-600', 'from-orange-500 to-amber-600', 'from-blue-500 to-indigo-600']
-    saveUser({
+    const base = {
       ...form,
-      id: editing?.id,
       avatarColor: editing?.avatarColor || colors[Math.floor(Math.random() * colors.length)],
       since: editing?.since || new Date().toISOString().slice(0, 10),
-    })
+    }
+
+    // Editing updates the record + reconciles the trainee's courses to match
+    // their program assignments.
+    if (editing) {
+      updateTrainee({ ...base, id: editing.id })
+      setModalOpen(false)
+      return
+    }
+
+    // Creating mirrors the trainer flow: real account + activation email, with
+    // the generated temp password surfaced for manual sharing.
+    setSaving(true)
+    const res = await createTrainee(base)
+    setSaving(false)
+    if (!res.ok) {
+      toast(res.error || 'Failed to create the trainee.', 'error')
+      return
+    }
     setModalOpen(false)
+    setCreated({ name: form.name, email: form.email, password: res.tempPassword, emailed: res.emailed })
+  }
+
+  const copyCreatedPassword = async () => {
+    try {
+      await navigator.clipboard.writeText(created?.password || '')
+      toast('Temporary password copied.', 'success')
+    } catch {
+      toast('Copy failed — select it manually.', 'warning')
+    }
   }
 
   const toggleProgram = (programId) => {
-    setForm((f) => ({
-      ...f,
-      enrolledPrograms: f.enrolledPrograms.includes(programId)
+    setForm((f) => {
+      const on = f.enrolledPrograms.includes(programId)
+      const enrolledPrograms = on
         ? f.enrolledPrograms.filter((p) => p !== programId)
-        : [...f.enrolledPrograms, programId],
-    }))
+        : [...f.enrolledPrograms, programId]
+      const programTrainers = { ...f.programTrainers }
+      if (on) {
+        delete programTrainers[programId]
+      } else if (!programTrainers[programId]) {
+        // Default to the only qualified trainer, if there's exactly one.
+        const options = trainersForProgram(db, programId)
+        programTrainers[programId] = options.length === 1 ? options[0].id : ''
+      }
+      return { ...f, enrolledPrograms, programTrainers }
+    })
   }
+
+  const setProgramTrainer = (programId, trainerId) =>
+    setForm((f) => ({ ...f, programTrainers: { ...f.programTrainers, [programId]: trainerId } }))
+
+  // Trainer options for a program: ONLY trainers assigned to that course. If
+  // none are assigned yet, the list is empty — there is no fallback.
+  const trainerOptions = (programId) => trainersForProgram(db, programId)
 
   const columns = [
     {
@@ -109,14 +184,28 @@ export function ManageTrainees() {
       key: 'programs',
       header: 'Programs',
       render: (r) =>
-        r.enrs.length ? (
+        r.assigned.length ? (
           <div className="flex flex-wrap gap-1">
-            {r.enrs.map((e) => (
-              <Badge key={e.id} tone="brand">{programById(e.programId)?.code}</Badge>
+            {r.assigned.map((pid) => (
+              <Badge key={pid} tone="brand">{programById(pid)?.code || pid}</Badge>
             ))}
           </div>
         ) : (
-          <span className="text-xs text-slate-400">No enrollment</span>
+          <span className="text-xs text-slate-400">None</span>
+        ),
+    },
+    {
+      key: 'trainers',
+      header: 'Trainer',
+      render: (r) =>
+        r.trainerNames.length ? (
+          <div className="flex flex-wrap gap-1">
+            {r.trainerNames.map((name) => (
+              <Badge key={name} tone="info">{name}</Badge>
+            ))}
+          </div>
+        ) : (
+          <span className="text-xs text-slate-400">Unassigned</span>
         ),
     },
     {
@@ -172,7 +261,7 @@ export function ManageTrainees() {
           data={rows}
           searchable
           searchPlaceholder="Search trainees…"
-          searchKeys={['name']}
+          searchKeys={['trainee.name', 'trainee.email']}
           pageSize={10}
           emptyState={<EmptyState icon={Users} title="No trainees" action={<Button icon={Plus} onClick={openCreate}>Add Trainee</Button>} />}
         />
@@ -188,7 +277,7 @@ export function ManageTrainees() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setModalOpen(false)}>Cancel</Button>
-            <Button onClick={save}>{editing ? 'Save Changes' : 'Create Trainee'}</Button>
+            <Button onClick={save} loading={saving}>{editing ? 'Save Changes' : 'Create Trainee'}</Button>
           </>
         }
       >
@@ -202,8 +291,15 @@ export function ManageTrainees() {
             </FormField>
           </FormRow>
           <FormRow>
-            <FormField label="Password">
-              <Input value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} />
+            <FormField
+              label="Temporary password"
+              hint={!editing && isSupabaseConfigured ? 'Leave blank to auto-generate a secure password.' : undefined}
+            >
+              <Input
+                value={form.password}
+                onChange={(e) => setForm({ ...form, password: e.target.value })}
+                placeholder={!editing && isSupabaseConfigured ? 'Auto-generated' : ''}
+              />
             </FormField>
             <FormField label="Phone Number">
               <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+63 9xx xxx xxxx" />
@@ -232,26 +328,62 @@ export function ManageTrainees() {
           <FormField label="Address">
             <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </FormField>
-          <FormField label="Program Assignments" hint="Select the programs this trainee can access">
+          <FormField label="Program Assignments" hint="Choose the programs and the trainer who will handle this trainee">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-              {programs.map((p) => (
-                <label
-                  key={p.id}
-                  className={cn(
-                    'flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition',
-                    form.enrolledPrograms.includes(p.id) ? 'border-brand-500 bg-brand-50' : 'border-slate-200 hover:bg-slate-50',
-                  )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.enrolledPrograms.includes(p.id)}
-                    onChange={() => toggleProgram(p.id)}
-                    className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                  />
-                  <span className="text-lg">{p.emoji}</span>
-                  <span className="text-sm text-slate-700">{p.title}</span>
-                </label>
-              ))}
+              {programs.map((p) => {
+                const on = form.enrolledPrograms.includes(p.id)
+                const options = trainerOptions(p.id)
+                const noTrainer = !options.length
+                return (
+                  <div
+                    key={p.id}
+                    className={cn(
+                      'rounded-lg border p-3 transition',
+                      on ? 'border-brand-500 bg-brand-50' : 'border-slate-200 hover:bg-slate-50',
+                      noTrainer && !on && 'opacity-70',
+                    )}
+                  >
+                    <label className={cn('flex items-center gap-3', noTrainer && !on ? 'cursor-not-allowed' : 'cursor-pointer')}>
+                      <input
+                        type="checkbox"
+                        checked={on}
+                        disabled={noTrainer && !on}
+                        onChange={() => toggleProgram(p.id)}
+                        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:cursor-not-allowed"
+                      />
+                      <span className="text-lg">{p.emoji}</span>
+                      <span className="text-sm text-slate-700">{p.title}</span>
+                    </label>
+
+                    {on && (
+                      <div className="mt-2.5">
+                        {noTrainer ? (
+                          <p className="text-[11px] text-amber-600">
+                            No trainer assigned to this course. Uncheck to remove it, or assign a trainer in Manage
+                            Trainers.
+                          </p>
+                        ) : (
+                          <Select
+                            value={form.programTrainers[p.id] || ''}
+                            onChange={(e) => setProgramTrainer(p.id, e.target.value)}
+                          >
+                            <option value="">Select trainer…</option>
+                            {options.map((t) => (
+                              <option key={t.id} value={t.id}>
+                                {t.name}
+                              </option>
+                            ))}
+                          </Select>
+                        )}
+                      </div>
+                    )}
+
+                    {!on && noTrainer && (
+                      <p className="mt-1.5 text-[11px] text-slate-400">No trainer assigned to this course.</p>
+                    )}
+                  </div>
+                )
+              })}
             </div>
           </FormField>
         </div>
@@ -321,6 +453,58 @@ export function ManageTrainees() {
                 {!viewing.enrs.length && <p className="text-sm text-slate-400">No enrollments</p>}
               </div>
             </div>
+          </div>
+        )}
+      </Modal>
+
+      <Modal
+        open={!!created}
+        onClose={() => setCreated(null)}
+        title="Trainee account created"
+        subtitle={created?.name}
+        icon={CheckCircle2}
+        footer={<Button onClick={() => setCreated(null)}>Done</Button>}
+      >
+        {created && (
+          <div className="space-y-4">
+            <div
+              className={cn(
+                'flex items-start gap-3 rounded-lg px-3 py-2.5 ring-1 ring-inset',
+                created.emailed ? 'bg-emerald-50 ring-emerald-200' : 'bg-amber-50 ring-amber-200',
+              )}
+            >
+              <CheckCircle2
+                className={cn('mt-0.5 h-4 w-4 shrink-0', created.emailed ? 'text-emerald-600' : 'text-amber-600')}
+              />
+              <p className={cn('text-xs', created.emailed ? 'text-emerald-800' : 'text-amber-800')}>
+                {created.emailed
+                  ? 'An activation email has been sent to the trainee. They can set their own password from the link.'
+                  : 'Account created, but the activation email could not be sent (check the email/SMTP settings). Share the temporary password below instead.'}
+              </p>
+            </div>
+
+            <div className="space-y-3 rounded-lg bg-slate-50 p-3">
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-slate-400">Email (LMS Portal login)</p>
+                <p className="text-sm font-medium text-slate-700">{created.email}</p>
+              </div>
+              <div>
+                <p className="text-[11px] uppercase tracking-wide text-slate-400">Temporary password</p>
+                <div className="mt-1 flex items-center gap-2">
+                  <code className="min-w-0 flex-1 select-all break-all rounded-md bg-white px-2 py-1.5 font-mono text-xs text-slate-700 ring-1 ring-inset ring-slate-200">
+                    {created.password || '—'}
+                  </code>
+                  <Button size="sm" variant="secondary" icon={Copy} onClick={copyCreatedPassword} disabled={!created.password}>
+                    Copy
+                  </Button>
+                </div>
+              </div>
+            </div>
+
+            <p className="text-xs text-slate-500">
+              The trainee can sign in at the LMS Portal with this email and temporary password, then change it. Their
+              assigned programs are now their courses.
+            </p>
           </div>
         )}
       </Modal>

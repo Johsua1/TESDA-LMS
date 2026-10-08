@@ -73,6 +73,18 @@ export const relativeDay = (value) => {
 
 export const isSameDay = (a, b) => toISODate(a) === toISODate(b)
 
+// Combine a "YYYY-MM-DD" date and "HH:MM" time into a single local Date.
+// Returns null when the date is missing or invalid. Used to validate that a
+// schedule is not being set in the past.
+export const combineDateTime = (dateStr, timeStr = '00:00') => {
+  if (!dateStr) return null
+  const [h, m] = String(timeStr || '00:00').split(':').map(Number)
+  const d = new Date(`${dateStr}T00:00:00`)
+  if (Number.isNaN(d.getTime())) return null
+  d.setHours(Number.isFinite(h) ? h : 0, Number.isFinite(m) ? m : 0, 0, 0)
+  return d
+}
+
 // ----------------------------- Number helpers -------------------------------
 
 export const currency = (n) =>
@@ -93,6 +105,26 @@ export const initials = (name = '') =>
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join('')
+
+// ----------------------------- Media helpers --------------------------------
+
+// Classify a video URL for embedding: YouTube/Vimeo links become iframes,
+// anything else is treated as a direct video file. Returns null when empty.
+export const videoEmbed = (url) => {
+  const value = String(url || '').trim()
+  if (!value) return null
+  const yt = value.match(/(?:youtube\.com\/(?:watch\?v=|embed\/)|youtu\.be\/)([\w-]{11})/)
+  if (yt) return { type: 'iframe', src: `https://www.youtube.com/embed/${yt[1]}` }
+  const vimeo = value.match(/vimeo\.com\/(\d+)/)
+  if (vimeo) return { type: 'iframe', src: `https://player.vimeo.com/video/${vimeo[1]}` }
+  return { type: 'video', src: value }
+}
+
+export const slugify = (s = '') =>
+  String(s)
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-|-$/g, '')
 
 export const classNamesForStatus = (status) => {
   const map = {

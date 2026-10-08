@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { BookOpen, Eye, Pencil, Users, Layers, FileText, ClipboardList, FileCheck2, Clock, Award, ChevronDown } from 'lucide-react'
+import { BookOpen, Eye, Pencil, Plus, Trash2, Users, Layers, FileText, ChevronDown } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { programStats, courseProgress } from '../../store/selectors'
 import { programLessons, programLessonCount, programQuizCount } from '../../data/programs'
@@ -10,8 +10,10 @@ import {
   CardHeader,
   Button,
   Modal,
+  ConfirmDialog,
   Select,
   Input,
+  Textarea,
   FormField,
   FormRow,
   Badge,
@@ -19,15 +21,30 @@ import {
   StatCard,
   EmptyState,
 } from '../../components/ui'
-import { StatusBadge } from '../../components/ui/StatusBadge'
 import { currency, average, cn } from '../../lib/utils'
 
+const blankCourse = () => ({
+  title: '',
+  code: '',
+  category: '',
+  level: 'NC II',
+  fee: '',
+  hours: '',
+  duration: '',
+  trainerId: '',
+  emoji: '📘',
+  description: '',
+})
+
 export function ManageCourses() {
-  const { db, saveProgram, toast } = useApp()
+  const { db, saveProgram, addProgram, deleteProgram, toast } = useApp()
   const [selected, setSelected] = useState(null)
   const [editing, setEditing] = useState(false)
   const [editForm, setEditForm] = useState({ trainerId: '', fee: 0 })
   const [openComp, setOpenComp] = useState(null)
+  const [addOpen, setAddOpen] = useState(false)
+  const [addForm, setAddForm] = useState(blankCourse())
+  const [deleteTarget, setDeleteTarget] = useState(null)
 
   const trainers = db.users.filter((u) => u.role === 'trainer')
 
@@ -44,11 +61,40 @@ export function ManageCourses() {
     setEditing(false)
   }
 
+  const openAdd = () => {
+    setAddForm(blankCourse())
+    setAddOpen(true)
+  }
+
+  const submitAdd = () => {
+    const res = addProgram(addForm)
+    if (res.ok) {
+      setAddOpen(false)
+      setAddForm(blankCourse())
+    }
+  }
+
+  const askDelete = (p) => {
+    setDeleteTarget({
+      program: p,
+      enrollments: db.enrollments.filter((e) => e.programId === p.id).length,
+      schedules: db.schedules.filter((s) => s.programId === p.id).length,
+    })
+  }
+
   const totalEnrollments = db.enrollments.length
 
   return (
     <div>
-      <PageHeader title="Courses" description="Manage training programs, competencies and trainer assignments." />
+      <PageHeader
+        title="Courses"
+        description="Manage training programs, competencies and trainer assignments."
+        action={
+          <Button icon={Plus} onClick={openAdd}>
+            Add Course
+          </Button>
+        }
+      />
 
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
         <StatCard label="Total Programs" value={db.programs.length} icon={BookOpen} tone="brand" />
@@ -118,7 +164,10 @@ export function ManageCourses() {
         footer={
           <>
             {!editing ? (
-              <Button variant="secondary" icon={Pencil} onClick={() => setEditing(true)}>Edit Course</Button>
+              <>
+                <Button variant="danger" icon={Trash2} onClick={() => askDelete(selected)}>Delete</Button>
+                <Button variant="secondary" icon={Pencil} onClick={() => setEditing(true)}>Edit Course</Button>
+              </>
             ) : (
               <>
                 <Button variant="secondary" onClick={() => setEditing(false)}>Cancel</Button>
@@ -231,6 +280,132 @@ export function ManageCourses() {
           </div>
         )}
       </Modal>
+
+      {/* Add course */}
+      <Modal
+        open={addOpen}
+        onClose={() => setAddOpen(false)}
+        title="Add Course"
+        subtitle="Create a new training program. Add lessons, quizzes and exams afterwards."
+        icon={BookOpen}
+        size="lg"
+        footer={
+          <>
+            <Button variant="secondary" onClick={() => setAddOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitAdd}>Create Course</Button>
+          </>
+        }
+      >
+        <div className="space-y-4">
+          <FormRow>
+            <FormField label="Course Title">
+              <Input
+                value={addForm.title}
+                onChange={(e) => setAddForm({ ...addForm, title: e.target.value })}
+                placeholder="e.g. Bread and Pastry Production NC II"
+              />
+            </FormField>
+            <FormField label="Course Code">
+              <Input
+                value={addForm.code}
+                onChange={(e) => setAddForm({ ...addForm, code: e.target.value })}
+                placeholder="e.g. BP-201"
+              />
+            </FormField>
+          </FormRow>
+          <FormRow>
+            <FormField label="Category">
+              <Input
+                value={addForm.category}
+                onChange={(e) => setAddForm({ ...addForm, category: e.target.value })}
+                placeholder="e.g. Tourism & Hospitality"
+              />
+            </FormField>
+            <FormField label="Level">
+              <Select value={addForm.level} onChange={(e) => setAddForm({ ...addForm, level: e.target.value })}>
+                <option>NC I</option>
+                <option>NC II</option>
+                <option>NC III</option>
+                <option>NC IV</option>
+              </Select>
+            </FormField>
+          </FormRow>
+          <FormRow>
+            <FormField label="Training Fee (₱)">
+              <Input
+                type="number"
+                value={addForm.fee}
+                onChange={(e) => setAddForm({ ...addForm, fee: e.target.value })}
+                placeholder="0"
+              />
+            </FormField>
+            <FormField label="Duration">
+              <Input
+                value={addForm.duration}
+                onChange={(e) => setAddForm({ ...addForm, duration: e.target.value })}
+                placeholder="e.g. 3 months"
+              />
+            </FormField>
+          </FormRow>
+          <FormRow>
+            <FormField label="Total Hours">
+              <Input
+                type="number"
+                value={addForm.hours}
+                onChange={(e) => setAddForm({ ...addForm, hours: e.target.value })}
+                placeholder="0"
+              />
+            </FormField>
+            <FormField label="Assigned Trainer">
+              <Select value={addForm.trainerId} onChange={(e) => setAddForm({ ...addForm, trainerId: e.target.value })}>
+                <option value="">Unassigned</option>
+                {trainers.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </Select>
+            </FormField>
+          </FormRow>
+          <FormField label="Icon (emoji)">
+            <Input
+              value={addForm.emoji}
+              onChange={(e) => setAddForm({ ...addForm, emoji: e.target.value })}
+              placeholder="📘"
+              maxLength={4}
+            />
+          </FormField>
+          <FormField label="Description">
+            <Textarea
+              rows={3}
+              value={addForm.description}
+              onChange={(e) => setAddForm({ ...addForm, description: e.target.value })}
+              placeholder="Short description shown to trainees."
+            />
+          </FormField>
+        </div>
+      </Modal>
+
+      {/* Delete course */}
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onClose={() => setDeleteTarget(null)}
+        onConfirm={() => {
+          deleteProgram(deleteTarget.program.id)
+          setSelected(null)
+        }}
+        title={`Delete “${deleteTarget?.program?.title}”?`}
+        confirmLabel="Delete course"
+        message={
+          deleteTarget
+            ? `This permanently removes the course${
+                deleteTarget.enrollments ? ` and ${deleteTarget.enrollments} enrollment(s)` : ''
+              }${deleteTarget.schedules ? ` and ${deleteTarget.schedules} schedule(s)` : ''}. This cannot be undone.`
+            : ''
+        }
+      />
     </div>
   )
 }

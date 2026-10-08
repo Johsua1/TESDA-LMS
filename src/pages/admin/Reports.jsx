@@ -25,7 +25,7 @@ import {
   Cell,
 } from 'recharts'
 import { useApp } from '../../store/AppContext'
-import { overallProgress, courseProgress } from '../../store/selectors'
+import { overallProgress, courseProgress, trainerPrograms } from '../../store/selectors'
 import {
   PageHeader,
   Card,
@@ -126,7 +126,7 @@ export function Reports() {
 
     // -------- Trainer --------
     const trainerRows = trainers.map((t) => {
-      const programs = db.programs.filter((p) => p.trainerId === t.id)
+      const programs = trainerPrograms(db, t.id)
       const programIds = programs.map((p) => p.id)
       const assigned = db.enrollments.filter((e) => programIds.includes(e.programId))
       return {
@@ -139,7 +139,7 @@ export function Reports() {
     const trainer = {
       total: trainers.length,
       active: trainerRows.filter((r) => r.programs.length).length,
-      assignments: db.programs.filter((p) => p.trainerId).length,
+      assignments: trainerRows.reduce((n, r) => n + r.programs.length, 0),
     }
 
     // -------- Attendance --------

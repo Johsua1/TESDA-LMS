@@ -14,7 +14,7 @@ import {
   Target,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { trainerPrograms, trainerTrainees, trainerTypingTests, trainerEvaluations, courseProgress, attendanceStats } from '../../store/selectors'
+import { trainerPrograms, trainerTrainees, trainerEnrollments, trainerTypingTests, trainerEvaluations, courseProgress, attendanceStats } from '../../store/selectors'
 import { programLessonCount } from '../../data/programs'
 import { Card, CardBody, CardHeader, StatCard, ProgressBar, Button, Badge, EmptyState, SectionTitle } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
@@ -102,7 +102,7 @@ export function TrainerDashboard() {
             </SectionTitle>
             <div className="space-y-3">
               {programs.map((p) => {
-                const enrs = db.enrollments.filter((e) => e.programId === p.id && ['Enrolled', 'Approved'].includes(e.status))
+                const enrs = trainerEnrollments(db, user.id, p.id).filter((e) => ['Enrolled', 'Approved'].includes(e.status))
                 const avg = enrs.length ? Math.round(average(enrs.map((e) => courseProgress(e, p.id).percent))) : 0
                 return (
                   <Card key={p.id} hover className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">

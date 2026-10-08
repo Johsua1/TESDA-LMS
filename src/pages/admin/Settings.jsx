@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { Settings as SettingsIcon, Save, Building2, Target, Bell, Shield, RefreshCw, Database, Keyboard } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { PageHeader, Card, CardBody, CardHeader, Button, Input, Select, FormField, FormRow, ConfirmDialog, Badge } from '../../components/ui'
+import { MfaSettings } from '../../components/MfaSettings'
 
 export function Settings() {
   const { settings, updateSettings, resetData, toast, db } = useApp()
@@ -85,6 +86,8 @@ export function Settings() {
               ))}
             </CardBody>
           </Card>
+
+          <MfaSettings />
         </div>
 
         <div className="space-y-6">

@@ -44,9 +44,18 @@ export function Td({ children, className, ...props }) {
   )
 }
 
+// Resolve a search key against a row. A key may be a plain property, a
+// dot-path into a nested object (e.g. 'trainee.name') or a function.
+function resolveSearchKey(row, key) {
+  if (typeof key === 'function') return key(row)
+  if (typeof key !== 'string') return undefined
+  return key.split('.').reduce((acc, part) => (acc == null ? acc : acc[part]), row)
+}
+
 /**
  * DataTable — generic table with optional search, sorting and pagination.
  * columns: [{ key, header, render?, sortable?, className?, headerClassName?, sortValue? }]
+ * searchKeys: property names, dot-paths ('trainee.name') or (row) => value
  */
 export function DataTable({
   columns,
@@ -69,7 +78,7 @@ export function DataTable({
     const q = query.toLowerCase()
     const keys = searchKeys.length ? searchKeys : columns.map((c) => c.key)
     return data.filter((row) =>
-      keys.some((k) => String(row[k] ?? '').toLowerCase().includes(q)),
+      keys.some((k) => String(resolveSearchKey(row, k) ?? '').toLowerCase().includes(q)),
     )
   }, [data, query, searchKeys, columns])
 

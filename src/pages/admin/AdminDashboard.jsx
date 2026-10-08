@@ -52,6 +52,9 @@ export function AdminDashboard() {
     value: db.enrollments.filter((e) => e.programId === p.id).length,
   }))
 
+  const specialPrograms = db.programs.filter((p) => p.special).length
+  const ncPrograms = db.programs.length - specialPrograms
+
   const recentEnrollments = [...db.enrollments]
     .sort((a, b) => new Date(b.appliedDate) - new Date(a.appliedDate))
     .slice(0, 6)
@@ -100,7 +103,7 @@ export function AdminDashboard() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total Trainees" value={allTrainees.length} icon={Users} tone="brand" hint={`${activeEnrollments.length} active enrollments`} />
         <StatCard label="Total Trainers" value={allTrainers.length} icon={GraduationCap} tone="success" />
-        <StatCard label="Training Programs" value={db.programs.length} icon={BookOpen} tone="purple" hint="5 NC II / special programs" />
+        <StatCard label="Training Programs" value={db.programs.length} icon={BookOpen} tone="purple" hint={`${ncPrograms} NC II · ${specialPrograms} special`} />
         <StatCard
           label="Collections"
           value={currency(revenue.paid)}

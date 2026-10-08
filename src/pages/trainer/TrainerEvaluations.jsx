@@ -18,9 +18,10 @@ import {
   Badge,
   StatCard,
   Input,
+  Stars,
 } from '../../components/ui'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, average, cn } from '../../lib/utils'
+import { formatDate, average } from '../../lib/utils'
 
 const CRITERIA = [
   { key: 'workAttitude', label: 'Work Attitude' },
@@ -29,24 +30,6 @@ const CRITERIA = [
   { key: 'safety', label: 'Safety Practices' },
   { key: 'teamwork', label: 'Teamwork & Communication' },
 ]
-
-function Stars({ value, onChange }) {
-  return (
-    <div className="flex gap-1">
-      {[1, 2, 3, 4, 5].map((n) => (
-        <button
-          key={n}
-          type="button"
-          onClick={() => onChange?.(n)}
-          className={cn('rounded p-0.5 transition', onChange && 'hover:scale-110')}
-          aria-label={`${n} star${n > 1 ? 's' : ''}`}
-        >
-          <Star className={cn('h-6 w-6', n <= value ? 'fill-amber-400 text-amber-400' : 'text-slate-300')} />
-        </button>
-      ))}
-    </div>
-  )
-}
 
 export function TrainerEvaluations() {
   const { db, user, saveEvaluation, toast } = useApp()
