@@ -6,6 +6,20 @@
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
+// Normalize lesson metadata: add order, publish flag, video URL and material ids
+const normalizeLesson = (l, index) => ({
+  videoUrl: '',
+  published: true,
+  order: index + 1,
+  ...l,
+  materials: (l.materials || []).map((m, mi) => ({
+    id: m.id || `${l.id}-m${mi + 1}`,
+    name: m.name,
+    type: m.type,
+    url: m.url || '',
+  })),
+})
+
 // Shared Basic Competency lessons (foundational skills)
 const buildBasicCompetency = (programId) => ({
   id: `${programId}-basic`,
@@ -782,14 +796,32 @@ function buildProgram(meta) {
     }),
   }
 
+  // Normalize lesson metadata (order, publish flag, video URL, material ids)
+  ;[basic, common, core].forEach((comp) => {
+    if (comp.units) {
+      comp.units.forEach((u) => {
+        u.lessons = u.lessons.map((l, i) => normalizeLesson(l, i))
+      })
+    } else {
+      comp.lessons = comp.lessons.map((l, i) => normalizeLesson(l, i))
+    }
+  })
+
   const quizzes = (quizBank[id] || []).map((q, i) => ({
     id: `${id}-quiz-${i + 1}`,
     programId: id,
     title: q.title,
     passing: q.passing,
     timeLimit: q.timeLimit,
+    published: true,
     questions: q.questions.map((qq, qi) => ({ id: `${id}-quiz-${i + 1}-q${qi + 1}`, ...qq })),
   }))
+
+  // Seed each exam with its own question bank (drawn from the quiz pool)
+  const examQuestions = quizzes
+    .flatMap((q) => q.questions)
+    .slice(0, 10)
+    .map((qq, qi) => ({ ...qq, id: `${id}-exam-1-q${qi + 1}` }))
 
   // attach quizzes to core lessons round-robin
   const coreLessonsFlat = core.units.flatMap((u) => u.lessons)
@@ -804,6 +836,8 @@ function buildProgram(meta) {
     category: meta.category,
     level: meta.level,
     special: !!meta.special,
+    // Only programs flagged enrollable are open for online trainee enrollment.
+    enrollable: !!meta.enrollable,
     description: meta.description,
     overview: meta.overview,
     duration: meta.duration,
@@ -822,11 +856,13 @@ function buildProgram(meta) {
         programId: id,
         title: `${meta.title} - Competency Assessment Exam`,
         competency: 'Core Competency',
-        questionCount: 10,
+        questions: examQuestions,
+        questionCount: examQuestions.length,
         timeLimit: 30,
         passing: 75,
         date: meta.examDate,
         status: 'Upcoming',
+        published: true,
       },
     ],
   }
@@ -956,13 +992,14 @@ export const programs = [
     category: 'Information Technology',
     level: 'Special',
     special: true,
+    enrollable: true,
     description:
       'Become a professional virtual assistant: admin support, communication, social media management and tool proficiency.',
     overview:
       'The Virtual Assistant special program prepares trainees for remote work as a VA. It covers the VA profession, remote work setup, administrative support, client communication, customer support, social media management, and tool proficiency — including a proctored typing test evaluation.',
-    duration: '2 months',
+    duration: '8 Weeks',
     hours: 100,
-    fee: 6500,
+    fee: 5000,
     color: 'from-indigo-500 to-violet-600',
     emoji: '💻',
     image: 'https://images.unsplash.com/photo-1587560699334-cc4ff634909a?auto=format&fit=crop&w=1200&q=60',
@@ -981,7 +1018,19 @@ export const programs = [
   }),
 ]
 
-export const programById = (id) => programs.find((p) => p.id === id)
+// The persisted store (db.programs) is the authoritative copy — trainers and
+// admins mutate it. AppProvider calls setLivePrograms(db.programs) on every
+// render so these pure helpers always resolve against the latest content.
+let livePrograms = programs
+export const setLivePrograms = (list) => {
+  if (Array.isArray(list)) livePrograms = list
+}
+export const getLivePrograms = () => livePrograms
+
+export const programById = (id) => livePrograms.find((p) => p.id === id)
+
+// Sort a lesson list by its `order` field (falls back to array position)
+const byOrder = (arr = []) => [...arr].sort((a, b) => (a.order ?? 0) - (b.order ?? 0))
 
 // Flatten all lessons of a program into an ordered array
 export const programLessons = (programId) => {
@@ -991,10 +1040,14 @@ export const programLessons = (programId) => {
   program.competencies.forEach((comp) => {
     if (comp.units) {
       comp.units.forEach((unit) => {
-        unit.lessons.forEach((l) => list.push({ ...l, competency: comp.type, unitTitle: unit.title, competencyId: comp.id }))
+        byOrder(unit.lessons).forEach((l) =>
+          list.push({ ...l, competency: comp.type, unitTitle: unit.title, competencyId: comp.id, unitId: unit.id }),
+        )
       })
     } else {
-      comp.lessons.forEach((l) => list.push({ ...l, competency: comp.type, unitTitle: comp.title, competencyId: comp.id }))
+      byOrder(comp.lessons).forEach((l) =>
+        list.push({ ...l, competency: comp.type, unitTitle: comp.title, competencyId: comp.id, unitId: null }),
+      )
     }
   })
   return list

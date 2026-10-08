@@ -141,12 +141,12 @@ export function ManageEnrollments() {
                   <Button variant="secondary" onClick={() => { setEnrollmentStatus(selected.id, 'Under Review'); setSelected({ ...selected, status: 'Under Review' }) }}>
                     Mark Under Review
                   </Button>
-                  <Button variant="success" icon={CheckCircle2} onClick={() => { setEnrollmentStatus(selected.id, 'Enrolled'); setSelected({ ...selected, status: 'Enrolled' }) }}>
-                    Approve & Enroll
+                  <Button variant="success" icon={CheckCircle2} onClick={() => { setEnrollmentStatus(selected.id, 'Approved'); setSelected({ ...selected, status: 'Approved' }) }}>
+                    Approve
                   </Button>
                 </>
               )}
-              {selected.status === 'Enrolled' && (
+              {['Approved', 'Enrolled'].includes(selected.status) && (
                 <>
                   <Button variant="secondary" icon={Ban} onClick={() => setConfirm({ enrollment: selected, status: 'Cancelled' })}>Cancel</Button>
                   <Button variant="success" icon={CheckCircle2} onClick={() => { setEnrollmentStatus(selected.id, 'Completed'); setSelected({ ...selected, status: 'Completed' }) }}>

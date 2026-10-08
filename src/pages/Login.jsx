@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate, useLocation, Navigate } from 'react-router-dom'
+import { useNavigate, useLocation, Navigate, Link } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, ShieldCheck, UserCog, User, ArrowRight } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 import { Button, Input, FormField } from '../components/ui'
@@ -81,7 +81,7 @@ export function Login() {
           <span className="inline-flex items-center gap-2.5 rounded-full border border-white/25 bg-white/5 px-4 py-1.5 backdrop-blur-sm">
             <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
             <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
-              International Standard Learning
+              Learning Management System
             </span>
           </span>
 
@@ -169,6 +169,13 @@ export function Login() {
               Sign in
             </Button>
           </form>
+
+          <p className="mt-6 text-center text-sm text-slate-500">
+            Don't have an account?{' '}
+            <Link to="/signup" className="font-semibold text-brand-600 hover:text-brand-700">
+              Sign up
+            </Link>
+          </p>
 
           <div className="mt-8">
             <div className="relative mb-4 text-center">

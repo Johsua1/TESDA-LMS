@@ -12,6 +12,10 @@ export const enrollmentOf = (db, traineeId, programId) =>
 export const activeEnrollmentsOf = (db, traineeId) =>
   enrollmentsOf(db, traineeId).filter((e) => ['Enrolled', 'Approved', 'Completed'].includes(e.status))
 
+// A trainee may only open course content once their enrollment is approved.
+export const hasCourseAccess = (enrollment) =>
+  !!enrollment && ['Approved', 'Enrolled', 'Completed'].includes(enrollment.status)
+
 export const courseProgress = (enrollment, programId) => {
   const total = programLessonCount(programId)
   const completed = enrollment ? Object.keys(enrollment.progress || {}).length : 0

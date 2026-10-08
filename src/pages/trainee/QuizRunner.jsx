@@ -15,7 +15,7 @@ import {
   Trophy,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { enrollmentOf, programById, traineeQuizAttempts } from '../../store/selectors'
+import { enrollmentOf, programById, traineeQuizAttempts, hasCourseAccess } from '../../store/selectors'
 import { Card, CardBody, CardHeader, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { cn, formatDate } from '../../lib/utils'
@@ -63,6 +63,7 @@ export function QuizRunner() {
   }, [secondsLeft, phase])
 
   if (!program || !enrollment || !quiz) return <Navigate to="/trainee/courses" replace />
+  if (!hasCourseAccess(enrollment)) return <Navigate to={`/trainee/courses/${programId}`} replace />
 
   const total = quiz.questions.length
   const answeredCount = Object.values(answers).filter((v) => v !== undefined && v !== '').length

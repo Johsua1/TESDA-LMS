@@ -14,19 +14,24 @@ import {
   FileCheck2,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { enrollmentOf, programById, traineeExamAttempts } from '../../store/selectors'
+import { enrollmentOf, programById, traineeExamAttempts, hasCourseAccess } from '../../store/selectors'
 import { Card, CardBody, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { cn, formatDate } from '../../lib/utils'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
-// Build a deterministic exam paper by pooling the program's quiz questions.
+// Use the exam's own question bank when present; otherwise fall back to
+// pooling questions from the program's quizzes (legacy exams).
 function buildExamQuestions(program, exam) {
+  if (exam.questions?.length) {
+    return exam.questions.map((qq, i) => ({ ...qq, examQid: qq.id || `${exam.id}-q${i + 1}` }))
+  }
   const pool = program.quizzes.flatMap((q) => q.questions.map((qq) => ({ ...qq, quizId: q.id })))
   if (!pool.length) return []
+  const count = exam.questionCount || pool.length
   const out = []
-  for (let i = 0; i < exam.questionCount; i += 1) {
+  for (let i = 0; i < count; i += 1) {
     out.push({ ...pool[i % pool.length], examQid: `${exam.id}-q${i + 1}` })
   }
   return out
@@ -63,6 +68,7 @@ export function ExamRunner() {
   }, [secondsLeft, phase])
 
   if (!program || !enrollment || !exam) return <Navigate to="/trainee/courses" replace />
+  if (!hasCourseAccess(enrollment)) return <Navigate to={`/trainee/courses/${programId}`} replace />
 
   const total = questions.length
   const answeredCount = Object.values(answers).filter((v) => v !== undefined && v !== '').length

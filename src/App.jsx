@@ -1,12 +1,11 @@
-import { Navigate, Route, Routes } from 'react-router-dom'
-import { useApp } from './store/AppContext'
-import { roleMeta } from './config/navigation'
+import { Route, Routes } from 'react-router-dom'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { ToastContainer } from './components/ui/Toasts'
 
 // Auth / misc
 import { Login } from './pages/Login'
+import { SignUp } from './pages/SignUp'
 import { NotFound } from './pages/NotFound'
 
 // Trainee
@@ -58,18 +57,13 @@ import { AnnouncementsPage } from './pages/shared/AnnouncementsPage'
 import { ProfilePage } from './pages/shared/ProfilePage'
 import { MeetRoom } from './pages/shared/MeetRoom'
 
-function RootRedirect() {
-  const { user } = useApp()
-  if (!user) return <Navigate to="/login" replace />
-  return <Navigate to={roleMeta[user.role]?.home || '/login'} replace />
-}
-
 export default function App() {
   return (
     <>
       <Routes>
-        <Route path="/" element={<RootRedirect />} />
+        <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
+        <Route path="/signup" element={<SignUp />} />
 
         {/* ------------------- IN-APP MEETING ROOM (full screen) ------------------- */}
         <Route

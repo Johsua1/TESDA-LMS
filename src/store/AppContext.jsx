@@ -1,8 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from 'react'
 import { buildSeed } from '../data/seed'
+import { setLivePrograms } from '../data/programs'
 import { uid } from '../lib/utils'
 
-const DB_KEY = 'tesda-lms-db-v1'
+const DB_KEY = 'tesda-lms-db-v2'
 const SESSION_KEY = 'tesda-lms-session-v1'
 
 const AppContext = createContext(null)
@@ -25,6 +26,10 @@ function loadDB() {
 
 export function AppProvider({ children }) {
   const [db, setDb] = useState(loadDB)
+
+  // Keep the pure program/lesson helpers in data/programs.js in sync with the
+  // persisted store so trainer/admin content edits are visible everywhere.
+  setLivePrograms(db.programs)
   const [user, setUser] = useState(() => {
     try {
       const raw = localStorage.getItem(SESSION_KEY)
@@ -110,11 +115,151 @@ export function AppProvider({ children }) {
     [toast],
   )
 
+  // Public self-registration — always creates a TRAINEE account.
+  const registerTrainee = useCallback(
+    (payload) => {
+      const email = String(payload.email || '').trim().toLowerCase()
+      if (db.users.some((u) => u.email.toLowerCase() === email)) {
+        return { ok: false, error: 'An account with this email already exists.' }
+      }
+      const id = uid('tn')
+      const account = {
+        id,
+        role: 'trainee',
+        name: payload.name,
+        email: payload.email.trim(),
+        password: payload.password,
+        avatarColor: payload.avatarColor || 'from-brand-500 to-brand-700',
+        phone: payload.phone || '',
+        address: payload.address || '',
+        birthDate: payload.birthDate || null,
+        gender: payload.gender || '',
+        education: payload.education || '',
+        emergencyContact: payload.emergencyContact || '',
+        enrolledPrograms: [],
+        since: new Date().toISOString().slice(0, 10),
+      }
+      setDb((d) => ({ ...d, users: [...d.users, account] }))
+      return { ok: true, user: account }
+    },
+    [db.users],
+  )
+
   // ------------------------------ Programs ----------------------------------
   const saveProgram = useCallback(
     (id, patch) => {
       setDb((d) => ({ ...d, programs: d.programs.map((p) => (p.id === id ? { ...p, ...patch } : p)) }))
       toast('Course updated.')
+    },
+    [toast],
+  )
+
+  // --------------------------- Program content ------------------------------
+  // Lessons live nested in competencies (Basic/Common) or competency units (Core).
+  const saveLesson = useCallback(
+    (programId, { competencyId, unitId, lesson }) => {
+      setDb((d) => ({
+        ...d,
+        programs: d.programs.map((p) => {
+          if (p.id !== programId) return p
+          const competencies = p.competencies.map((comp) => {
+            if (comp.id !== competencyId) return comp
+            if (comp.units) {
+              const units = comp.units.map((u) => {
+                if (u.id !== unitId) return u
+                const exists = u.lessons.some((l) => l.id === lesson.id)
+                const lessons = exists
+                  ? u.lessons.map((l) => (l.id === lesson.id ? { ...l, ...lesson } : l))
+                  : [...u.lessons, lesson]
+                return { ...u, lessons }
+              })
+              return { ...comp, units }
+            }
+            const exists = comp.lessons.some((l) => l.id === lesson.id)
+            const lessons = exists
+              ? comp.lessons.map((l) => (l.id === lesson.id ? { ...l, ...lesson } : l))
+              : [...comp.lessons, lesson]
+            return { ...comp, lessons }
+          })
+          return { ...p, competencies }
+        }),
+      }))
+      toast('Lesson saved.')
+    },
+    [toast],
+  )
+
+  const deleteLesson = useCallback(
+    (programId, lessonId) => {
+      setDb((d) => ({
+        ...d,
+        programs: d.programs.map((p) => {
+          if (p.id !== programId) return p
+          return {
+            ...p,
+            competencies: p.competencies.map((comp) =>
+              comp.units
+                ? { ...comp, units: comp.units.map((u) => ({ ...u, lessons: u.lessons.filter((l) => l.id !== lessonId) })) }
+                : { ...comp, lessons: comp.lessons.filter((l) => l.id !== lessonId) },
+            ),
+          }
+        }),
+      }))
+      toast('Lesson deleted.', 'info')
+    },
+    [toast],
+  )
+
+  const saveQuiz = useCallback(
+    (programId, quiz) => {
+      setDb((d) => ({
+        ...d,
+        programs: d.programs.map((p) => {
+          if (p.id !== programId) return p
+          const exists = p.quizzes.some((q) => q.id === quiz.id)
+          const quizzes = exists ? p.quizzes.map((q) => (q.id === quiz.id ? { ...q, ...quiz } : q)) : [...p.quizzes, quiz]
+          return { ...p, quizzes }
+        }),
+      }))
+      toast('Quiz saved.')
+    },
+    [toast],
+  )
+
+  const deleteQuiz = useCallback(
+    (programId, quizId) => {
+      setDb((d) => ({
+        ...d,
+        programs: d.programs.map((p) => (p.id === programId ? { ...p, quizzes: p.quizzes.filter((q) => q.id !== quizId) } : p)),
+      }))
+      toast('Quiz deleted.', 'info')
+    },
+    [toast],
+  )
+
+  const saveExam = useCallback(
+    (programId, exam) => {
+      setDb((d) => ({
+        ...d,
+        programs: d.programs.map((p) => {
+          if (p.id !== programId) return p
+          const exists = p.exams.some((e) => e.id === exam.id)
+          const exams = exists ? p.exams.map((e) => (e.id === exam.id ? { ...e, ...exam } : e)) : [...p.exams, exam]
+          return { ...p, exams }
+        }),
+      }))
+      toast('Exam saved.')
+    },
+    [toast],
+  )
+
+  const deleteExam = useCallback(
+    (programId, examId) => {
+      setDb((d) => ({
+        ...d,
+        programs: d.programs.map((p) => (p.id === programId ? { ...p, exams: p.exams.filter((e) => e.id !== examId) } : p)),
+      }))
+      toast('Exam deleted.', 'info')
     },
     [toast],
   )
@@ -438,8 +583,15 @@ export function AppProvider({ children }) {
       // users
       saveUser,
       deleteUser,
+      registerTrainee,
       // programs
       saveProgram,
+      saveLesson,
+      deleteLesson,
+      saveQuiz,
+      deleteQuiz,
+      saveExam,
+      deleteExam,
       // enrollment
       createEnrollment,
       updateEnrollment,
@@ -481,7 +633,14 @@ export function AppProvider({ children }) {
       updateProfile,
       saveUser,
       deleteUser,
+      registerTrainee,
       saveProgram,
+      saveLesson,
+      deleteLesson,
+      saveQuiz,
+      deleteQuiz,
+      saveExam,
+      deleteExam,
       createEnrollment,
       updateEnrollment,
       setEnrollmentStatus,

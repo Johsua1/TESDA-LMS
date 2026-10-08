@@ -12,11 +12,12 @@ import {
   TrendingUp,
   BarChart3,
   Layers,
+  Settings2,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { programById, courseProgress, attendanceStats, courseGrade } from '../../store/selectors'
 import { programLessons, programLessonCount } from '../../data/programs'
-import { Card, CardBody, CardHeader, StatCard, Tabs, Badge, ProgressBar, EmptyState, Avatar } from '../../components/ui'
+import { Card, CardBody, CardHeader, StatCard, Tabs, Badge, ProgressBar, EmptyState, Avatar, Button } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { formatDate, average, cn } from '../../lib/utils'
@@ -169,6 +170,13 @@ export function TrainerCourseDetail() {
 
       {tab === 'lessons' && (
         <div className="space-y-3">
+          <div className="flex justify-end">
+            <Link to="/trainer/lessons">
+              <Button size="sm" variant="secondary" icon={Settings2}>
+                Manage lessons
+              </Button>
+            </Link>
+          </div>
           {program.competencies.map((comp) => {
             const units = comp.units || [{ id: comp.id, title: comp.title, lessons: comp.lessons }]
             const all = units.flatMap((u) => u.lessons)
@@ -232,7 +240,15 @@ export function TrainerCourseDetail() {
       )}
 
       {tab === 'quizzes' && (
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div className="space-y-3">
+          <div className="flex justify-end">
+            <Link to="/trainer/quizzes">
+              <Button size="sm" variant="secondary" icon={Settings2}>
+                Manage quizzes
+              </Button>
+            </Link>
+          </div>
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
           {program.quizzes.map((quiz) => {
             const attempts = db.quizAttempts.filter((a) => a.quizId === quiz.id)
             const passRate = attempts.length ? Math.round((attempts.filter((a) => a.passed).length / attempts.length) * 100) : 0
@@ -264,11 +280,19 @@ export function TrainerCourseDetail() {
               </Card>
             )
           })}
+          </div>
         </div>
       )}
 
       {tab === 'exams' && (
         <div className="space-y-4">
+          <div className="flex justify-end">
+            <Link to="/trainer/exams">
+              <Button size="sm" variant="secondary" icon={Settings2}>
+                Manage exams
+              </Button>
+            </Link>
+          </div>
           {program.exams.map((exam) => {
             const attempts = db.examAttempts.filter((a) => a.examId === exam.id)
             const passRate = attempts.length ? Math.round((attempts.filter((a) => a.passed).length / attempts.length) * 100) : 0

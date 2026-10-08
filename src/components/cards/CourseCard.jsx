@@ -1,15 +1,15 @@
 import { Link } from 'react-router-dom'
-import { BookOpen, ClipboardList, User, CalendarDays, Clock, ArrowRight } from 'lucide-react'
+import { BookOpen, ClipboardList, User, CalendarDays, Clock, ArrowRight, Lock } from 'lucide-react'
 import { Card, ProgressBar, Badge } from '../ui'
 import { StatusBadge } from '../ui/StatusBadge'
 import { cn, formatDate, relativeDay, formatTime } from '../../lib/utils'
 import { programLessonCount, programQuizCount } from '../../data/programs'
 
-export function CourseCard({ program, enrollment, trainer, nextSchedule, progress, basePath, className }) {
+export function CourseCard({ program, enrollment, trainer, nextSchedule, progress, basePath, className, locked = false }) {
   const lessons = programLessonCount(program.id)
   const quizzes = programQuizCount(program.id)
   const percent = progress ?? 0
-  const link = basePath ? `${basePath}/${program.id}` : undefined
+  const link = !locked && basePath ? `${basePath}/${program.id}` : undefined
 
   const inner = (
     <Card hover className={cn('group flex h-full flex-col overflow-hidden', className)}>
@@ -78,10 +78,16 @@ export function CourseCard({ program, enrollment, trainer, nextSchedule, progres
             </div>
           )}
 
-          {link && (
-            <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 transition group-hover:gap-2">
-              Open course <ArrowRight className="h-4 w-4" />
+          {locked ? (
+            <span className="inline-flex items-center gap-1.5 text-sm font-semibold text-amber-600">
+              <Lock className="h-4 w-4" /> Awaiting approval
             </span>
+          ) : (
+            link && (
+              <span className="inline-flex items-center gap-1 text-sm font-semibold text-brand-600 transition group-hover:gap-2">
+                Open course <ArrowRight className="h-4 w-4" />
+              </span>
+            )
           )}
         </div>
       </div>

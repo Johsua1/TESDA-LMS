@@ -12,10 +12,10 @@ import {
   Info,
   Search,
   CreditCard,
+  Lock,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { enrollmentsOf, programById } from '../../store/selectors'
-import { programs } from '../../data/programs'
 import {
   PageHeader,
   Card,
@@ -52,7 +52,7 @@ export function Enrollment() {
   const [submitted, setSubmitted] = useState(null)
 
   const enrolledIds = myEnrollments.map((e) => e.programId)
-  const available = programs.filter((p) => !enrolledIds.includes(p.id))
+  const available = db.programs
   const filtered = available.filter((p) => p.title.toLowerCase().includes(query.toLowerCase()))
 
   const reset = () => {
@@ -65,7 +65,17 @@ export function Enrollment() {
 
   const startEnroll = (program) => {
     setSelected(program)
-    setForm({})
+    setForm({
+      fullName: user.name || '',
+      email: user.email || '',
+      contact: user.phone || '',
+      address: user.address || '',
+      birthDate: user.birthDate || '',
+      education: user.education || '',
+      emergencyContact: user.emergencyContact || '',
+      preferredSchedule: '',
+    })
+    setType('self-pay')
     setStep(2)
   }
 
@@ -80,6 +90,16 @@ export function Enrollment() {
       endDate: null,
       progress: {},
       certificateIssued: false,
+      applicant: {
+        fullName: form.fullName || user.name,
+        email: form.email || user.email,
+        contact: form.contact || '',
+        address: form.address || '',
+        birthDate: form.birthDate || '',
+        education: form.education || '',
+        emergencyContact: form.emergencyContact || '',
+        preferredSchedule: form.preferredSchedule || '',
+      },
     }
     if (type === 'scholarship') {
       base.voucher = {
@@ -181,9 +201,26 @@ export function Enrollment() {
                     <span>{p.duration}</span>
                     <span className="font-semibold text-slate-700">{currency(p.fee)}</span>
                   </div>
-                  <Button className="mt-4" size="sm" iconRight={ChevronRight} onClick={() => startEnroll(p)}>
-                    View & Enroll
-                  </Button>
+                  {enrolledIds.includes(p.id) ? (
+                    <Button className="mt-4" size="sm" variant="secondary" disabled>
+                      Already applied
+                    </Button>
+                  ) : p.enrollable ? (
+                    <>
+                      <div className="mt-4">
+                        <Badge tone="success" dot>
+                          Enrollment Available
+                        </Badge>
+                      </div>
+                      <Button className="mt-2" size="sm" iconRight={ChevronRight} onClick={() => startEnroll(p)}>
+                        Enroll Now
+                      </Button>
+                    </>
+                  ) : (
+                    <div className="mt-4 flex items-center justify-center gap-1.5 rounded-lg bg-slate-50 py-2 text-xs font-medium text-slate-500">
+                      <Lock className="h-3.5 w-3.5" /> Enrollment: Contact Admin
+                    </div>
+                  )}
                 </div>
               </Card>
             ))}
@@ -359,8 +396,44 @@ export function Enrollment() {
               </>
             ) : (
               <>
+                <div>
+                  <p className="mb-3 text-xs font-semibold uppercase tracking-wide text-slate-500">Applicant Information</p>
+                  <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                    <FormField label="Full Name" required>
+                      <Input value={form.fullName || ''} onChange={(e) => setForm({ ...form, fullName: e.target.value })} />
+                    </FormField>
+                    <FormField label="Email" required>
+                      <Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+                    </FormField>
+                    <FormField label="Contact Number" required>
+                      <Input value={form.contact || ''} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="+63 917 000 0000" />
+                    </FormField>
+                    <FormField label="Date of Birth">
+                      <Input type="date" value={form.birthDate || ''} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />
+                    </FormField>
+                    <FormField label="Educational Background">
+                      <Input value={form.education || ''} onChange={(e) => setForm({ ...form, education: e.target.value })} placeholder="e.g. Senior High School Graduate" />
+                    </FormField>
+                    <FormField label="Emergency Contact">
+                      <Input value={form.emergencyContact || ''} onChange={(e) => setForm({ ...form, emergencyContact: e.target.value })} placeholder="Name & number" />
+                    </FormField>
+                    <FormField label="Preferred Schedule">
+                      <Select value={form.preferredSchedule || ''} onChange={(e) => setForm({ ...form, preferredSchedule: e.target.value })}>
+                        <option value="">No preference</option>
+                        <option>Morning (8AM–12PM)</option>
+                        <option>Afternoon (1PM–5PM)</option>
+                        <option>Evening (6PM–9PM)</option>
+                        <option>Weekend</option>
+                      </Select>
+                    </FormField>
+                    <FormField label="Address">
+                      <Input value={form.address || ''} onChange={(e) => setForm({ ...form, address: e.target.value })} />
+                    </FormField>
+                  </div>
+                </div>
+
                 <FormRow>
-                  <FormField label="Training Program">
+                  <FormField label="Course">
                     <Input value={selected.title} disabled />
                   </FormField>
                   <FormField label="Training Fee">

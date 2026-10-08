@@ -28,6 +28,7 @@ import {
   traineeExamAttempts,
   nextScheduleFor,
   programById,
+  hasCourseAccess,
 } from '../../store/selectors'
 import { programLessonCount, programQuizCount } from '../../data/programs'
 import { Card, CardBody, CardHeader, Badge, Button, ProgressBar, Tabs, EmptyState } from '../../components/ui'
@@ -187,6 +188,36 @@ export function CourseDetail() {
             </Link>
           }
         />
+      </div>
+    )
+  }
+
+  // Course content is locked until the enrollment is approved.
+  if (!hasCourseAccess(enrollment)) {
+    const rejected = ['Rejected', 'Cancelled'].includes(enrollment.status)
+    return (
+      <div className="mx-auto max-w-xl">
+        <div className="card">
+          <EmptyState
+            icon={rejected ? Lock : Clock}
+            title={`Enrollment ${enrollment.status}`}
+            description={
+              rejected
+                ? 'Your enrollment application was not approved. Please contact the administrator for details.'
+                : 'Your enrollment is pending review. You will be able to open the course once the administrator approves your application.'
+            }
+            action={
+              <div className="flex items-center gap-2">
+                <Link to="/trainee/enrollment">
+                  <Button variant="secondary">View Application</Button>
+                </Link>
+                <Link to="/trainee/courses">
+                  <Button>Back to My Courses</Button>
+                </Link>
+              </div>
+            }
+          />
+        </div>
       </div>
     )
   }

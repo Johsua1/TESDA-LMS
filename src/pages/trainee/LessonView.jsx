@@ -13,7 +13,7 @@ import {
   ClipboardList,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { enrollmentOf, programById, traineeQuizAttempts } from '../../store/selectors'
+import { enrollmentOf, programById, traineeQuizAttempts, hasCourseAccess } from '../../store/selectors'
 import { programLessons } from '../../data/programs'
 import { Card, CardBody, CardHeader, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
@@ -32,6 +32,7 @@ export function LessonView() {
   const lesson = lessons[index]
 
   if (!program || !enrollment || !lesson) return <Navigate to="/trainee/courses" replace />
+  if (!hasCourseAccess(enrollment)) return <Navigate to={`/trainee/courses/${programId}`} replace />
 
   const prev = lessons[index - 1]
   const next = lessons[index + 1]
