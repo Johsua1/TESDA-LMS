@@ -1,7 +1,9 @@
 import { Route, Routes } from 'react-router-dom'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { MfaGate } from './components/MfaGate'
 import { ToastContainer } from './components/ui/Toasts'
+import { useApp } from './store/AppContext'
 
 // Auth / misc
 import { Login } from './pages/Login'
@@ -61,8 +63,12 @@ import { ProfilePage } from './pages/shared/ProfilePage'
 import { MeetRoom } from './pages/shared/MeetRoom'
 
 export default function App() {
+  const { mfaPending } = useApp()
   return (
     <>
+      {mfaPending ? (
+        <MfaGate />
+      ) : (
       <Routes>
         <Route path="/" element={<Login />} />
         <Route path="/login" element={<Login />} />
@@ -173,6 +179,7 @@ export default function App() {
 
         <Route path="*" element={<NotFound />} />
       </Routes>
+      )}
 
       <ToastContainer />
     </>

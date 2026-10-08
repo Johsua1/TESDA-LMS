@@ -119,6 +119,11 @@ export function AppProvider({ children }) {
   const [settings, setSettings] = useState(() => (isSupabaseConfigured ? { ...DEFAULT_SETTINGS } : loadLocalSettings()))
   const [toasts, setToasts] = useState([])
   const [ready, setReady] = useState(!isSupabaseConfigured)
+  // Set when a restored session still needs its second factor (an AAL1 session
+  // with a verified factor enrolled). The app shows the MFA challenge before
+  // treating the user as signed in — otherwise an AAL1 session looks signed in
+  // but every MFA-protected RPC refuses.
+  const [mfaPending, setMfaPending] = useState(null)
 
   // Keep a synchronous mirror of db so mutations can compute the next state and
   // persist it without relying on the async setState updater.
@@ -185,6 +190,13 @@ export function AppProvider({ children }) {
             } catch (e) {
               console.warn('Trainer activation failed:', e)
             }
+          }
+          // A restored session that still needs its second factor is only AAL1;
+          // ask for the code before treating the user as signed in.
+          const mfa = await backend.getMfaAssurance()
+          if (mfa?.needsChallenge) {
+            if (!cancelled) setMfaPending({ factorId: mfa.factorId, profile })
+            return
           }
           if (!cancelled && profile) setUser(profile)
           const { db: loaded, settings: loadedSettings } = await backend.loadAll()
@@ -297,6 +309,7 @@ export function AppProvider({ children }) {
         if (!res.ok) return res
         await loadRemoteData()
         setUser(profile)
+        setMfaPending(null)
         return { ok: true, user: profile }
       } catch (e) {
         console.error(e)
@@ -313,6 +326,7 @@ export function AppProvider({ children }) {
       setDb(EMPTY_DB)
     }
     setUser(null)
+    setMfaPending(null)
   }, [])
 
   const updateProfile = useCallback(
@@ -1099,6 +1113,7 @@ export function AppProvider({ children }) {
       toast,
       dismissToast,
       // auth
+      mfaPending,
       login,
       completeMfa,
       logout,
@@ -1158,6 +1173,7 @@ export function AppProvider({ children }) {
       ready,
       toast,
       dismissToast,
+      mfaPending,
       login,
       completeMfa,
       logout,
