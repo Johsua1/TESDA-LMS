@@ -171,7 +171,7 @@ export function TrainerQuizzes() {
           <EmptyState
             icon={ClipboardList}
             title={programs.length ? 'No quizzes' : 'No assigned programs'}
-            action={programs.length ? <Button icon={Plus} onClick={openCreate}>New Quiz</Button> : null}
+            action={programs.length ? <Button icon={Plus} onClick={openCreate} className="bg-blue-900 text-white hover:bg-blue-800 border-none" >New Quiz</Button> : null}
           />
         </Card>
       )}

@@ -1,21 +1,14 @@
-import { NavLink, useNavigate } from 'react-router-dom'
-import { X, LogOut, ChevronLeft } from 'lucide-react'
+import { NavLink } from 'react-router-dom'
+import { X } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { navConfig, roleMeta } from '../../config/navigation'
 import { cn } from '../../lib/utils'
-import { Avatar } from '../ui'
 
-export function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
-  const { user, logout } = useApp()
-  const navigate = useNavigate()
+export function Sidebar({ open, onClose, collapsed }) {
+  const { user } = useApp()
   const role = user?.role || 'trainee'
   const groups = navConfig[role] || []
   const meta = roleMeta[role]
-
-  const handleLogout = () => {
-    logout()
-    navigate('/login')
-  }
 
   return (
     <>
@@ -31,7 +24,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
 
       <aside
         className={cn(
-          'fixed inset-y-0 left-0 z-50 flex flex-col bg-slate-900 text-slate-300 transition-all duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
+          'fixed inset-y-0 left-0 z-50 flex flex-col bg-blue-900 text-white transition-all duration-300 lg:sticky lg:top-0 lg:h-screen lg:translate-x-0',
           collapsed ? 'w-20' : 'w-72',
           open ? 'translate-x-0' : '-translate-x-full',
         )}
@@ -46,11 +39,11 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
           {!collapsed && (
             <div className="min-w-0">
               <p className="truncate text-sm font-bold text-white">HYT Global Institute</p>
-              <p className="truncate text-[11px] text-slate-400">{meta.label} Portal</p>
+              <p className="truncate text-[11px] text-blue-200">{meta.label} Portal</p>
             </div>
           )}
           <button
-            className="ml-auto rounded-lg p-1.5 text-slate-400 hover:bg-white/10 hover:text-white lg:hidden"
+            className="ml-auto rounded-lg p-1.5 text-white hover:bg-orange-500 lg:hidden transition-colors"
             onClick={onClose}
             aria-label="Close menu"
           >
@@ -63,7 +56,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
           {groups.map((group) => (
             <div key={group.group}>
               {!collapsed && (
-                <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-slate-500">
+                <p className="mb-1.5 px-3 text-[10px] font-semibold uppercase tracking-wider text-blue-200">
                   {group.group}
                 </p>
               )}
@@ -80,8 +73,8 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
                           'group flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors',
                           collapsed && 'justify-center px-0',
                           isActive
-                            ? 'bg-brand-600 text-white shadow-sm'
-                            : 'text-slate-400 hover:bg-white/5 hover:text-white',
+                            ? 'bg-orange-500 text-white shadow-sm'
+                            : 'text-white hover:bg-orange-500',
                         )
                       }
                     >
@@ -94,39 +87,6 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
             </div>
           ))}
         </nav>
-
-        {/* footer */}
-        <div className="border-t border-white/10 p-3">
-          {!collapsed && (
-            <div className="mb-2 flex items-center gap-3 rounded-lg bg-white/5 p-2.5">
-              <Avatar name={user?.name} color={user?.avatarColor} size="sm" />
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-xs font-semibold text-white">{user?.name}</p>
-                <p className="truncate text-[11px] text-slate-400">{user?.email}</p>
-              </div>
-            </div>
-          )}
-          <div className={cn('flex gap-2', collapsed && 'flex-col')}>
-            <button
-              onClick={handleLogout}
-              className={cn(
-                'flex flex-1 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-400 transition hover:bg-red-500/10 hover:text-red-400',
-                collapsed && 'justify-center px-0',
-              )}
-              title="Sign out"
-            >
-              <LogOut className="h-4 w-4 shrink-0" />
-              {!collapsed && 'Sign out'}
-            </button>
-            <button
-              onClick={onToggleCollapse}
-              className="hidden items-center justify-center rounded-lg px-2 py-2 text-slate-400 transition hover:bg-white/5 hover:text-white lg:flex"
-              title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
-            >
-              <ChevronLeft className={cn('h-4 w-4 transition-transform', collapsed && 'rotate-180')} />
-            </button>
-          </div>
-        </div>
       </aside>
     </>
   )

@@ -70,7 +70,7 @@ export function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-tesda-blue via-brand-800 to-slate-900 p-6 text-white sm:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-blue-900 p-6 text-white sm:p-8">
         <div
           className="absolute inset-0 opacity-25"
           style={{ backgroundImage: 'radial-gradient(circle at 85% 20%, rgba(246,192,0,0.45) 0, transparent 45%)' }}

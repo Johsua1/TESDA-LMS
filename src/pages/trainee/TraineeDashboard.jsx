@@ -80,7 +80,7 @@ export function TraineeDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-tesda-blue via-brand-700 to-brand-900 p-6 text-white sm:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-blue-900 p-6 text-white sm:p-8">
         <div
           className="absolute inset-0 opacity-25"
           style={{

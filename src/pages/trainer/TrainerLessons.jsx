@@ -129,7 +129,7 @@ export function TrainerLessons() {
                 </option>
               ))}
             </Select>
-            <Button icon={Plus} onClick={openCreate} disabled={!programs.length}>
+            <Button icon={Plus} className="bg-blue-900 text-white hover:bg-blue-800 border-none" onClick={openCreate} disabled={!programs.length}>
               New Lesson
             </Button>
           </div>

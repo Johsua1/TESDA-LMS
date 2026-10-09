@@ -50,7 +50,7 @@ export function TrainerDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 p-6 text-white sm:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-blue-900 p-6 text-white sm:p-8">
         <div
           className="absolute inset-0 opacity-25"
           style={{ backgroundImage: 'radial-gradient(circle at 85% 20%, rgba(255,255,255,0.35) 0, transparent 45%)' }}
@@ -58,7 +58,7 @@ export function TrainerDashboard() {
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <Badge className="bg-white/15 text-white ring-white/20">Trainer Dashboard</Badge>
-            <h1 className="mt-3 text-2xl font-bold sm:text-3xl">Good day, {user.name.split(' ')[0]}!</h1>
+            <h1 className="mt-3 text-2xl font-bold sm:text-3xl text-white">Good day, {user.name.split(' ')[0]}!</h1>
             <p className="mt-2 max-w-xl text-sm text-white/80">
               You are handling {programs.length} program{programs.length !== 1 ? 's' : ''} with {trainees.length} trainee
               {trainees.length !== 1 ? 's' : ''}. {upcoming.length} upcoming class{upcoming.length !== 1 ? 'es' : ''} this period.
@@ -66,7 +66,7 @@ export function TrainerDashboard() {
           </div>
           <div className="flex flex-wrap gap-3">
             <Link to="/trainer/attendance">
-              <Button variant="secondary" className="bg-white/95 hover:bg-white" icon={CalendarDays}>
+              <Button variant="secondary" className="bg-yellow-500 hover:bg-yellow-600 text-white border-none" icon={CalendarDays}>
                 Record Attendance
               </Button>
             </Link>
@@ -97,7 +97,7 @@ export function TrainerDashboard() {
         <div className="space-y-6 lg:col-span-2">
           {/* My programs */}
           <div>
-            <SectionTitle action={<Link to="/trainer/courses" className="text-xs font-semibold text-brand-600 hover:text-brand-700">View all</Link>}>
+            <SectionTitle action={<Link to="/trainer/courses" className="text-xs font-semibold text-blue-900 hover:text-blue-800">View all</Link>}>
               My Programs
             </SectionTitle>
             <div className="space-y-3">
@@ -134,7 +134,7 @@ export function TrainerDashboard() {
 
           {/* Upcoming classes */}
           <div>
-            <SectionTitle action={<Link to="/trainer/schedules" className="text-xs font-semibold text-brand-600 hover:text-brand-700">Manage schedule</Link>}>
+            <SectionTitle action={<Link to="/trainer/schedules" className="text-xs font-semibold text-blue-900 hover:text-blue-800">Manage schedule</Link>}>
               Upcoming Classes
             </SectionTitle>
             <div className="space-y-3">
@@ -181,7 +181,7 @@ export function TrainerDashboard() {
 
           {typingTests.length > 0 && (
             <Card>
-              <CardHeader title="Typing Test Results" icon={Keyboard} action={<Link to="/trainer/typing-tests" className="text-xs font-semibold text-brand-600">View</Link>} />
+              <CardHeader title="Typing Test Results" icon={Keyboard} action={<Link to="/trainer/typing-tests" className="text-xs font-semibold text-blue-900 hover:text-blue-800">View</Link>} />
               <CardBody className="space-y-3 pt-4">
                 {typingTests.slice(0, 4).map((t) => {
                   const trainee = db.users.find((u) => u.id === t.traineeId)
@@ -200,7 +200,7 @@ export function TrainerDashboard() {
           )}
 
           <Card>
-            <CardHeader title="Evaluations" icon={Target} action={<Link to="/trainer/evaluations" className="text-xs font-semibold text-brand-600">View</Link>} />
+            <CardHeader title="Evaluations" icon={Target} action={<Link to="/trainer/evaluations" className="text-xs font-semibold text-blue-900 hover:text-blue-800">View</Link>} />
             <CardBody className="pt-4">
               <div className="flex items-center gap-4">
                 <span className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-2xl font-bold text-amber-600">

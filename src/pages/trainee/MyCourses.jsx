@@ -39,7 +39,9 @@ export function MyCourses() {
         description="Courses you are enrolled in. You only have access to programs assigned to your account."
         action={
           <Link to="/trainee/enrollment">
-            <Button icon={Plus}>Enroll in a program</Button>
+            <Button icon={Plus} className="bg-blue-900 text-white hover:bg-blue-800 border-none">
+              Enroll in a program
+            </Button>
           </Link>
         }
       />
@@ -83,7 +85,9 @@ export function MyCourses() {
             description="Browse the available training programs and submit an enrollment application."
             action={
               <Link to="/trainee/enrollment">
-                <Button icon={Plus}>Browse programs</Button>
+                <Button icon={Plus} className="bg-blue-900 text-white hover:bg-blue-800 border-none">
+                  Browse programs
+                </Button>
               </Link>
             }
           />

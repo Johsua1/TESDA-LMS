@@ -44,9 +44,11 @@ export function Topbar({ onMenuClick, title }) {
           className="relative rounded-lg p-2 text-slate-500 transition hover:bg-slate-100"
           aria-label="Notifications"
         >
-          <Bell className="h-5 w-5" />
+          <Bell className="h-6 w-6" />
           {announcements.length > 0 && (
-            <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-tesda-red ring-2 ring-white" />
+            <span className="absolute -right-1 -top-1 flex h-5 w-5 animate-pulse items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white shadow-sm ring-2 ring-white">
+              {announcements.length}
+            </span>
           )}
         </button>
         {notifOpen && (
