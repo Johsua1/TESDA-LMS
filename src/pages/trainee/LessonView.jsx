@@ -91,7 +91,7 @@ export function LessonView() {
                 )
               }
               return (
-                <div className="relative flex aspect-video items-center justify-center bg-gradient-to-br from-slate-800 to-slate-900">
+                <div className="relative flex aspect-video items-center justify-center bg-slate-800">
                   <div className="px-6 text-center text-white/70">
                     <VideoOff className="mx-auto h-9 w-9 text-white/40" />
                     <p className="mt-3 text-sm font-medium text-white/80">{lesson.video || lesson.title}</p>
@@ -117,7 +117,7 @@ export function LessonView() {
 
               <div className="prose prose-sm mt-5 max-w-none">
                 <h3 className="text-sm font-semibold text-slate-700">Lesson Content</h3>
-                <p className="mt-2 text-sm leading-relaxed text-slate-600">{lesson.content}</p>
+                <p className="mt-2 text-sm leading-relaxed text-slate-500">{lesson.content}</p>
               </div>
 
               <div className="mt-6 flex flex-wrap items-center gap-3">
@@ -230,7 +230,7 @@ export function LessonView() {
                     to={`/trainee/courses/${programId}/lesson/${l.id}`}
                     className={cn(
                       'flex items-center gap-2.5 rounded-lg px-3 py-2 text-sm transition',
-                      isCurrent ? 'bg-brand-50 font-semibold text-brand-700' : 'text-slate-600 hover:bg-slate-50',
+                      isCurrent ? 'bg-brand-50 font-semibold text-brand-700' : 'text-slate-500 hover:bg-brand-50',
                     )}
                   >
                     {isDone ? (
@@ -277,7 +277,7 @@ export function LessonView() {
           <Card className="bg-brand-50/50">
             <CardBody className="flex items-start gap-3">
               <BookOpen className="h-5 w-5 shrink-0 text-brand-600" />
-              <p className="text-xs leading-relaxed text-slate-600">
+              <p className="text-xs leading-relaxed text-slate-500">
                 Complete all lessons in a competency to unlock its assessment. Your progress updates automatically as you
                 mark lessons complete.
               </p>

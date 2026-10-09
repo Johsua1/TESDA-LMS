@@ -127,7 +127,7 @@ export function TrainerTypingTests() {
       >
         {selected && (
           <div className="space-y-5">
-            <div className={cn('rounded-xl p-5 text-white', selected.passed ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gradient-to-br from-red-500 to-rose-600')}>
+            <div className={cn('rounded-xl p-5 text-white', selected.passed ? 'bg-emerald-500' : 'bg-red-500')}>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="text-xs text-white/80">Typing Test Score</p>
@@ -152,7 +152,7 @@ export function TrainerTypingTests() {
                 { label: 'Date', value: formatDate(selected.date) },
                 { label: 'Result', value: selected.passed ? 'PASSED' : 'FAILED' },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg bg-slate-50 p-3 text-center">
+                <div key={s.label} className="rounded-lg bg-white p-3 text-center">
                   <p className="text-base font-bold text-slate-800">{s.value}</p>
                   <p className="text-[10px] uppercase text-slate-400">{s.label}</p>
                 </div>

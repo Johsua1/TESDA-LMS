@@ -4,7 +4,33 @@ import { useApp } from '../../store/AppContext'
 import { programById, activeEnrollmentsOf, courseProgress, trainerPrograms, trainerRatingSummary } from '../../store/selectors'
 import { PageHeader, Card, CardBody, CardHeader, Avatar, Button, Input, Select, FormField, FormRow, Badge, ProgressBar } from '../../components/ui'
 import { roleMeta } from '../../config/navigation'
-import { formatDate } from '../../lib/utils'
+import { formatDate, cn } from '../../lib/utils'
+
+// Per-role accent colors for the profile page (UI only).
+// Swap a color here to re-theme that role.
+const roleTheme = {
+  admin: {
+    bar: 'bg-tesda-blue',
+    badge: 'bg-tesda-blue text-white ring-tesda-blue/40',
+    chip: 'bg-tesda-blue/10 text-tesda-blue',
+    roleCard: 'border-t-4 border-t-tesda-blue',
+    btn: 'tesda',
+  },
+  trainer: {
+    bar: 'bg-emerald-600',
+    badge: 'bg-emerald-700 text-white ring-emerald-600/40',
+    chip: 'bg-emerald-50 text-emerald-600',
+    roleCard: 'border-t-4 border-t-emerald-600',
+    btn: 'success',
+  },
+  trainee: {
+    bar: 'bg-warm-400',
+    badge: 'bg-warm-400 text-slate-900 ring-warm-300',
+    chip: 'bg-warm-100 text-warm-600',
+    roleCard: 'border-t-4 border-t-warm-400',
+    btn: 'warning',
+  },
+}
 
 export function ProfilePage() {
   const { db, user, updateProfile, changePassword } = useApp()
@@ -22,6 +48,7 @@ export function ProfilePage() {
   })
 
   const meta = roleMeta[user.role]
+  const theme = roleTheme[user.role] || roleTheme.admin
   const enrollments = user.role === 'trainee' ? activeEnrollmentsOf(db, user.id) : []
   const assignedPrograms = user.role === 'trainer' ? trainerPrograms(db, user.id) : []
   const ratingSummary = user.role === 'trainer' ? trainerRatingSummary(db, user.id) : null
@@ -62,14 +89,20 @@ export function ProfilePage() {
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
         {/* Profile card */}
-        <Card className="lg:col-span-1">
+        <Card className="overflow-hidden lg:col-span-1">
+          <div className={cn('h-1.5 w-full', theme.bar)} aria-hidden="true" />
           <CardBody className="text-center">
             <Avatar name={user.name} color={user.avatarColor} size="xl" className="mx-auto" />
             <h2 className="mt-4 text-lg font-bold text-slate-800">{user.name}</h2>
             <p className="text-sm text-slate-500">{user.email}</p>
-            <Badge tone="brand" className="mt-3">
+            <span
+              className={cn(
+                'mt-3 inline-flex items-center gap-1.5 rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset',
+                theme.badge,
+              )}
+            >
               {meta.label}
-            </Badge>
+            </span>
 
             <div className="mt-6 space-y-3 text-left">
               {[
@@ -81,7 +114,7 @@ export function ProfilePage() {
                   : []),
               ].map((row) => (
                 <div key={row.label} className="flex items-start gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-lg', theme.chip)}>
                     <row.icon className="h-4 w-4" />
                   </span>
                   <div className="min-w-0">
@@ -153,7 +186,7 @@ export function ProfilePage() {
                   <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
                 </FormField>
                 <div className="flex justify-end">
-                  <Button type="submit" icon={Save}>
+                  <Button type="submit" icon={Save} variant={theme.btn}>
                     Save Changes
                   </Button>
                 </div>
@@ -163,7 +196,7 @@ export function ProfilePage() {
 
           {/* Role-specific */}
           {user.role === 'trainee' && (
-            <Card>
+            <Card className={theme.roleCard}>
               <CardHeader title="My Enrolled Programs" icon={BookOpen} />
               <CardBody className="space-y-4">
                 {enrollments.length ? (
@@ -194,11 +227,11 @@ export function ProfilePage() {
           )}
 
           {user.role === 'trainer' && (
-            <Card>
+            <Card className={theme.roleCard}>
               <CardHeader title="Assigned Programs" icon={GraduationCap} />
               <CardBody className="space-y-3">
-                <div className="flex items-center gap-2 text-sm text-slate-600">
-                  <Star className="h-4 w-4 text-amber-500" />
+                <div className="flex items-center gap-2 text-sm text-slate-500">
+                  <Star className="h-4 w-4 text-warm-500" />
                   {ratingSummary.count ? (
                     <>
                       Trainee rating: <strong>{ratingSummary.average.toFixed(1)}</strong> / 5.0
@@ -255,7 +288,7 @@ export function ProfilePage() {
                   </FormField>
                 </FormRow>
                 <div className="flex justify-end">
-                  <Button type="submit" icon={Shield} loading={pwLoading}>
+                  <Button type="submit" icon={Shield} loading={pwLoading} variant={theme.btn}>
                     Update Password
                   </Button>
                 </div>

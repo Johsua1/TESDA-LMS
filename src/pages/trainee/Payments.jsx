@@ -66,7 +66,7 @@ function PaymentCard({ enrollment, onPay }) {
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-2xl', program?.color || 'from-brand-500 to-brand-700')}>
+          <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-2xl', program?.color || 'bg-brand-500')}>
             {program?.emoji || '📘'}
           </span>
           <div>
@@ -93,7 +93,7 @@ function PaymentCard({ enrollment, onPay }) {
 
       <div className="border-t border-slate-100 px-5 py-4">
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-lg bg-slate-50 p-3">
+          <div className="rounded-lg bg-white p-3">
             <p className="text-[11px] uppercase tracking-wide text-slate-400">Training Fee</p>
             <p className="mt-0.5 text-sm font-semibold text-slate-700">{currency(fee)}</p>
           </div>
@@ -101,7 +101,7 @@ function PaymentCard({ enrollment, onPay }) {
             <p className="text-[11px] uppercase tracking-wide text-emerald-600">Amount Paid</p>
             <p className="mt-0.5 text-sm font-semibold text-emerald-700">{currency(paid)}</p>
           </div>
-          <div className={cn('rounded-lg p-3', balance > 0 ? 'bg-red-50' : 'bg-slate-50')}>
+          <div className={cn('rounded-lg p-3', balance > 0 ? 'bg-red-50' : 'bg-white')}>
             <p className={cn('text-[11px] uppercase tracking-wide', balance > 0 ? 'text-red-500' : 'text-slate-400')}>Balance</p>
             <p className={cn('mt-0.5 text-sm font-semibold', balance > 0 ? 'text-red-600' : 'text-slate-700')}>{currency(balance)}</p>
           </div>
@@ -110,9 +110,9 @@ function PaymentCard({ enrollment, onPay }) {
         <div className="mt-4">
           <div className="mb-1.5 flex items-center justify-between text-xs text-slate-500">
             <span>Payment progress</span>
-            <span className="font-semibold text-slate-600">{paidPct}% paid</span>
+            <span className="font-semibold text-slate-500">{paidPct}% paid</span>
           </div>
-          <ProgressBar value={paidPct} tone={settled ? 'bg-emerald-500' : paidPct >= 40 ? 'bg-brand-500' : 'bg-amber-500'} />
+          <ProgressBar value={paidPct} tone={settled ? 'bg-emerald-500' : paidPct >= 40 ? 'bg-brand-500' : 'bg-warm-500'} />
         </div>
 
         <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
@@ -140,7 +140,7 @@ function PaymentCard({ enrollment, onPay }) {
           <div className="mt-4 overflow-hidden rounded-lg border border-slate-100">
             {transactions.length ? (
               <table className="w-full text-left text-xs">
-                <thead className="bg-slate-50 text-slate-500">
+                <thead className="bg-white text-slate-500">
                   <tr>
                     <th className="px-3 py-2 font-medium">Date</th>
                     <th className="px-3 py-2 font-medium">Method</th>
@@ -150,7 +150,7 @@ function PaymentCard({ enrollment, onPay }) {
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {transactions.map((t) => (
-                    <tr key={t.id} className="text-slate-600">
+                    <tr key={t.id} className="text-slate-500">
                       <td className="px-3 py-2">{formatDate(t.date)}</td>
                       <td className="px-3 py-2">{t.method || '—'}</td>
                       <td className="px-3 py-2 font-mono text-[11px] text-slate-500">{t.referenceNo || '—'}</td>
@@ -232,11 +232,11 @@ function PayModal({ open, enrollment, onClose, onConfirm }) {
       <div className="space-y-5">
         {/* Summary */}
         <div className="grid grid-cols-3 gap-3">
-          <div className="rounded-lg bg-slate-50 p-3">
+          <div className="rounded-lg bg-white p-3">
             <p className="text-[11px] uppercase tracking-wide text-slate-400">Training Fee</p>
             <p className="mt-0.5 text-sm font-semibold text-slate-700">{currency(fee)}</p>
           </div>
-          <div className="rounded-lg bg-slate-50 p-3">
+          <div className="rounded-lg bg-white p-3">
             <p className="text-[11px] uppercase tracking-wide text-slate-400">Already Paid</p>
             <p className="mt-0.5 text-sm font-semibold text-slate-700">{currency(paid)}</p>
           </div>
@@ -260,13 +260,13 @@ function PayModal({ open, enrollment, onClose, onConfirm }) {
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => preset(balance)}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-brand-300 hover:text-brand-700"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 transition hover:border-brand-300 hover:text-brand-700"
           >
             Full balance · {currency(balance)}
           </button>
           <button
             onClick={() => preset(Math.round(balance / 2))}
-            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-600 transition hover:border-brand-300 hover:text-brand-700"
+            className="rounded-full border border-slate-200 px-3 py-1 text-xs font-medium text-slate-500 transition hover:border-brand-300 hover:text-brand-700"
           >
             Half · {currency(Math.round(balance / 2))}
           </button>
@@ -297,13 +297,13 @@ function PayModal({ open, enrollment, onClose, onConfirm }) {
         </div>
 
         {/* Live result preview */}
-        <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+        <div className="rounded-lg border border-slate-100 bg-white p-4">
           <div className="flex items-center justify-between text-sm">
             <span className="text-slate-500">This payment</span>
             <span className="font-semibold text-emerald-600">{currency(applied)}</span>
           </div>
           <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2 text-sm">
-            <span className="font-medium text-slate-600">Remaining balance after payment</span>
+            <span className="font-medium text-slate-500">Remaining balance after payment</span>
             <span className="font-bold text-slate-800">{currency(newBalance)}</span>
           </div>
           <div className="mt-3 flex items-center justify-between">

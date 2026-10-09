@@ -188,10 +188,10 @@ export function TrainerEvaluations() {
             <Input value={period} onChange={(e) => setPeriod(e.target.value)} />
           </FormField>
 
-          <div className="space-y-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+          <div className="space-y-3 rounded-xl border border-slate-100 bg-white/60 p-4">
             {CRITERIA.map((c) => (
               <div key={c.key} className="flex items-center justify-between gap-3">
-                <span className="text-sm text-slate-600">{c.label}</span>
+                <span className="text-sm text-slate-500">{c.label}</span>
                 <Stars value={scores[c.key]} onChange={(v) => setScores({ ...scores, [c.key]: v })} />
               </div>
             ))}
@@ -199,7 +199,7 @@ export function TrainerEvaluations() {
               <span className="text-sm font-semibold text-slate-700">Overall Rating</span>
               <div className="flex items-center gap-2">
                 <Stars value={Math.round(overall)} />
-                <span className="text-lg font-bold text-amber-600">{overall}</span>
+                <span className="text-lg font-bold text-warm-600">{overall}</span>
                 <span className="text-xs text-slate-400">/ 5.0</span>
               </div>
             </div>

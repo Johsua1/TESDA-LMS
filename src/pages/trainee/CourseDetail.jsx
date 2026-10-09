@@ -48,10 +48,10 @@ function CompetencyAccordion({ competency, programId, progress, quizzes, attempt
     <Card className="overflow-hidden">
       <button
         onClick={onToggle}
-        className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-slate-50"
+        className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-brand-50"
         aria-expanded={open}
       >
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gray-50 text-slate-500">
           <Layers className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
@@ -74,7 +74,7 @@ function CompetencyAccordion({ competency, programId, progress, quizzes, attempt
           {units.map((unit) => (
             <div key={unit.id} className="border-b border-slate-50 last:border-0">
               {isCore && (
-                <div className="bg-slate-50/70 px-5 py-2.5">
+                <div className="bg-white/70 px-5 py-2.5">
                   <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{unit.title}</p>
                   {unit.description && <p className="mt-0.5 text-xs text-slate-400">{unit.description}</p>}
                 </div>
@@ -86,7 +86,7 @@ function CompetencyAccordion({ competency, programId, progress, quizzes, attempt
                   const attempt = attempts.find((a) => a.quizId === lesson.quizId)
                   return (
                     <li key={lesson.id}>
-                      <div className="flex flex-col gap-3 px-5 py-3.5 transition hover:bg-slate-50 sm:flex-row sm:items-center">
+                      <div className="flex flex-col gap-3 px-5 py-3.5 transition hover:bg-brand-50 sm:flex-row sm:items-center">
                         <Link
                           to={`/trainee/courses/${programId}/lesson/${lesson.id}`}
                           className="flex min-w-0 flex-1 items-center gap-3"
@@ -94,7 +94,7 @@ function CompetencyAccordion({ competency, programId, progress, quizzes, attempt
                           <span
                             className={cn(
                               'flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs',
-                              complete ? 'bg-emerald-50 text-emerald-600' : 'bg-slate-100 text-slate-500',
+                              complete ? 'bg-emerald-50 text-emerald-600' : 'bg-gray-50 text-slate-500',
                             )}
                           >
                             {complete ? <CheckCircle2 className="h-4 w-4" /> : <PlayCircle className="h-4 w-4" />}
@@ -147,7 +147,7 @@ function CompetencyAccordion({ competency, programId, progress, quizzes, attempt
           ))}
 
           {/* Assessment row */}
-          <div className="flex items-center justify-between gap-3 bg-slate-50/70 px-5 py-3">
+          <div className="flex items-center justify-between gap-3 bg-white/70 px-5 py-3">
             <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
               <Award className="h-4 w-4" /> Competency Assessment
             </span>
@@ -238,7 +238,7 @@ export function CourseDetail() {
       </Link>
 
       {/* Hero */}
-      <div className={cn('relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 text-white sm:p-8', program.color)}>
+      <div className={cn('relative overflow-hidden rounded-2xl p-6 text-white sm:p-8', program.color)}>
         <div className="absolute inset-0 bg-black/10" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
@@ -292,7 +292,7 @@ export function CourseDetail() {
           <Card className="lg:col-span-2">
             <CardHeader title="Course Overview" icon={BookOpen} />
             <CardBody>
-              <p className="text-sm leading-relaxed text-slate-600">{program.overview}</p>
+              <p className="text-sm leading-relaxed text-slate-500">{program.overview}</p>
               <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {[
                   { label: 'Duration', value: program.duration },
@@ -302,7 +302,7 @@ export function CourseDetail() {
                   { label: 'End Date', value: formatDate(enrollment.endDate) },
                   { label: 'Trainer', value: trainer?.name },
                 ].map((item) => (
-                  <div key={item.label} className="rounded-lg bg-slate-50 p-3">
+                  <div key={item.label} className="rounded-lg bg-white p-3">
                     <p className="text-[11px] font-medium uppercase tracking-wide text-slate-400">{item.label}</p>
                     <p className="mt-0.5 text-sm font-semibold text-slate-700">{item.value}</p>
                   </div>
@@ -332,12 +332,12 @@ export function CourseDetail() {
                 </div>
               )}
               {enrollment.type === 'self-pay' && enrollment.payment && (
-                <div className="rounded-lg bg-slate-50 p-3 text-xs">
+                <div className="rounded-lg bg-white p-3 text-xs">
                   <div className="flex items-center justify-between">
                     <span className="text-slate-500">Payment status</span>
                     <StatusBadge status={enrollment.payment.status} dot={false} />
                   </div>
-                  <div className="mt-2 flex items-center justify-between text-slate-600">
+                  <div className="mt-2 flex items-center justify-between text-slate-500">
                     <span>Balance</span>
                     <span className="font-semibold">₱{enrollment.payment.balance.toLocaleString()}</span>
                   </div>
@@ -396,7 +396,7 @@ export function CourseDetail() {
                   </span>
                 </div>
                 {best && (
-                  <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                  <p className="mt-3 rounded-lg bg-white px-3 py-2 text-xs text-slate-500">
                     Best: <strong>{best.score}/{best.total}</strong> ({best.percentage}%)
                   </p>
                 )}
@@ -419,7 +419,7 @@ export function CourseDetail() {
               <Card key={exam.id} className="p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-4">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-warm-50 text-warm-600">
                       <Award className="h-5 w-5" />
                     </span>
                     <div>

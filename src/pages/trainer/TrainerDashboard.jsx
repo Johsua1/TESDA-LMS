@@ -50,14 +50,15 @@ export function TrainerDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-600 via-teal-700 to-slate-900 p-6 text-white sm:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-emerald-600 p-6 text-white sm:p-8">
+        <span className="absolute inset-y-0 left-0 w-1.5 bg-warm-400" aria-hidden="true" />
         <div
           className="absolute inset-0 opacity-25"
-          style={{ backgroundImage: 'radial-gradient(circle at 85% 20%, rgba(255,255,255,0.35) 0, transparent 45%)' }}
+          style={{ backgroundImage: 'none' }}
         />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <Badge className="bg-white/15 text-white ring-white/20">Trainer Dashboard</Badge>
+            <Badge className="bg-warm-400 text-slate-900 ring-warm-300">Trainer Dashboard</Badge>
             <h1 className="mt-3 text-2xl font-bold sm:text-3xl">Good day, {user.name.split(' ')[0]}!</h1>
             <p className="mt-2 max-w-xl text-sm text-white/80">
               You are handling {programs.length} program{programs.length !== 1 ? 's' : ''} with {trainees.length} trainee
@@ -106,7 +107,7 @@ export function TrainerDashboard() {
                 const avg = enrs.length ? Math.round(average(enrs.map((e) => courseProgress(e, p.id).percent))) : 0
                 return (
                   <Card key={p.id} hover className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-                    <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-2xl', p.color)}>
+                    <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl text-2xl', p.color)}>
                       {p.emoji}
                     </span>
                     <div className="min-w-0 flex-1">
@@ -203,7 +204,7 @@ export function TrainerDashboard() {
             <CardHeader title="Evaluations" icon={Target} action={<Link to="/trainer/evaluations" className="text-xs font-semibold text-brand-600">View</Link>} />
             <CardBody className="pt-4">
               <div className="flex items-center gap-4">
-                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-amber-50 text-2xl font-bold text-amber-600">
+                <span className="flex h-14 w-14 items-center justify-center rounded-full bg-warm-50 text-2xl font-bold text-warm-600">
                   {evaluations.length ? average(evaluations.map((e) => e.overall)).toFixed(1) : '—'}
                 </span>
                 <div>

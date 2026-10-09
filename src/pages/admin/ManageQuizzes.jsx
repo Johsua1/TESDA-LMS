@@ -118,7 +118,7 @@ export function ManageQuizzes() {
                 { label: 'Passing', value: `${selected.passing}%` },
                 { label: 'Attempts', value: db.quizAttempts.filter((a) => a.quizId === selected.id).length },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg bg-slate-50 p-3 text-center">
+                <div key={s.label} className="rounded-lg bg-white p-3 text-center">
                   <p className="text-lg font-bold text-slate-800">{s.value}</p>
                   <p className="text-[10px] uppercase text-slate-400">{s.label}</p>
                 </div>
@@ -137,7 +137,7 @@ export function ManageQuizzes() {
                     {q.options && (
                       <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs">
                         {q.options.map((o) => (
-                          <span key={o} className={o === q.answer ? 'rounded bg-emerald-50 px-2 py-1 text-emerald-700' : 'rounded bg-slate-50 px-2 py-1 text-slate-500'}>
+                          <span key={o} className={o === q.answer ? 'rounded bg-emerald-50 px-2 py-1 text-emerald-700' : 'rounded bg-white px-2 py-1 text-slate-500'}>
                             {o}
                           </span>
                         ))}
@@ -160,7 +160,7 @@ export function ManageQuizzes() {
                     const t = db.users.find((u) => u.id === a.traineeId)
                     return (
                       <div key={a.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-                        <span className="text-slate-600">{t?.name}</span>
+                        <span className="text-slate-500">{t?.name}</span>
                         <span className="flex items-center gap-3">
                           <span className="text-slate-500">{a.percentage}%</span>
                           <StatusBadge status={a.passed ? 'Passed' : 'Failed'} dot={false} />

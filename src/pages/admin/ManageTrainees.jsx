@@ -104,7 +104,7 @@ export function ManageTrainees() {
       toast(`Select a trainer for: ${names}. Uncheck any course with no assigned trainer.`, 'warning')
       return
     }
-    const colors = ['from-rose-500 to-pink-600', 'from-cyan-500 to-sky-600', 'from-violet-500 to-purple-600', 'from-teal-500 to-emerald-600', 'from-orange-500 to-amber-600', 'from-blue-500 to-indigo-600']
+    const colors = ['bg-rose-500', 'bg-cyan-500', 'bg-violet-500', 'bg-teal-500', 'bg-orange-500', 'bg-blue-500']
     const base = {
       ...form,
       avatarColor: editing?.avatarColor || colors[Math.floor(Math.random() * colors.length)],
@@ -226,10 +226,10 @@ export function ManageTrainees() {
       header: '',
       render: (r) => (
         <div className="flex items-center justify-end gap-1">
-          <button onClick={() => setViewing(r)} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-brand-600" aria-label="View">
+          <button onClick={() => setViewing(r)} className="rounded-lg p-2 text-slate-400 transition hover:bg-gray-50 hover:text-brand-600" aria-label="View">
             <Eye className="h-4 w-4" />
           </button>
-          <button onClick={() => openEdit(r.trainee)} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-brand-600" aria-label="Edit">
+          <button onClick={() => openEdit(r.trainee)} className="rounded-lg p-2 text-slate-400 transition hover:bg-gray-50 hover:text-brand-600" aria-label="Edit">
             <Pencil className="h-4 w-4" />
           </button>
           <button onClick={() => setConfirm(r.trainee)} className="rounded-lg p-2 text-slate-400 transition hover:bg-red-50 hover:text-red-600" aria-label="Delete">
@@ -339,7 +339,7 @@ export function ManageTrainees() {
                     key={p.id}
                     className={cn(
                       'rounded-lg border p-3 transition',
-                      on ? 'border-brand-500 bg-brand-50' : 'border-slate-200 hover:bg-slate-50',
+                      on ? 'border-brand-500 bg-brand-50' : 'border-slate-200 hover:bg-brand-50',
                       noTrainer && !on && 'opacity-70',
                     )}
                   >
@@ -358,7 +358,7 @@ export function ManageTrainees() {
                     {on && (
                       <div className="mt-2.5">
                         {noTrainer ? (
-                          <p className="text-[11px] text-amber-600">
+                          <p className="text-[11px] text-warm-600">
                             No trainer assigned to this course. Uncheck to remove it, or assign a trainer in Manage
                             Trainers.
                           </p>
@@ -403,15 +403,15 @@ export function ManageTrainees() {
             <div className="flex items-center gap-4">
               <Avatar name={viewing.trainee.name} color={viewing.trainee.avatarColor} size="lg" />
               <div className="grid flex-1 grid-cols-3 gap-3">
-                <div className="rounded-lg bg-slate-50 p-2.5 text-center">
+                <div className="rounded-lg bg-white p-2.5 text-center">
                   <p className="text-base font-bold text-slate-800">{viewing.att.rate}%</p>
                   <p className="text-[10px] uppercase text-slate-400">Attendance</p>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-2.5 text-center">
+                <div className="rounded-lg bg-white p-2.5 text-center">
                   <p className="text-base font-bold text-slate-800">{viewing.progress}%</p>
                   <p className="text-[10px] uppercase text-slate-400">Progress</p>
                 </div>
-                <div className="rounded-lg bg-slate-50 p-2.5 text-center">
+                <div className="rounded-lg bg-white p-2.5 text-center">
                   <p className="text-base font-bold text-slate-800">{viewing.enrs.length}</p>
                   <p className="text-[10px] uppercase text-slate-400">Programs</p>
                 </div>
@@ -425,7 +425,7 @@ export function ManageTrainees() {
                 { icon: GraduationCap, label: 'Education', value: viewing.trainee.education || '—' },
               ].map((row) => (
                 <div key={row.label} className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+                  <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-slate-500">
                     <row.icon className="h-4 w-4" />
                   </span>
                   <div>
@@ -470,20 +470,20 @@ export function ManageTrainees() {
             <div
               className={cn(
                 'flex items-start gap-3 rounded-lg px-3 py-2.5 ring-1 ring-inset',
-                created.emailed ? 'bg-emerald-50 ring-emerald-200' : 'bg-amber-50 ring-amber-200',
+                created.emailed ? 'bg-emerald-50 ring-emerald-200' : 'bg-warm-50 ring-warm-200',
               )}
             >
               <CheckCircle2
-                className={cn('mt-0.5 h-4 w-4 shrink-0', created.emailed ? 'text-emerald-600' : 'text-amber-600')}
+                className={cn('mt-0.5 h-4 w-4 shrink-0', created.emailed ? 'text-emerald-600' : 'text-warm-600')}
               />
-              <p className={cn('text-xs', created.emailed ? 'text-emerald-800' : 'text-amber-800')}>
+              <p className={cn('text-xs', created.emailed ? 'text-emerald-800' : 'text-warm-800')}>
                 {created.emailed
                   ? 'An activation email has been sent to the trainee. They can set their own password from the link.'
                   : 'Account created, but the activation email could not be sent (check the email/SMTP settings). Share the temporary password below instead.'}
               </p>
             </div>
 
-            <div className="space-y-3 rounded-lg bg-slate-50 p-3">
+            <div className="space-y-3 rounded-lg bg-white p-3">
               <div>
                 <p className="text-[11px] uppercase tracking-wide text-slate-400">Email (LMS Portal login)</p>
                 <p className="text-sm font-medium text-slate-700">{created.email}</p>

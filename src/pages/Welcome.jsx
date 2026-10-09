@@ -85,10 +85,10 @@ export function Welcome() {
   const firstName = profile?.name ? profile.name.split(' ')[0] : null
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-slate-50 px-5 py-10">
+    <div className="flex min-h-screen items-center justify-center bg-white px-5 py-10">
       <div className="w-full max-w-md">
         <div className="mb-8 flex items-center gap-3">
-          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#141a58] p-1.5">
+          <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-800 p-1.5">
             <img src="/hgi-logo.png" alt="HYT Global Institute" className="h-full w-full object-contain" />
           </span>
           <div>
@@ -105,12 +105,12 @@ export function Welcome() {
         )}
 
         {status === 'invalid' && (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6">
+          <div className="rounded-2xl border border-warm-200 bg-warm-50 p-6">
             <div className="flex items-start gap-3">
-              <AlertTriangle className="h-5 w-5 shrink-0 text-amber-500" />
+              <AlertTriangle className="h-5 w-5 shrink-0 text-warm-500" />
               <div>
                 <h1 className="text-base font-bold text-slate-800">This link is invalid or has expired</h1>
-                <p className="mt-1 text-sm text-slate-600">
+                <p className="mt-1 text-sm text-slate-500">
                   Ask your administrator to resend your account invitation, then open the newest link.
                 </p>
                 <Link to="/login" className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold text-brand-600 hover:text-brand-700">
@@ -150,7 +150,7 @@ export function Welcome() {
                   <button
                     type="button"
                     onClick={() => setShowPass((s) => !s)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-500"
                     aria-label={showPass ? 'Hide password' : 'Show password'}
                   >
                     {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}

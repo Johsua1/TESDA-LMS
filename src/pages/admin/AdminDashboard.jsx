@@ -32,7 +32,7 @@ import { Card, CardBody, CardHeader, StatCard, Badge, Button, ProgressBar, Empty
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { formatDate, currency, average, cn } from '../../lib/utils'
 
-const PIE_COLORS = ['#2572eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444']
+const PIE_COLORS = ['#e68a00', '#2572eb', '#10b981', '#8b5cf6', '#ef4444']
 
 export function AdminDashboard() {
   const { db, user } = useApp()
@@ -70,14 +70,15 @@ export function AdminDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-tesda-blue via-brand-800 to-slate-900 p-6 text-white sm:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-tesda-blue p-6 text-white sm:p-8">
+        <span className="absolute inset-y-0 left-0 w-1.5 bg-warm-400" aria-hidden="true" />
         <div
           className="absolute inset-0 opacity-25"
-          style={{ backgroundImage: 'radial-gradient(circle at 85% 20%, rgba(246,192,0,0.45) 0, transparent 45%)' }}
+          style={{ backgroundImage: 'none' }}
         />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <Badge className="bg-white/15 text-white ring-white/20">Super Admin Dashboard</Badge>
+            <Badge className="bg-warm-400 text-slate-900 ring-warm-300">Super Admin Dashboard</Badge>
             <h1 className="mt-3 text-2xl font-bold sm:text-3xl">System Overview</h1>
             <p className="mt-2 max-w-xl text-sm text-white/80">
               Managing {allTrainees.length} trainees, {allTrainers.length} trainers and {db.programs.length} training
@@ -189,7 +190,7 @@ export function AdminDashboard() {
               <div className="mt-2 space-y-1.5">
                 {enrollmentPie.map((d, i) => (
                   <div key={d.name} className="flex items-center justify-between text-xs">
-                    <span className="flex items-center gap-2 text-slate-600">
+                    <span className="flex items-center gap-2 text-slate-500">
                       <span className="h-2.5 w-2.5 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
                       {d.name}
                     </span>
@@ -215,14 +216,14 @@ export function AdminDashboard() {
                   <span className="text-slate-500">Fee collection rate</span>
                   <span className="font-semibold text-slate-700">{revenue.collection}%</span>
                 </div>
-                <ProgressBar value={revenue.collection} size="sm" tone="bg-amber-500" />
+                <ProgressBar value={revenue.collection} size="sm" tone="bg-warm-500" />
               </div>
-              <div className="flex items-center justify-between rounded-lg bg-slate-50 p-3">
-                <span className="text-sm text-slate-600">Pending approvals</span>
+              <div className="flex items-center justify-between rounded-lg bg-white p-3">
+                <span className="text-sm text-slate-500">Pending approvals</span>
                 <Badge tone="warning">{pendingEnrollments.length}</Badge>
               </div>
-              <div className="flex items-center justify-between rounded-lg bg-slate-50 p-3">
-                <span className="text-sm text-slate-600">Outstanding balance</span>
+              <div className="flex items-center justify-between rounded-lg bg-white p-3">
+                <span className="text-sm text-slate-500">Outstanding balance</span>
                 <span className="text-sm font-semibold text-slate-700">{currency(revenue.balance)}</span>
               </div>
             </CardBody>

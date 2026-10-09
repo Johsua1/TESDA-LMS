@@ -11,7 +11,7 @@ import { cn } from '../lib/utils'
 const demoAccounts = [
   { role: 'admin', label: 'Super Admin', email: 'admin@tesda.gov.ph', password: 'admin123', icon: ShieldCheck, tone: 'bg-tesda-blue' },
   { role: 'trainer', label: 'Trainer', email: 'juan@tesda.gov.ph', password: 'trainer123', icon: UserCog, tone: 'bg-emerald-600' },
-  { role: 'trainee', label: 'Trainee', email: 'angel@trainee.ph', password: 'trainee123', icon: User, tone: 'bg-brand-600' },
+  { role: 'trainee', label: 'Trainee', email: 'angel@trainee.ph', password: 'trainee123', icon: User, tone: 'bg-warm-500' },
 ]
 
 export function Login() {
@@ -104,7 +104,7 @@ export function Login() {
   }
 
   return (
-    <div className="flex min-h-screen bg-slate-50">
+    <div className="flex min-h-screen bg-white">
       {/* ------------------------- Brand / hero panel ------------------------- */}
       <aside className="relative hidden w-1/2 flex-col justify-between overflow-hidden p-10 lg:flex xl:w-[55%] xl:p-14">
         <img
@@ -116,26 +116,25 @@ export function Login() {
         <div
           className="absolute inset-0"
           style={{
-            background:
-              'linear-gradient(135deg, rgba(9,13,46,0.96) 0%, rgba(20,26,88,0.90) 45%, rgba(35,43,126,0.82) 100%)',
+            background: 'rgba(30,18,74,0.94)',
           }}
         />
         <div
           className="absolute inset-0"
           style={{
-            background: 'radial-gradient(60% 50% at 85% 10%, rgba(120,140,255,0.28) 0%, transparent 70%)',
+            background: 'transparent',
           }}
         />
 
         {/* logo */}
-        <div className="relative">
-          <img src="/hgi-logo.png" alt="HYT Global Institute" className="h-40 w-auto drop-shadow-xl xl:h-48" />
+        <div className="relative flex justify-center item-center">
+          <img src="/hgi-logo.png" alt="HYT Global Institute" className="h-100 w-auto drop-shadow-xl xl:h-100" />
         </div>
 
         {/* hero copy */}
         <div className="relative max-w-xl">
           <span className="inline-flex items-center gap-2.5 rounded-full border border-white/25 bg-white/5 px-4 py-1.5 backdrop-blur-sm">
-            <span className="h-1.5 w-1.5 rounded-full bg-orange-400" />
+            <span className="h-1.5 w-1.5 rounded-full bg-warm-400" />
             <span className="text-[11px] font-semibold uppercase tracking-[0.18em] text-white/90">
               Learning Management System
             </span>
@@ -158,7 +157,7 @@ export function Login() {
       <div className="flex w-full flex-col items-center justify-center px-5 py-10 sm:px-8 lg:w-1/2 xl:w-[45%]">
         <div className="w-full max-w-md">
           <div className="mb-8 flex items-center gap-3 lg:hidden">
-            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-[#141a58] p-1.5">
+            <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-brand-800 p-1.5">
               <img src="/hgi-logo.png" alt="HYT Global Institute" className="h-full w-full object-contain" />
             </span>
             <div>
@@ -227,7 +226,7 @@ export function Login() {
                     <button
                       type="button"
                       onClick={() => setShowPass((s) => !s)}
-                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600"
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-500"
                       aria-label={showPass ? 'Hide password' : 'Show password'}
                     >
                       {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
@@ -236,7 +235,7 @@ export function Login() {
                 </FormField>
 
                 <div className="flex items-center justify-between">
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-600">
+                  <label className="inline-flex items-center gap-2 text-sm text-slate-500">
                     <input
                       type="checkbox"
                       checked={remember}
@@ -288,10 +287,10 @@ export function Login() {
           {!isSupabaseConfigured && (
             <div className="mt-8">
               <div className="relative mb-4 text-center">
-                <span className="relative z-10 bg-slate-50 px-3 text-xs font-medium uppercase tracking-wide text-slate-400">
+                <span className="relative z-10 bg-white px-3 text-xs font-medium uppercase tracking-wide text-slate-400">
                   Demo accounts
                 </span>
-                <span className="absolute left-0 top-1/2 h-px w-full bg-slate-200" />
+                <span className="absolute left-0 top-1/2 h-px w-full bg-gray-100" />
               </div>
               <div className="grid grid-cols-3 gap-2">
                 {demoAccounts.map((a) => (

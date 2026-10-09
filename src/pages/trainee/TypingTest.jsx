@@ -174,7 +174,7 @@ export function TypingTest() {
       {/* INTRO */}
       {phase === 'intro' && (
         <Card>
-          <div className="bg-gradient-to-br from-indigo-600 to-violet-700 p-6 text-white sm:p-8">
+          <div className="bg-indigo-600 p-6 text-white sm:p-8">
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
               <Keyboard className="h-6 w-6" />
             </span>
@@ -191,7 +191,7 @@ export function TypingTest() {
                 { icon: Target, title: 'Accuracy', desc: 'Percentage of characters typed correctly against the target passage.' },
                 { icon: Award, title: 'Passing Score', desc: `Score is computed from speed and accuracy. Minimum passing is ${PASSING}%.` },
               ].map((c) => (
-                <div key={c.title} className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+                <div key={c.title} className="rounded-xl border border-slate-100 bg-white/60 p-4">
                   <c.icon className="h-5 w-5 text-brand-600" />
                   <p className="mt-2 text-sm font-semibold text-slate-700">{c.title}</p>
                   <p className="mt-1 text-xs text-slate-500">{c.desc}</p>
@@ -240,7 +240,7 @@ export function TypingTest() {
               action={<Badge tone={started ? 'success' : 'neutral'}>{started ? 'In progress' : 'Ready'}</Badge>}
             />
             <CardBody className="space-y-4">
-              <div className="rounded-xl bg-slate-50 p-4 font-mono text-sm leading-relaxed">
+              <div className="rounded-xl bg-white p-4 font-mono text-sm leading-relaxed">
                 {passage.split('').map((char, i) => {
                   let cls = 'text-slate-400'
                   if (i < typed.length) cls = typed[i] === char ? 'text-emerald-600' : 'bg-red-100 text-red-600'
@@ -286,7 +286,7 @@ export function TypingTest() {
           <div
             className={cn(
               'p-6 text-center text-white sm:p-8',
-              result.passed ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gradient-to-br from-red-500 to-rose-600',
+              result.passed ? 'bg-emerald-500' : 'bg-red-500',
             )}
           >
             <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur">
@@ -316,7 +316,7 @@ export function TypingTest() {
                 { label: 'Incorrect Words', value: result.incorrectWords },
                 { label: 'Duration', value: `${result.duration} min` },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg bg-slate-50 p-3 text-center">
+                <div key={s.label} className="rounded-lg bg-white p-3 text-center">
                   <p className="text-lg font-bold text-slate-800">{s.value}</p>
                   <p className="text-[11px] text-slate-500">{s.label}</p>
                 </div>

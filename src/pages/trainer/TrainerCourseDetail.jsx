@@ -97,7 +97,7 @@ export function TrainerCourseDetail() {
         <ArrowLeft className="h-4 w-4" /> My Courses
       </Link>
 
-      <div className={cn('relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 text-white sm:p-8', program.color)}>
+      <div className={cn('relative overflow-hidden rounded-2xl p-6 text-white sm:p-8', program.color)}>
         <div className="absolute inset-0 bg-black/10" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
@@ -132,7 +132,7 @@ export function TrainerCourseDetail() {
           <Card className="lg:col-span-2">
             <CardHeader title="Course Overview" icon={BookOpen} />
             <CardBody>
-              <p className="text-sm leading-relaxed text-slate-600">{program.overview}</p>
+              <p className="text-sm leading-relaxed text-slate-500">{program.overview}</p>
               <div className="mt-5 grid grid-cols-2 gap-4 sm:grid-cols-3">
                 {[
                   { label: 'Duration', value: program.duration },
@@ -142,7 +142,7 @@ export function TrainerCourseDetail() {
                   { label: 'Exam Date', value: formatDate(program.exams[0]?.date) },
                   { label: 'Total Enrolled', value: enrollments.length },
                 ].map((i) => (
-                  <div key={i.label} className="rounded-lg bg-slate-50 p-3">
+                  <div key={i.label} className="rounded-lg bg-white p-3">
                     <p className="text-[11px] uppercase tracking-wide text-slate-400">{i.label}</p>
                     <p className="mt-0.5 text-sm font-semibold text-slate-700">{i.value}</p>
                   </div>
@@ -189,9 +189,9 @@ export function TrainerCourseDetail() {
               <Card key={comp.id} className="overflow-hidden">
                 <button
                   onClick={() => setOpenComp(openComp === comp.id ? null : comp.id)}
-                  className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-slate-50"
+                  className="flex w-full items-center gap-4 px-5 py-4 text-left transition hover:bg-brand-50"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-gray-50 text-slate-500">
                     <Layers className="h-5 w-5" />
                   </span>
                   <div className="min-w-0 flex-1">
@@ -199,7 +199,7 @@ export function TrainerCourseDetail() {
                       <Badge tone={comp.type === 'Core' ? 'purple' : comp.type === 'Common' ? 'info' : 'brand'}>{comp.type}</Badge>
                       <span className="text-xs text-slate-400">{all.length} lessons</span>
                     </div>
-                    <p className="mt-1 text-sm text-slate-600">{comp.description}</p>
+                    <p className="mt-1 text-sm text-slate-500">{comp.description}</p>
                   </div>
                   <ChevronDown className={cn('h-5 w-5 text-slate-400 transition-transform', openComp === comp.id && 'rotate-180')} />
                 </button>
@@ -208,7 +208,7 @@ export function TrainerCourseDetail() {
                     {units.map((unit) => (
                       <div key={unit.id} className="border-b border-slate-50 last:border-0">
                         {comp.type === 'Core' && (
-                          <p className="bg-slate-50/70 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                          <p className="bg-white/70 px-5 py-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                             {unit.title}
                           </p>
                         )}
@@ -273,11 +273,11 @@ export function TrainerCourseDetail() {
                   <span>{quiz.passing}% to pass</span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3">
-                  <div className="rounded-lg bg-slate-50 p-2.5 text-center">
+                  <div className="rounded-lg bg-white p-2.5 text-center">
                     <p className="text-base font-bold text-slate-800">{attempts.length}</p>
                     <p className="text-[10px] uppercase text-slate-400">Attempts</p>
                   </div>
-                  <div className="rounded-lg bg-slate-50 p-2.5 text-center">
+                  <div className="rounded-lg bg-white p-2.5 text-center">
                     <p className="text-base font-bold text-slate-800">{avgScore}%</p>
                     <p className="text-[10px] uppercase text-slate-400">Avg Score</p>
                   </div>
@@ -305,7 +305,7 @@ export function TrainerCourseDetail() {
               <Card key={exam.id} className="p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
                   <div className="flex items-start gap-4">
-                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                    <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-warm-50 text-warm-600">
                       <FileCheck2 className="h-5 w-5" />
                     </span>
                     <div>

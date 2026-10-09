@@ -102,7 +102,7 @@ export function ManageAttendance() {
                 <span className="text-xl">{b.program.emoji}</span>
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between text-xs">
-                    <span className="truncate font-medium text-slate-600">{b.program.title}</span>
+                    <span className="truncate font-medium text-slate-500">{b.program.title}</span>
                     <span className="ml-2 font-semibold text-slate-700">{b.rate}%</span>
                   </div>
                   <ProgressBar value={b.rate} size="sm" className="mt-1" />

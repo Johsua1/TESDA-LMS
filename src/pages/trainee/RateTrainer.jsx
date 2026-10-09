@@ -110,7 +110,7 @@ export function RateTrainer() {
                     <Badge tone="brand">{program?.code || 'Program'}</Badge>
                   </div>
 
-                  <div className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+                  <div className="rounded-lg bg-white px-3 py-2 text-xs text-slate-500">
                     {program?.title}
                   </div>
 

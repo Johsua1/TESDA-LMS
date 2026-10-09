@@ -180,7 +180,7 @@ export function ManageEnrollments() {
                 { label: 'Applied Date', value: formatDate(selected.appliedDate) },
                 { label: 'Training Fee', value: currency(selected.payment?.fee || 0) },
               ].map((i) => (
-                <div key={i.label} className="rounded-lg bg-slate-50 p-3">
+                <div key={i.label} className="rounded-lg bg-white p-3">
                   <p className="text-[10px] uppercase tracking-wide text-slate-400">{i.label}</p>
                   <p className="mt-0.5 text-sm font-semibold text-slate-700">{i.value}</p>
                 </div>
@@ -214,7 +214,7 @@ export function ManageEnrollments() {
             )}
 
             {selected.type === 'self-pay' && selected.payment && (
-              <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+              <div className="rounded-xl border border-slate-100 bg-white/60 p-4">
                 <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
                   <Wallet className="h-4 w-4" /> Payment Details
                 </p>
@@ -265,7 +265,7 @@ export function ManageEnrollments() {
                     key={s}
                     onClick={() => { setEnrollmentStatus(selected.id, s); setSelected({ ...selected, status: s }); toast(`Status updated to ${s}.`, 'info') }}
                     className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${
-                      selected.status === s ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-600 hover:bg-slate-50'
+                      selected.status === s ? 'border-brand-500 bg-brand-50 text-brand-700' : 'border-slate-200 text-slate-500 hover:bg-brand-50'
                     }`}
                   >
                     {s}

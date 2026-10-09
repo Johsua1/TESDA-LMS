@@ -43,7 +43,7 @@ import {
 } from '../../components/ui'
 import { average, currency, cn } from '../../lib/utils'
 
-const COLORS = ['#2572eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#0ea5e9']
+const COLORS = ['#e68a00', '#2572eb', '#10b981', '#8b5cf6', '#ef4444', '#0ea5e9']
 
 function SectionCard({ title, subtitle, icon, children, className }) {
   return (
@@ -56,10 +56,10 @@ function SectionCard({ title, subtitle, icon, children, className }) {
 
 function MiniStat({ label, value, tone = 'slate' }) {
   const tones = {
-    slate: 'bg-slate-50 text-slate-700',
+    slate: 'bg-white text-slate-700',
     brand: 'bg-brand-50 text-brand-700',
     success: 'bg-emerald-50 text-emerald-700',
-    warning: 'bg-amber-50 text-amber-700',
+    warning: 'bg-warm-50 text-warm-700',
     danger: 'bg-red-50 text-red-700',
     info: 'bg-sky-50 text-sky-700',
   }
@@ -367,7 +367,7 @@ export function Reports() {
         </div>
         <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-white text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Course</th>
                 <th className="px-4 py-2.5 text-right font-medium">Enrolled</th>
@@ -377,7 +377,7 @@ export function Reports() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {courseRows.map((r) => (
-                <tr key={r.name} className="text-slate-600">
+                <tr key={r.name} className="text-slate-500">
                   <td className="px-4 py-2.5">
                     <span className="mr-2">{r.emoji}</span>
                     {r.title}
@@ -422,7 +422,7 @@ export function Reports() {
         </div>
         <div className="mt-5 overflow-hidden rounded-xl border border-slate-100">
           <table className="w-full text-left text-sm">
-            <thead className="bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
+            <thead className="bg-white text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-4 py-2.5 font-medium">Trainer</th>
                 <th className="px-4 py-2.5 font-medium">Assigned Course(s)</th>
@@ -432,7 +432,7 @@ export function Reports() {
             </thead>
             <tbody className="divide-y divide-slate-100">
               {trainerRows.map((r) => (
-                <tr key={r.trainer.id} className="text-slate-600">
+                <tr key={r.trainer.id} className="text-slate-500">
                   <td className="px-4 py-2.5">
                     <span className="flex items-center gap-2">
                       <Avatar name={r.trainer.name} color={r.trainer.avatarColor} size="sm" />

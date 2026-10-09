@@ -80,17 +80,17 @@ export function TraineeDashboard() {
   return (
     <div className="space-y-6">
       {/* Welcome banner */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-tesda-blue via-brand-700 to-brand-900 p-6 text-white sm:p-8">
+      <div className="relative overflow-hidden rounded-2xl bg-tesda-blue p-6 text-white sm:p-8">
+        <span className="absolute inset-y-0 left-0 w-1.5 bg-warm-400" aria-hidden="true" />
         <div
           className="absolute inset-0 opacity-25"
           style={{
-            backgroundImage:
-              'radial-gradient(circle at 85% 20%, rgba(246,192,0,0.5) 0, transparent 45%), radial-gradient(circle at 10% 90%, rgba(255,255,255,0.3) 0, transparent 40%)',
+            backgroundImage: 'none',
           }}
         />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
           <div className="max-w-xl">
-            <Badge className="bg-white/15 text-white ring-white/20">Trainee Dashboard</Badge>
+            <Badge className="bg-warm-400 text-slate-900 ring-warm-300">Trainee Dashboard</Badge>
             <h1 className="mt-3 text-2xl font-bold sm:text-3xl">Welcome back, {user.name.split(' ')[0]}! 👋</h1>
             <p className="mt-2 text-sm text-white/80">
               {primaryProgram
@@ -142,15 +142,15 @@ export function TraineeDashboard() {
 
       {/* Outstanding balance nudge */}
       {paymentDue > 0 && (
-        <Card className="border-amber-200 bg-amber-50">
+        <Card className="border-warm-200 bg-warm-50">
           <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-start gap-3">
-              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-amber-100 text-amber-600">
+              <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warm-100 text-warm-600">
                 <CreditCard className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-amber-900">You have an outstanding balance</p>
-                <p className="text-xs text-amber-700">
+                <p className="text-sm font-semibold text-warm-900">You have an outstanding balance</p>
+                <p className="text-xs text-warm-700">
                   {currency(paymentDue)} due across {duePayments.length} program{duePayments.length > 1 ? 's' : ''}. Settle
                   it to keep your enrollment in good standing.
                 </p>
@@ -347,7 +347,7 @@ export function TraineeDashboard() {
             />
             <CardBody className="space-y-3 pt-4">
               {announcements.map((a) => (
-                <div key={a.id} className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
+                <div key={a.id} className="rounded-lg border border-slate-100 bg-white/60 p-3">
                   <div className="flex items-center justify-between gap-2">
                     <p className="truncate text-sm font-semibold text-slate-700">{a.title}</p>
                     {a.pinned && <Badge tone="warning">Pinned</Badge>}

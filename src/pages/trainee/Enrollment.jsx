@@ -184,7 +184,7 @@ export function Enrollment() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((p) => (
               <Card key={p.id} hover className="flex flex-col overflow-hidden">
-                <div className={cn('relative h-28 bg-gradient-to-br', p.color)}>
+                <div className={cn('relative h-28 ', p.color)}>
                   <div className="absolute inset-0 flex items-center justify-between p-4 text-white">
                     <span className="text-3xl">{p.emoji}</span>
                     <div className="flex flex-col items-end gap-1">
@@ -217,7 +217,7 @@ export function Enrollment() {
                       </Button>
                     </>
                   ) : (
-                    <div className="mt-4 flex items-center justify-center gap-1.5 rounded-lg bg-slate-50 py-2 text-xs font-medium text-slate-500">
+                    <div className="mt-4 flex items-center justify-center gap-1.5 rounded-lg bg-white py-2 text-xs font-medium text-slate-500">
                       <Lock className="h-3.5 w-3.5" /> Enrollment: Contact Admin
                     </div>
                   )}
@@ -246,7 +246,7 @@ export function Enrollment() {
           <ArrowLeft className="h-4 w-4" /> Back to programs
         </button>
 
-        <div className={cn('relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 text-white', selected.color)}>
+        <div className={cn('relative overflow-hidden rounded-2xl p-6 text-white', selected.color)}>
           <div className="flex items-center gap-4">
             <span className="text-4xl">{selected.emoji}</span>
             <div>
@@ -271,7 +271,7 @@ export function Enrollment() {
                     { label: 'Training Fee', value: currency(selected.fee) },
                     { label: 'Competencies', value: '3 (Basic, Common, Core)' },
                   ].map((i) => (
-                    <div key={i.label} className="rounded-lg bg-slate-50 p-3">
+                    <div key={i.label} className="rounded-lg bg-white p-3">
                       <p className="text-[11px] uppercase tracking-wide text-slate-400">{i.label}</p>
                       <p className="mt-0.5 text-sm font-semibold text-slate-700">{i.value}</p>
                     </div>
@@ -285,7 +285,7 @@ export function Enrollment() {
               <CardBody>
                 <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                   {selected.requirements.map((r) => (
-                    <li key={r} className="flex items-start gap-2 text-sm text-slate-600">
+                    <li key={r} className="flex items-start gap-2 text-sm text-slate-500">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                       {r}
                     </li>
@@ -301,7 +301,7 @@ export function Enrollment() {
                   <div key={c.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
                     <div>
                       <Badge tone={c.type === 'Core' ? 'purple' : c.type === 'Common' ? 'info' : 'brand'}>{c.type}</Badge>
-                      <p className="mt-1 text-sm text-slate-600">{c.description}</p>
+                      <p className="mt-1 text-sm text-slate-500">{c.description}</p>
                     </div>
                   </div>
                 ))}
@@ -458,7 +458,7 @@ export function Enrollment() {
                 <FormField label="Reference Number" hint="Bank / GCash / Maya reference number (optional)">
                   <Input value={form.referenceNo || ''} onChange={(e) => setForm({ ...form, referenceNo: e.target.value })} placeholder="REF-20260001" />
                 </FormField>
-                <div className="rounded-lg bg-slate-50 p-4">
+                <div className="rounded-lg bg-white p-4">
                   <div className="flex items-center justify-between text-sm">
                     <span className="text-slate-500">Training Fee</span>
                     <span className="font-semibold text-slate-700">{currency(selected.fee)}</span>
@@ -468,7 +468,7 @@ export function Enrollment() {
                     <span className="font-semibold text-emerald-600">{currency(Number(form.amountPaid) || 0)}</span>
                   </div>
                   <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2 text-sm">
-                    <span className="font-medium text-slate-600">Balance</span>
+                    <span className="font-medium text-slate-500">Balance</span>
                     <span className="font-bold text-slate-800">{currency(Math.max(0, selected.fee - (Number(form.amountPaid) || 0)))}</span>
                   </div>
                   <div className="mt-3 flex items-center justify-between">
@@ -508,7 +508,7 @@ export function Enrollment() {
   return (
     <div className="mx-auto max-w-xl">
       <Card className="overflow-hidden text-center">
-        <div className="bg-gradient-to-br from-emerald-500 to-teal-600 p-8 text-white">
+        <div className="bg-emerald-500 p-8 text-white">
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur">
             <CheckCircle2 className="h-8 w-8" />
           </span>
@@ -518,7 +518,7 @@ export function Enrollment() {
           </p>
         </div>
         <CardBody className="space-y-4">
-          <div className="rounded-lg bg-slate-50 p-4 text-left">
+          <div className="rounded-lg bg-white p-4 text-left">
             <div className="flex items-center justify-between text-sm">
               <span className="text-slate-500">Status</span>
               <StatusBadge status="Pending" />

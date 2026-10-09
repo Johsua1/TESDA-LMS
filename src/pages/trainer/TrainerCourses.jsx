@@ -26,7 +26,7 @@ export function TrainerCourses() {
             const completed = enrs.filter((e) => e.status === 'Completed').length
             return (
               <Card key={p.id} hover className="overflow-hidden">
-                <div className={cn('relative h-32 bg-gradient-to-br', p.color)}>
+                <div className={cn('relative h-32 ', p.color)}>
                   <div className="absolute inset-0 flex items-start justify-between p-4 text-white">
                     <span className="text-4xl">{p.emoji}</span>
                     <div className="flex flex-col items-end gap-1">
@@ -48,7 +48,7 @@ export function TrainerCourses() {
                       { label: 'Quizzes', value: programQuizCount(p.id), icon: ClipboardList },
                       { label: 'Exams', value: p.exams.length, icon: FileCheck2 },
                     ].map((s) => (
-                      <div key={s.label} className="rounded-lg bg-slate-50 p-2.5 text-center">
+                      <div key={s.label} className="rounded-lg bg-white p-2.5 text-center">
                         <s.icon className="mx-auto h-3.5 w-3.5 text-slate-400" />
                         <p className="mt-1 text-base font-bold text-slate-800">{s.value}</p>
                         <p className="text-[10px] uppercase tracking-wide text-slate-400">{s.label}</p>

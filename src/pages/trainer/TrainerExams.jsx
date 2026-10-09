@@ -132,7 +132,7 @@ export function TrainerExams() {
             <Card key={e.id} className="p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-start gap-4">
-                  <span className={cn('flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-2xl', e.programColor)}>
+                  <span className={cn('flex h-12 w-12 items-center justify-center rounded-xl text-2xl', e.programColor)}>
                     {e.programEmoji}
                   </span>
                   <div>
@@ -213,7 +213,7 @@ export function TrainerExams() {
                 { label: 'Passing', value: `${selected.passing}%` },
                 { label: 'Attempts', value: selected.attempts.length },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg bg-slate-50 p-3 text-center">
+                <div key={s.label} className="rounded-lg bg-white p-3 text-center">
                   <p className="text-lg font-bold text-slate-800">{s.value}</p>
                   <p className="text-[10px] uppercase text-slate-400">{s.label}</p>
                 </div>
@@ -227,7 +227,7 @@ export function TrainerExams() {
                     const t = db.users.find((u) => u.id === a.traineeId)
                     return (
                       <div key={a.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-                        <span className="text-slate-600">{t?.name}</span>
+                        <span className="text-slate-500">{t?.name}</span>
                         <span className="flex items-center gap-3">
                           <span className="text-slate-500">
                             {a.score}/{a.total} ({a.percentage}%)

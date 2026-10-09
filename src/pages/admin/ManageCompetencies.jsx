@@ -55,7 +55,7 @@ export function ManageCompetencies() {
                 const key = `${p.id}-${comp.id}`
                 return (
                   <div key={comp.id} className="overflow-hidden rounded-xl border border-slate-100">
-                    <button onClick={() => toggle(key)} className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-slate-50">
+                    <button onClick={() => toggle(key)} className="flex w-full items-center gap-3 p-4 text-left transition hover:bg-brand-50">
                       <span
                         className={cn(
                           'flex h-10 w-10 items-center justify-center rounded-xl',
@@ -70,7 +70,7 @@ export function ManageCompetencies() {
                           <span className="text-xs text-slate-400">{lessonCount} lessons</span>
                           {comp.type === 'Core' && <span className="text-xs text-slate-400">· {units.length} units</span>}
                         </div>
-                        <p className="mt-1 text-sm text-slate-600">{comp.description}</p>
+                        <p className="mt-1 text-sm text-slate-500">{comp.description}</p>
                       </div>
                       <ChevronDown className={cn('h-5 w-5 shrink-0 text-slate-400 transition-transform', open[key] && 'rotate-180')} />
                     </button>
@@ -79,7 +79,7 @@ export function ManageCompetencies() {
                         {units.map((unit) => (
                           <div key={unit.id} className="border-b border-slate-50 last:border-0">
                             {comp.type === 'Core' && (
-                              <div className="bg-slate-50/70 px-4 py-2">
+                              <div className="bg-white/70 px-4 py-2">
                                 <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{unit.title}</p>
                                 {unit.description && <p className="text-xs text-slate-400">{unit.description}</p>}
                               </div>
@@ -89,10 +89,10 @@ export function ManageCompetencies() {
                                 const quiz = p.quizzes.find((q) => q.id === l.quizId)
                                 return (
                                   <li key={l.id} className="flex items-center gap-3 px-4 py-2.5">
-                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-slate-100 text-[11px] font-semibold text-slate-500">
+                                    <span className="flex h-6 w-6 items-center justify-center rounded-full bg-gray-50 text-[11px] font-semibold text-slate-500">
                                       {i + 1}
                                     </span>
-                                    <span className="min-w-0 flex-1 truncate text-sm text-slate-600">{l.title}</span>
+                                    <span className="min-w-0 flex-1 truncate text-sm text-slate-500">{l.title}</span>
                                     <span className="shrink-0 text-xs text-slate-400">{l.duration} min</span>
                                     {quiz && (
                                       <Badge tone="violet" className="shrink-0">
@@ -105,7 +105,7 @@ export function ManageCompetencies() {
                             </ul>
                           </div>
                         ))}
-                        <div className="flex items-center justify-between bg-slate-50/70 px-4 py-2.5">
+                        <div className="flex items-center justify-between bg-white/70 px-4 py-2.5">
                           <span className="inline-flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
                             <Award className="h-3.5 w-3.5" /> Assessment
                           </span>

@@ -89,7 +89,7 @@ export function AnnouncementsPage({ canManage = false }) {
             const author = db.users.find((u) => u.id === a.authorId)
             const program = a.programId ? programById(a.programId) : null
             return (
-              <Card key={a.id} className={cn('p-5', a.pinned && 'ring-1 ring-amber-200')}>
+              <Card key={a.id} className={cn('p-5', a.pinned && 'ring-1 ring-warm-200')}>
                 <div className="flex items-start gap-4">
                   <span
                     className={cn(
@@ -111,7 +111,7 @@ export function AnnouncementsPage({ canManage = false }) {
                       {program && <Badge tone="brand">{program.title}</Badge>}
                     </div>
                     <h3 className="mt-2 text-base font-semibold text-slate-800">{a.title}</h3>
-                    <p className="mt-1 text-sm leading-relaxed text-slate-600">{a.body}</p>
+                    <p className="mt-1 text-sm leading-relaxed text-slate-500">{a.body}</p>
                     <p className="mt-3 text-xs text-slate-400">
                       Posted by {author?.name || 'Administration'} · {formatDate(a.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
                     </p>

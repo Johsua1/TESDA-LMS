@@ -179,15 +179,15 @@ function TraineeDetail({ selected, tab, setTab, db }) {
       <div className="flex items-center gap-4">
         <Avatar name={t.name} color={t.avatarColor} size="lg" />
         <div className="grid flex-1 grid-cols-3 gap-3">
-          <div className="rounded-lg bg-slate-50 p-2.5 text-center">
+          <div className="rounded-lg bg-white p-2.5 text-center">
             <p className="text-base font-bold text-slate-800">{selected.att.rate}%</p>
             <p className="text-[10px] uppercase text-slate-400">Attendance</p>
           </div>
-          <div className="rounded-lg bg-slate-50 p-2.5 text-center">
+          <div className="rounded-lg bg-white p-2.5 text-center">
             <p className="text-base font-bold text-slate-800">{selected.avgProgress}%</p>
             <p className="text-[10px] uppercase text-slate-400">Progress</p>
           </div>
-          <div className="rounded-lg bg-slate-50 p-2.5 text-center">
+          <div className="rounded-lg bg-white p-2.5 text-center">
             <p className="text-base font-bold text-slate-800">{selected.grade}%</p>
             <p className="text-[10px] uppercase text-slate-400">Grade</p>
           </div>
@@ -271,7 +271,7 @@ function TraineeDetail({ selected, tab, setTab, db }) {
             { icon: BookOpen, label: 'Education', value: t.education || '—' },
           ].map((row) => (
             <div key={row.label} className="flex items-center gap-3">
-              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">
+              <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-gray-50 text-slate-500">
                 <row.icon className="h-4 w-4" />
               </span>
               <div>
@@ -281,9 +281,9 @@ function TraineeDetail({ selected, tab, setTab, db }) {
             </div>
           ))}
           {evals.length > 0 && (
-            <div className="rounded-lg bg-amber-50 p-3">
-              <p className="text-xs font-semibold uppercase tracking-wide text-amber-700">Latest evaluation</p>
-              <p className="mt-1 text-sm text-amber-800">
+            <div className="rounded-lg bg-warm-50 p-3">
+              <p className="text-xs font-semibold uppercase tracking-wide text-warm-700">Latest evaluation</p>
+              <p className="mt-1 text-sm text-warm-800">
                 Overall {evals[0].overall}/5 — {evals[0].remarks}
               </p>
             </div>

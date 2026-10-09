@@ -123,14 +123,14 @@ export function ManageLessons() {
                 )
               }
               return (
-                <div className="flex aspect-video flex-col items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white/70">
+                <div className="flex aspect-video flex-col items-center justify-center rounded-xl bg-slate-800 text-white/70">
                   <VideoOff className="h-8 w-8 text-white/40" />
                   <p className="mt-2 text-sm">{selected.video || selected.title}</p>
                   <p className="text-xs text-white/40">No video attached</p>
                 </div>
               )
             })()}
-            <p className="text-sm leading-relaxed text-slate-600">{selected.content}</p>
+            <p className="text-sm leading-relaxed text-slate-500">{selected.content}</p>
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Materials</p>
               <div className="space-y-2">

@@ -120,7 +120,7 @@ export function ExamRunner() {
           <ArrowLeft className="h-4 w-4" /> {program.title}
         </Link>
         <Card className="overflow-hidden">
-          <div className="bg-gradient-to-br from-amber-500 to-orange-600 p-6 text-white sm:p-8">
+          <div className="bg-warm-500 p-6 text-white sm:p-8">
             <span className="flex h-12 w-12 items-center justify-center rounded-xl bg-white/15 backdrop-blur">
               <FileCheck2 className="h-6 w-6" />
             </span>
@@ -142,17 +142,17 @@ export function ExamRunner() {
             </div>
           </div>
           <CardBody className="space-y-5">
-            <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+            <div className="rounded-lg bg-warm-50 p-4 text-sm text-warm-800">
               <p className="flex items-center gap-2 font-semibold">
                 <AlertTriangle className="h-4 w-4" /> Examination rules
               </p>
-              <ul className="mt-2 space-y-1 text-amber-700">
+              <ul className="mt-2 space-y-1 text-warm-700">
                 <li>• This is a supervised competency assessment exam.</li>
                 <li>• You have {exam.timeLimit} minutes — the exam auto-submits when time expires.</li>
                 <li>• A minimum of {exam.passing}% is required to pass.</li>
               </ul>
             </div>
-            <div className="flex items-center justify-between text-sm text-slate-600">
+            <div className="flex items-center justify-between text-sm text-slate-500">
               <span>Exam date: {formatDate(exam.date)}</span>
               <StatusBadge status={exam.status} />
             </div>
@@ -180,7 +180,7 @@ export function ExamRunner() {
           <div
             className={cn(
               'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold',
-              low ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-700',
+              low ? 'bg-red-50 text-red-600' : 'bg-gray-50 text-slate-700',
             )}
           >
             <Clock className="h-4 w-4" />
@@ -207,7 +207,7 @@ export function ExamRunner() {
                         'flex w-full items-center gap-3 rounded-xl border p-3.5 text-left text-sm transition',
                         selected
                           ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500'
-                          : 'border-slate-200 hover:border-brand-200 hover:bg-slate-50',
+                          : 'border-slate-200 hover:border-brand-200 hover:bg-brand-50',
                       )}
                     >
                       <span
@@ -239,7 +239,7 @@ export function ExamRunner() {
                         'rounded-xl border p-4 text-center text-sm font-semibold transition',
                         selected
                           ? 'border-brand-500 bg-brand-50 text-brand-800 ring-1 ring-brand-500'
-                          : 'border-slate-200 text-slate-600 hover:border-brand-200 hover:bg-slate-50',
+                          : 'border-slate-200 text-slate-500 hover:border-brand-200 hover:bg-brand-50',
                       )}
                     >
                       {opt.label}
@@ -273,7 +273,7 @@ export function ExamRunner() {
                     ? 'bg-brand-600 text-white'
                     : isAnswered
                       ? 'bg-emerald-100 text-emerald-700'
-                      : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
+                      : 'bg-gray-50 text-slate-500 hover:bg-gray-100',
                 )}
               >
                 {i + 1}
@@ -309,7 +309,7 @@ export function ExamRunner() {
         <div
           className={cn(
             'p-6 text-center text-white sm:p-8',
-            r.passed ? 'bg-gradient-to-br from-emerald-500 to-teal-600' : 'bg-gradient-to-br from-red-500 to-rose-600',
+            r.passed ? 'bg-emerald-500' : 'bg-red-500',
           )}
         >
           <span className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-white/20 backdrop-blur">
@@ -336,7 +336,7 @@ export function ExamRunner() {
         </div>
         <CardBody className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="flex items-center gap-2 text-sm text-slate-600">
+            <div className="flex items-center gap-2 text-sm text-slate-500">
               <Award className="h-4 w-4 text-slate-400" /> Completed {formatDate(r.date)}
             </div>
             <Link to={`/trainee/courses/${programId}`}>

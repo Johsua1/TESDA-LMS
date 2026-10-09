@@ -8,7 +8,7 @@ import { formatDate, formatTime, startOfDay, cn } from '../../lib/utils'
 
 const STATUSES = [
   { key: 'Present', icon: CheckCircle2, tone: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
-  { key: 'Late', icon: Clock, tone: 'text-amber-600 bg-amber-50 border-amber-200' },
+  { key: 'Late', icon: Clock, tone: 'text-warm-600 bg-warm-50 border-warm-200' },
   { key: 'Absent', icon: UserX, tone: 'text-red-600 bg-red-50 border-red-200' },
   { key: 'Excused', icon: FileCheck2, tone: 'text-sky-600 bg-sky-50 border-sky-200' },
 ]
@@ -158,7 +158,7 @@ export function TrainerAttendance() {
                               onClick={() => setMark(r.trainee.id, { status: s.key })}
                               className={cn(
                                 'inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-medium transition',
-                                active ? s.tone : 'border-slate-200 text-slate-500 hover:bg-slate-50',
+                                active ? s.tone : 'border-slate-200 text-slate-500 hover:bg-brand-50',
                               )}
                             >
                               <s.icon className="h-3.5 w-3.5" />

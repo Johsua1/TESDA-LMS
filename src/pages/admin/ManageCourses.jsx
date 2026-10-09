@@ -110,7 +110,7 @@ export function ManageCourses() {
           const trainer = db.users.find((u) => u.id === p.trainerId)
           return (
             <Card key={p.id} hover className="overflow-hidden">
-              <div className={cn('relative h-28 bg-gradient-to-br', p.color)}>
+              <div className={cn('relative h-28 ', p.color)}>
                 <div className="absolute inset-0 flex items-start justify-between p-4 text-white">
                   <span className="text-3xl">{p.emoji}</span>
                   <div className="flex flex-col items-end gap-1">
@@ -134,7 +134,7 @@ export function ManageCourses() {
                     { label: 'Exams', value: p.exams.length },
                     { label: 'Enrolled', value: stats.enrolled },
                   ].map((s) => (
-                    <div key={s.label} className="rounded-lg bg-slate-50 p-2 text-center">
+                    <div key={s.label} className="rounded-lg bg-white p-2 text-center">
                       <p className="text-sm font-bold text-slate-800">{s.value}</p>
                       <p className="text-[10px] uppercase text-slate-400">{s.label}</p>
                     </div>
@@ -179,7 +179,7 @@ export function ManageCourses() {
       >
         {selected && (
           <div className="space-y-5">
-            <div className={cn('rounded-xl bg-gradient-to-br p-5 text-white', selected.color)}>
+            <div className={cn('rounded-xl p-5 text-white', selected.color)}>
               <div className="flex items-center gap-3">
                 <span className="text-3xl">{selected.emoji}</span>
                 <div>
@@ -211,7 +211,7 @@ export function ManageCourses() {
                   { label: 'Lessons', value: programLessonCount(selected.id) },
                   { label: 'Quizzes', value: programQuizCount(selected.id) },
                 ].map((i) => (
-                  <div key={i.label} className="rounded-lg bg-slate-50 p-3">
+                  <div key={i.label} className="rounded-lg bg-white p-3">
                     <p className="text-[10px] uppercase tracking-wide text-slate-400">{i.label}</p>
                     <p className="mt-0.5 text-sm font-semibold text-slate-700">{i.value}</p>
                   </div>
@@ -229,9 +229,9 @@ export function ManageCourses() {
                     <div key={comp.id} className="overflow-hidden rounded-xl border border-slate-100">
                       <button
                         onClick={() => setOpenComp(openComp === comp.id ? null : comp.id)}
-                        className="flex w-full items-center gap-3 p-3.5 text-left transition hover:bg-slate-50"
+                        className="flex w-full items-center gap-3 p-3.5 text-left transition hover:bg-brand-50"
                       >
-                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-100 text-slate-600">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-gray-50 text-slate-500">
                           <Layers className="h-4 w-4" />
                         </span>
                         <div className="min-w-0 flex-1">
@@ -244,13 +244,13 @@ export function ManageCourses() {
                         <ChevronDown className={cn('h-4 w-4 text-slate-400 transition-transform', openComp === comp.id && 'rotate-180')} />
                       </button>
                       {openComp === comp.id && (
-                        <div className="animate-fade-in border-t border-slate-100 bg-slate-50/50 p-3">
+                        <div className="animate-fade-in border-t border-slate-100 bg-white/50 p-3">
                           {units.map((u) => (
                             <div key={u.id} className="mb-2 last:mb-0">
                               {comp.type === 'Core' && <p className="mb-1 text-[11px] font-semibold uppercase text-slate-500">{u.title}</p>}
                               <ul className="space-y-1">
                                 {u.lessons.map((l) => (
-                                  <li key={l.id} className="flex items-center gap-2 text-xs text-slate-600">
+                                  <li key={l.id} className="flex items-center gap-2 text-xs text-slate-500">
                                     <span className="h-1.5 w-1.5 rounded-full bg-brand-400" />
                                     {l.title}
                                     <span className="ml-auto text-slate-400">{l.duration} min</span>
@@ -271,7 +271,7 @@ export function ManageCourses() {
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Admission Requirements</p>
               <ul className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
                 {selected.requirements.map((r) => (
-                  <li key={r} className="flex items-center gap-2 text-xs text-slate-600">
+                  <li key={r} className="flex items-center gap-2 text-xs text-slate-500">
                     <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" /> {r}
                   </li>
                 ))}

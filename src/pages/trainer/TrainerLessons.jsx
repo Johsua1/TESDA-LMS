@@ -141,7 +141,7 @@ export function TrainerLessons() {
           {filtered.map((l) => (
             <Card key={l.id} hover className="flex flex-col p-4">
               <div className="flex items-start justify-between">
-                <span className={cn('flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-lg', l.programColor)}>
+                <span className={cn('flex h-10 w-10 items-center justify-center rounded-xl text-lg', l.programColor)}>
                   {l.programEmoji}
                 </span>
                 <div className="flex items-center gap-1.5">
@@ -223,7 +223,7 @@ export function TrainerLessons() {
                 )
               }
               return (
-                <div className="flex aspect-video flex-col items-center justify-center rounded-xl bg-gradient-to-br from-slate-800 to-slate-900 text-white/70">
+                <div className="flex aspect-video flex-col items-center justify-center rounded-xl bg-slate-800 text-white/70">
                   <VideoOff className="h-8 w-8 text-white/40" />
                   <p className="mt-2 text-sm">{viewing.video || viewing.title}</p>
                   <p className="text-xs text-white/40">No video attached</p>
@@ -235,7 +235,7 @@ export function TrainerLessons() {
                 <Link2 className="h-4 w-4" /> Open video link
               </a>
             )}
-            <p className="text-sm leading-relaxed text-slate-600">{viewing.content}</p>
+            <p className="text-sm leading-relaxed text-slate-500">{viewing.content}</p>
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Learning Materials</p>
               <div className="space-y-2">

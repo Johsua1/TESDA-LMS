@@ -74,15 +74,14 @@ export function SignUp() {
   }
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-white">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_1.2fr] lg:px-8 lg:py-14">
         {/* Brand panel */}
-        <aside className="relative hidden overflow-hidden rounded-3xl bg-gradient-to-br from-tesda-blue via-brand-800 to-brand-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
+        <aside className="relative hidden overflow-hidden rounded-3xl bg-tesda-blue p-10 text-white lg:flex lg:flex-col lg:justify-between">
           <div
             className="absolute inset-0 opacity-30"
             style={{
-              backgroundImage:
-                'radial-gradient(circle at 85% 12%, rgba(246,192,0,0.5) 0, transparent 45%), radial-gradient(circle at 5% 95%, rgba(120,140,255,0.35) 0, transparent 45%)',
+              backgroundImage: 'none',
             }}
           />
           <div className="relative">
@@ -155,11 +154,11 @@ export function SignUp() {
                   {form.avatarUrl ? (
                     <img src={form.avatarUrl} alt="Preview" className="h-10 w-10 rounded-full object-cover ring-2 ring-slate-200" />
                   ) : (
-                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-100 text-slate-400">
+                    <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gray-50 text-slate-400">
                       <Upload className="h-4 w-4" />
                     </span>
                   )}
-                  <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-50">
+                  <label className="cursor-pointer rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-xs font-medium text-slate-500 hover:bg-brand-50">
                     Choose file
                     <input id="avatar" type="file" accept="image/*" className="hidden" onChange={onPicture} />
                   </label>
@@ -237,7 +236,7 @@ export function SignUp() {
         }
       >
         {legal === 'terms' ? (
-          <div className="space-y-3 text-sm leading-relaxed text-slate-600">
+          <div className="space-y-3 text-sm leading-relaxed text-slate-500">
             <p>
               By creating an account you agree to use this Learning Management System for its intended training purposes
               only.
@@ -251,7 +250,7 @@ export function SignUp() {
             <p className="text-xs text-slate-400">This is a summary provided for convenience.</p>
           </div>
         ) : (
-          <div className="space-y-3 text-sm leading-relaxed text-slate-600">
+          <div className="space-y-3 text-sm leading-relaxed text-slate-500">
             <p>
               We collect the information you enter when registering (name, contact details and enrollment data) to
               operate your training account.

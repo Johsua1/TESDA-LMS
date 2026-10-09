@@ -8,7 +8,7 @@ export function NotFound() {
   const { user } = useApp()
   const home = user ? roleMeta[user.role]?.home : '/login'
   return (
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-50 px-6 text-center">
+    <div className="flex min-h-screen flex-col items-center justify-center bg-white px-6 text-center">
       <span className="mb-5 flex h-16 w-16 items-center justify-center rounded-2xl bg-brand-50 text-brand-600">
         <Compass className="h-8 w-8" />
       </span>

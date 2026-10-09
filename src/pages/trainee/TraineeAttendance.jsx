@@ -19,7 +19,7 @@ export function TraineeAttendance() {
   const columns = [
     { key: 'date', header: 'Date', sortable: true, render: (r) => formatDate(r.date, { month: 'short', day: 'numeric', year: 'numeric' }) },
     { key: 'programId', header: 'Course', render: (r) => programById(r.programId)?.title },
-    { key: 'lessonTitle', header: 'Session', render: (r) => <span className="text-slate-600">{r.lessonTitle}</span> },
+    { key: 'lessonTitle', header: 'Session', render: (r) => <span className="text-slate-500">{r.lessonTitle}</span> },
     {
       key: 'trainerId',
       header: 'Trainer',
@@ -60,13 +60,13 @@ export function TraineeAttendance() {
           subtitle={`Minimum required attendance is ${requirement}%`}
           icon={PieChart}
           action={
-            <span className={`text-2xl font-bold ${stats.rate >= requirement ? 'text-emerald-600' : 'text-amber-600'}`}>
+            <span className={`text-2xl font-bold ${stats.rate >= requirement ? 'text-emerald-600' : 'text-warm-600'}`}>
               {stats.rate}%
             </span>
           }
         />
         <CardBody>
-          <ProgressBar value={stats.rate} size="lg" tone={stats.rate >= requirement ? 'bg-emerald-500' : 'bg-amber-500'} />
+          <ProgressBar value={stats.rate} size="lg" tone={stats.rate >= requirement ? 'bg-emerald-500' : 'bg-warm-500'} />
           <div className="mt-3 flex flex-wrap gap-x-6 gap-y-1 text-xs text-slate-500">
             <span>{stats.total} total sessions</span>
             <span>{(stats.present + stats.late)} attended</span>

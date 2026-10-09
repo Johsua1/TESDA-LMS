@@ -113,7 +113,7 @@ export function TrainerQuizzes() {
             return (
               <Card key={q.id} hover className="flex flex-col p-4">
                 <div className="flex items-start justify-between">
-                  <span className={cn('flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-lg', q.programColor)}>
+                  <span className={cn('flex h-10 w-10 items-center justify-center rounded-xl text-lg', q.programColor)}>
                     {q.programEmoji}
                   </span>
                   <div className="flex items-center gap-1.5">
@@ -189,17 +189,17 @@ export function TrainerQuizzes() {
         {selected && (
           <div className="space-y-5">
             <div className="grid grid-cols-3 gap-3">
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
+              <div className="rounded-lg bg-white p-3 text-center">
                 <p className="text-lg font-bold text-slate-800">{selected.attempts.length}</p>
                 <p className="text-[10px] uppercase text-slate-400">Attempts</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
+              <div className="rounded-lg bg-white p-3 text-center">
                 <p className="text-lg font-bold text-slate-800">
                   {selected.attempts.length ? Math.round(average(selected.attempts.map((a) => a.percentage))) : 0}%
                 </p>
                 <p className="text-[10px] uppercase text-slate-400">Avg Score</p>
               </div>
-              <div className="rounded-lg bg-slate-50 p-3 text-center">
+              <div className="rounded-lg bg-white p-3 text-center">
                 <p className="text-lg font-bold text-slate-800">
                   {selected.attempts.length ? Math.round((selected.attempts.filter((a) => a.passed).length / selected.attempts.length) * 100) : 0}%
                 </p>
@@ -223,7 +223,7 @@ export function TrainerQuizzes() {
                     {q.options && (
                       <div className="mt-2 grid grid-cols-2 gap-1.5 text-xs text-slate-500">
                         {q.options.map((o) => (
-                          <span key={o} className={cn('rounded px-2 py-1', o === q.answer ? 'bg-emerald-50 text-emerald-700' : 'bg-slate-50')}>
+                          <span key={o} className={cn('rounded px-2 py-1', o === q.answer ? 'bg-emerald-50 text-emerald-700' : 'bg-white')}>
                             {o}
                           </span>
                         ))}
@@ -242,7 +242,7 @@ export function TrainerQuizzes() {
                     const t = db.users.find((u) => u.id === a.traineeId)
                     return (
                       <div key={a.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-                        <span className="text-slate-600">{t?.name}</span>
+                        <span className="text-slate-500">{t?.name}</span>
                         <span className="flex items-center gap-3">
                           <span className="text-slate-500">
                             {a.score}/{a.total} ({a.percentage}%)

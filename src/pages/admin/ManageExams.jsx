@@ -110,7 +110,7 @@ export function ManageExams() {
                 { label: 'Passing', value: `${selected.passing}%` },
                 { label: 'Exam Date', value: formatDate(selected.date) },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg bg-slate-50 p-3 text-center">
+                <div key={s.label} className="rounded-lg bg-white p-3 text-center">
                   <p className="text-base font-bold text-slate-800">{s.value}</p>
                   <p className="text-[10px] uppercase text-slate-400">{s.label}</p>
                 </div>
@@ -124,7 +124,7 @@ export function ManageExams() {
                     const t = db.users.find((u) => u.id === a.traineeId)
                     return (
                       <div key={a.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-2 text-sm">
-                        <span className="text-slate-600">{t?.name}</span>
+                        <span className="text-slate-500">{t?.name}</span>
                         <span className="flex items-center gap-3">
                           <span className="text-slate-500">{a.score}/{a.total} ({a.percentage}%)</span>
                           <StatusBadge status={a.passed ? 'Passed' : 'Failed'} dot={false} />

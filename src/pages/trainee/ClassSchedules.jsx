@@ -81,7 +81,7 @@ export function ClassSchedules() {
           </div>
         </Card>
         <Card className="flex items-center gap-4 p-4">
-          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-slate-100 text-slate-600">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-gray-50 text-slate-500">
             <History className="h-5 w-5" />
           </span>
           <div>

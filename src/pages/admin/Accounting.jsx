@@ -174,7 +174,7 @@ export function Accounting() {
                 { label: 'Amount Paid', value: currency(selected.enrollment.payment?.amountPaid) },
                 { label: 'Balance', value: currency(selected.enrollment.payment?.balance) },
               ].map((s) => (
-                <div key={s.label} className="rounded-lg bg-slate-50 p-3 text-center">
+                <div key={s.label} className="rounded-lg bg-white p-3 text-center">
                   <p className="text-sm font-bold text-slate-800">{s.value}</p>
                   <p className="text-[10px] uppercase text-slate-400">{s.label}</p>
                 </div>
@@ -198,7 +198,7 @@ export function Accounting() {
                 Half
               </Button>
             </div>
-            <div className="rounded-lg bg-slate-50 p-3 text-xs text-slate-500">
+            <div className="rounded-lg bg-white p-3 text-xs text-slate-500">
               Reference: {selected.enrollment.payment?.referenceNo || '—'} · Last payment: {formatDate(selected.enrollment.payment?.paymentDate)}
             </div>
           </div>

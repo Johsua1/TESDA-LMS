@@ -123,7 +123,7 @@ export function Grades() {
             <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-emerald-500" /> 75%+</span>
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-brand-500" /> 50–74%</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-amber-500" /> Below 50%</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-warm-500" /> Below 50%</span>
             </div>
           </CardBody>
         </Card>

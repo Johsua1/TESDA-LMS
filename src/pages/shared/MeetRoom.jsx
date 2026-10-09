@@ -68,7 +68,7 @@ function VideoTile({ person, isSelf, isTrainer, micOn, camOn, handRaised, speaki
       )}
     >
       {showVideo ? (
-        <div className={cn('absolute inset-0 bg-gradient-to-br opacity-90', person?.avatarColor || 'from-slate-600 to-slate-700')} />
+        <div className={cn('absolute inset-0 opacity-90', person?.avatarColor || 'bg-slate-600')} />
       ) : (
         <div className="absolute inset-0 bg-slate-900" />
       )}
@@ -89,7 +89,7 @@ function VideoTile({ person, isSelf, isTrainer, micOn, camOn, handRaised, speaki
       {/* name plate */}
       <div className="absolute bottom-2 left-2 right-2 z-20 flex items-center gap-2">
         <span className="flex min-w-0 items-center gap-1.5 rounded-md bg-black/50 px-2 py-1 text-xs font-medium text-white backdrop-blur-sm">
-          {isTrainer && <Crown className="h-3 w-3 shrink-0 text-amber-400" />}
+          {isTrainer && <Crown className="h-3 w-3 shrink-0 text-warm-400" />}
           <span className="truncate">
             {person?.name || 'Participant'}
             {isSelf && ' (You)'}
@@ -100,7 +100,7 @@ function VideoTile({ person, isSelf, isTrainer, micOn, camOn, handRaised, speaki
           {micOn ? <Mic className="h-3 w-3" /> : <MicOff className="h-3 w-3" />}
         </span>
         {handRaised && (
-          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-amber-400 text-amber-900" title="Hand raised">
+          <span className="flex h-6 w-6 items-center justify-center rounded-md bg-warm-400 text-warm-900" title="Hand raised">
             <Hand className="h-3 w-3" />
           </span>
         )}
@@ -128,7 +128,7 @@ function ControlButton({ icon: Icon, label, active, danger, onClick, badge }) {
         danger
           ? 'bg-red-600 text-white hover:bg-red-500'
           : active
-            ? 'bg-white text-slate-900 hover:bg-slate-200'
+            ? 'bg-white text-slate-900 hover:bg-gray-100'
             : 'bg-slate-700 text-white hover:bg-slate-600',
       )}
     >
@@ -300,7 +300,7 @@ export function MeetRoom() {
     <div className="flex h-screen flex-col overflow-hidden bg-slate-950 text-slate-200">
       {/* ------------------------------ Top bar ------------------------------ */}
       <header className="flex shrink-0 items-center gap-3 border-b border-slate-800 px-4 py-3">
-        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-gradient-to-br from-brand-500 to-tesda-blue text-white">
+        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-brand-500 text-white">
           <BookOpen className="h-4 w-4" />
         </span>
         <div className="min-w-0 flex-1">
@@ -342,7 +342,7 @@ export function MeetRoom() {
       </header>
 
       {ended && (
-        <div className="shrink-0 border-b border-amber-500/20 bg-amber-500/10 px-4 py-2 text-center text-xs text-amber-300">
+        <div className="shrink-0 border-b border-warm-500/20 bg-warm-500/10 px-4 py-2 text-center text-xs text-warm-300">
           This class session has ended. You can still review the room, chat history and class materials.
         </div>
       )}
@@ -355,7 +355,7 @@ export function MeetRoom() {
             {sharing ? (
               <div className="mb-3">
                 <div className="relative flex aspect-video items-center justify-center overflow-hidden rounded-xl bg-slate-800 ring-1 ring-brand-500/60">
-                  <div className="absolute inset-0 bg-gradient-to-br from-brand-900/60 to-slate-900" />
+                  <div className="absolute inset-0 bg-brand-900/60" />
                   <div className="relative z-10 flex flex-col items-center gap-3 text-center">
                     <span className="flex h-14 w-14 items-center justify-center rounded-full bg-brand-500/20 text-brand-300">
                       <MonitorUp className="h-7 w-7" />
@@ -459,7 +459,7 @@ export function MeetRoom() {
                       {!m.system && (
                         <span className="mb-1 text-[11px] text-slate-500">
                           {m.name}
-                          {m.authorId === schedule.trainerId && <span className="ml-1 text-amber-400">· Trainer</span>}
+                          {m.authorId === schedule.trainerId && <span className="ml-1 text-warm-400">· Trainer</span>}
                         </span>
                       )}
                       <span
@@ -474,7 +474,7 @@ export function MeetRoom() {
                       >
                         {m.text}
                       </span>
-                      {!m.system && <span className="mt-0.5 text-[10px] text-slate-600">{m.time}</span>}
+                      {!m.system && <span className="mt-0.5 text-[10px] text-slate-500">{m.time}</span>}
                     </div>
                   ))}
                   <div ref={chatEndRef} />
@@ -505,15 +505,15 @@ export function MeetRoom() {
                   {[{ person: user, self: true, isTrainer: user.id === schedule.trainerId, state: { micOn, camOn, handRaised } }, ...presentOthers.map((p, i) => ({ person: p, isTrainer: p.id === schedule.trainerId, state: mockState(i + 1) }))].map(
                     ({ person, self, isTrainer, state }) => (
                       <li key={person.id} className="flex items-center gap-3 rounded-lg px-2 py-2 hover:bg-slate-800/60">
-                        <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-gradient-to-br text-xs font-semibold text-white', person.avatarColor)}>
+                        <span className={cn('flex h-8 w-8 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white', person.avatarColor)}>
                           {initials(person.name)}
                         </span>
                         <span className="min-w-0 flex-1 truncate text-sm text-slate-200">
                           {person.name}
                           {self && ' (You)'}
                         </span>
-                        {isTrainer && <Crown className="h-3.5 w-3.5 shrink-0 text-amber-400" />}
-                        {state.handRaised && <Hand className="h-3.5 w-3.5 shrink-0 text-amber-400" />}
+                        {isTrainer && <Crown className="h-3.5 w-3.5 shrink-0 text-warm-400" />}
+                        {state.handRaised && <Hand className="h-3.5 w-3.5 shrink-0 text-warm-400" />}
                         {state.micOn ? (
                           <Mic className="h-3.5 w-3.5 shrink-0 text-slate-400" />
                         ) : (
@@ -538,7 +538,7 @@ export function MeetRoom() {
                               {initials(p.name)}
                             </span>
                             <span className="min-w-0 flex-1 truncate text-sm text-slate-400">{p.name}</span>
-                            <Circle className="h-2 w-2 shrink-0 text-slate-600" />
+                            <Circle className="h-2 w-2 shrink-0 text-slate-500" />
                           </li>
                         ))}
                     </ul>
@@ -585,7 +585,7 @@ export function MeetRoom() {
                               {hasFile ? m.type : 'No file attached'}
                             </span>
                           </span>
-                          <Download className={`h-3.5 w-3.5 shrink-0 ${hasFile ? 'text-brand-400' : 'text-slate-600'}`} />
+                          <Download className={`h-3.5 w-3.5 shrink-0 ${hasFile ? 'text-brand-400' : 'text-slate-500'}`} />
                         </>
                       )
                       const base = 'flex w-full items-center gap-3 rounded-lg border border-slate-800 p-3 text-left transition'
