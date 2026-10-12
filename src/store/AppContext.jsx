@@ -2,7 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { buildSeed } from '../data/seed'
 import { setLivePrograms } from '../data/programs'
 import { uid, slugify } from '../lib/utils'
-import { isSupabaseConfigured } from '../lib/supabase'
+import { isSupabaseConfigured, supabase, initialUrlAuthType } from '../lib/supabase'
 import * as backend from '../lib/backend'
 
 const DB_KEY = 'tesda-lms-db-v2'
@@ -127,6 +127,10 @@ export function AppProvider({ children }) {
   // treating the user as signed in — otherwise an AAL1 session looks signed in
   // but every MFA-protected RPC refuses.
   const [mfaPending, setMfaPending] = useState(null)
+  // True while the signed-in user still has to choose their own password — a
+  // freshly invited trainer/trainee (user_metadata.must_set_password). App gates
+  // the whole router on this so they can't reach a dashboard first.
+  const [mustSetPassword, setMustSetPassword] = useState(false)
 
   // Keep a synchronous mirror of db so mutations can compute the next state and
   // persist it without relying on the async setState updater.
@@ -220,6 +224,38 @@ export function AppProvider({ children }) {
     })()
     return () => {
       cancelled = true
+    }
+  }, [])
+
+  // ------------------- Onboarding password gate (auth) ---------------------
+  // Mirror user_metadata.must_set_password from the live auth session. It is set
+  // by admin_create_user for new trainers/trainees and cleared by updatePassword
+  // once they choose their own. Kept in sync across sign-in, email-link
+  // recovery and the update itself via onAuthStateChange. The email-link type
+  // (initialUrlAuthType === 'recovery') is a fallback so the gate also fires
+  // when the account has no metadata flag (e.g. trainee created before 027).
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return
+    let cancelled = false
+    const sync = (session, event) => {
+      if (cancelled) return
+      if (event === 'PASSWORD_RECOVERY') {
+        setMustSetPassword(true)
+        return
+      }
+      if (event === 'SIGNED_OUT') {
+        setMustSetPassword(false)
+        return
+      }
+      const flag = Boolean(session?.user?.user_metadata?.must_set_password)
+      const fromLink = Boolean(session?.user) && initialUrlAuthType === 'recovery'
+      setMustSetPassword(flag || fromLink)
+    }
+    supabase.auth.getSession().then(({ data }) => sync(data?.session))
+    const { data: sub } = supabase.auth.onAuthStateChange((event, session) => sync(session, event))
+    return () => {
+      cancelled = true
+      sub?.subscription?.unsubscribe()
     }
   }, [])
 
@@ -1119,6 +1155,7 @@ export function AppProvider({ children }) {
       dismissToast,
       // auth
       mfaPending,
+      mustSetPassword,
       login,
       completeMfa,
       logout,
@@ -1179,6 +1216,7 @@ export function AppProvider({ children }) {
       toast,
       dismissToast,
       mfaPending,
+      mustSetPassword,
       login,
       completeMfa,
       logout,

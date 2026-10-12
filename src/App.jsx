@@ -1,4 +1,4 @@
-import { Route, Routes } from 'react-router-dom'
+import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { MfaGate } from './components/MfaGate'
@@ -63,12 +63,20 @@ import { AnnouncementsPage } from './pages/shared/AnnouncementsPage'
 import { ProfilePage } from './pages/shared/ProfilePage'
 
 export default function App() {
-  const { mfaPending } = useApp()
+  const { mfaPending, mustSetPassword } = useApp()
+  const location = useLocation()
+  // A freshly invited trainer/trainee must choose their own password before they
+  // can reach any dashboard. Without this they open the emailed link, land on
+  // /login already signed in, and get bounced straight to their dashboard.
+  const needsPassword =
+    mustSetPassword && location.pathname !== '/welcome' && location.pathname !== '/reset-password'
   return (
     <>
       <DevtoolsGuard />
       {mfaPending ? (
         <MfaGate />
+      ) : needsPassword ? (
+        <Navigate to="/welcome" replace />
       ) : (
       <Routes>
         <Route path="/" element={<Login />} />

@@ -356,10 +356,15 @@ export async function sendPasswordResetEmail(email) {
   if (error) throw error
 }
 
-// Set a new password for the currently signed-in user (used by /reset-password
-// after a recovery link, which establishes a session).
+// Set a new password for the currently signed-in user (used by /welcome after
+// an onboarding link, and by /reset-password after a recovery link — both
+// establish a session). Also clears the onboarding `must_set_password` flag so
+// the App gate stops forcing the user to the password screen.
 export async function updatePassword(newPassword) {
-  const { error } = await supabase.auth.updateUser({ password: newPassword })
+  const { error } = await supabase.auth.updateUser({
+    password: newPassword,
+    data: { must_set_password: false },
+  })
   if (error) throw error
 }
 

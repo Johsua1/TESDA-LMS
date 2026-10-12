@@ -63,14 +63,9 @@ export function Welcome() {
     }
     setLoading(true)
     try {
+      // Sets the password AND clears the onboarding flag in one call, so the
+      // App gate stops forcing the password screen.
       await backend.updatePassword(password)
-      // Clear the onboarding flag so a future "forgot password" email reads as
-      // a reset rather than another account-setup invite.
-      try {
-        await supabase.auth.updateUser({ data: { must_set_password: false } })
-      } catch {
-        /* best-effort */
-      }
       const me = profile || (await backend.fetchProfile())
       const home = roleMeta[me?.role]?.home || '/login'
       // Full reload so the app bootstraps with the (now persisted) session and

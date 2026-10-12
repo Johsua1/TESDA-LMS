@@ -59,6 +59,19 @@ const authStorage = {
   },
 }
 
+// The `type` of an email-link session (e.g. "recovery"), captured from the URL
+// hash BEFORE the Supabase client processes and clears it. Lets the app force
+// the set-password screen for an onboarding / reset link even when the account
+// carries no `must_set_password` metadata flag.
+export const initialUrlAuthType = (() => {
+  try {
+    const m = window.location.hash.match(/[#&]type=([^&]+)/)
+    return m ? decodeURIComponent(m[1]) : null
+  } catch {
+    return null
+  }
+})()
+
 export const supabase = isSupabaseConfigured
   ? createClient(url, anonKey, {
       auth: {
