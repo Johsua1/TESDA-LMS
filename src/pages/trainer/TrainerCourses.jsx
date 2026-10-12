@@ -4,6 +4,7 @@ import { useApp } from '../../store/AppContext'
 import { trainerPrograms, trainerEnrollments, courseProgress } from '../../store/selectors'
 import { programLessonCount, programQuizCount } from '../../data/programs'
 import { PageHeader, Card, CardBody, ProgressBar, Button, Badge, EmptyState } from '../../components/ui'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 import { average, cn, formatDate } from '../../lib/utils'
 
 export function TrainerCourses() {
@@ -40,7 +41,7 @@ export function TrainerCourses() {
                   )}
                   <div className={cn('absolute inset-0 bg-gradient-to-t opacity-80', p.color)} />
                   <div className="absolute inset-0 flex items-start justify-between p-4 text-white">
-                    <span className="text-4xl drop-shadow" aria-hidden="true">{p.emoji}</span>
+                    <CourseIcon program={p} className="h-9 w-9" />
                     <div className="flex flex-col items-end gap-1">
                       <Badge className="bg-white/20 text-white ring-white/30">{p.level}</Badge>
                       <Badge className="bg-white/20 text-white ring-white/30">{p.code}</Badge>

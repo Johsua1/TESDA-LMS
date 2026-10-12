@@ -40,8 +40,8 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { ScheduleCard, AnnouncementCard } from '../../components/cards/Cards'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 import { formatDate, formatTime, relativeDay, currency, cn } from '../../lib/utils'
-import { meetPath } from '../../config/navigation'
 
 export function TraineeDashboard() {
   const { db, user, settings } = useApp()
@@ -104,11 +104,11 @@ export function TraineeDashboard() {
                 </Button>
               </Link>
               {nextClass?.meetingLink && (
-                <Link to={meetPath(user.role, nextClass.id)}>
+                <a href={nextClass.meetingLink} target="_blank" rel="noreferrer">
                   <Button variant="ghost" className="text-white hover:bg-white/10" icon={Video}>
                     Join next class
                   </Button>
-                </Link>
+                </a>
               )}
             </div>
           </div>
@@ -116,7 +116,7 @@ export function TraineeDashboard() {
           {primaryProgram && (
             <div className="w-full max-w-xs rounded-xl bg-white/10 p-5 backdrop-blur-sm ring-1 ring-white/20">
               <div className="flex items-center gap-3">
-                <span className="text-3xl">{primaryProgram.emoji}</span>
+                <CourseIcon program={primaryProgram} className="h-8 w-8" />
                 <div className="min-w-0">
                   <p className="text-xs text-white/70">{primaryProgram.code}</p>
                   <p className="truncate text-sm font-semibold">{primaryProgram.title}</p>
@@ -220,11 +220,11 @@ export function TraineeDashboard() {
                       </p>
                     </div>
                     {nextClass.meetingLink && (
-                      <Link to={meetPath(user.role, nextClass.id)} className="mt-4 block">
+                      <a href={nextClass.meetingLink} target="_blank" rel="noreferrer" className="mt-4 block">
                         <Button size="sm" variant="success" icon={Video} className="w-full">
                           Join Class
                         </Button>
-                      </Link>
+                      </a>
                     )}
                   </>
                 ) : (

@@ -12,12 +12,9 @@ import {
   Video,
   Users,
   Award,
-  ExternalLink,
 } from 'lucide-react'
 import { Card, Badge, Button } from '../ui'
 import { StatusBadge } from '../ui/StatusBadge'
-import { useApp } from '../../store/AppContext'
-import { meetPath } from '../../config/navigation'
 import { cn, formatDate, relativeDay, formatTime } from '../../lib/utils'
 
 // ------------------------------- LessonCard ---------------------------------
@@ -118,7 +115,6 @@ export function QuizCard({ quiz, bestAttempt, attempts = 0, onStart, locked = fa
 const classTypeTone = { Online: 'info', 'Face-to-Face': 'success', Hybrid: 'purple' }
 
 export function ScheduleCard({ schedule, trainer, program, className }) {
-  const { user } = useApp()
   const isOnline = schedule.classType === 'Online' || schedule.classType === 'Hybrid'
   return (
     <Card className={cn('overflow-hidden', className)}>
@@ -165,24 +161,13 @@ export function ScheduleCard({ schedule, trainer, program, className }) {
           <div className="mt-3 flex items-center justify-between gap-3">
             <StatusBadge status={schedule.status} />
             {isOnline ? (
-              <div className="flex items-center gap-2">
-                {schedule.meetingLink && (
-                  <a
-                    href={schedule.meetingLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    title="Open mock Google Meet link"
-                    className="rounded-lg border border-slate-200 p-2 text-slate-400 transition hover:border-brand-300 hover:text-brand-600"
-                  >
-                    <ExternalLink className="h-4 w-4" />
-                  </a>
-                )}
-                <Link to={meetPath(user?.role, schedule.id)}>
+              schedule.meetingLink && (
+                <a href={schedule.meetingLink} target="_blank" rel="noreferrer">
                   <Button size="sm" variant="success" icon={Video}>
                     Join Class
                   </Button>
-                </Link>
-              </div>
+                </a>
+              )
             ) : (
               <Badge tone="neutral">{schedule.status === 'Completed' ? 'Session ended' : 'On-site'}</Badge>
             )}

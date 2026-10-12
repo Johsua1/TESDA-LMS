@@ -61,7 +61,6 @@ import { Settings } from './pages/admin/Settings'
 // Shared
 import { AnnouncementsPage } from './pages/shared/AnnouncementsPage'
 import { ProfilePage } from './pages/shared/ProfilePage'
-import { MeetRoom } from './pages/shared/MeetRoom'
 
 export default function App() {
   const { mfaPending } = useApp()
@@ -77,32 +76,6 @@ export default function App() {
         <Route path="/signup" element={<SignUp />} />
         <Route path="/reset-password" element={<ResetPassword />} />
         <Route path="/welcome" element={<Welcome />} />
-
-        {/* ------------------- IN-APP MEETING ROOM (full screen) ------------------- */}
-        <Route
-          path="/trainee/meet/:scheduleId"
-          element={
-            <ProtectedRoute allow={['trainee']}>
-              <MeetRoom />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/trainer/meet/:scheduleId"
-          element={
-            <ProtectedRoute allow={['trainer']}>
-              <MeetRoom />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/meet/:scheduleId"
-          element={
-            <ProtectedRoute allow={['admin']}>
-              <MeetRoom />
-            </ProtectedRoute>
-          }
-        />
 
         {/* ----------------------------- TRAINEE ----------------------------- */}
         <Route

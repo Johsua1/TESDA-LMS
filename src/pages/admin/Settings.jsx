@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Settings as SettingsIcon, Save, Building2, Target, Bell, Shield, RefreshCw, Database, Keyboard } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { PageHeader, Card, CardBody, CardHeader, Button, Input, Select, FormField, FormRow, ConfirmDialog, Badge } from '../../components/ui'
+import { PageHeader, Card, CardBody, CardHeader, Button, Input, Select, FormField, FormRow, ConfirmDialog, Badge, Toggle } from '../../components/ui'
 import { MfaSettings } from '../../components/MfaSettings'
 
 export function Settings() {
@@ -69,19 +69,15 @@ export function Settings() {
                 { key: 'maintenanceMode', title: 'Maintenance mode', desc: 'Temporarily restrict access to the system for maintenance.' },
               ].map((opt) => (
                 <label key={opt.key} className="flex cursor-pointer items-start justify-between gap-4 rounded-lg px-3 py-3 transition hover:bg-slate-50">
-                  <span>
+                  <span className="min-w-0 flex-1">
                     <span className="block text-sm font-medium text-slate-700">{opt.title}</span>
                     <span className="block text-xs text-slate-400">{opt.desc}</span>
                   </span>
-                  <button
-                    type="button"
-                    role="switch"
-                    aria-checked={!!form[opt.key]}
-                    onClick={() => setForm({ ...form, [opt.key]: !form[opt.key] })}
-                    className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors ${form[opt.key] ? 'bg-brand-600' : 'bg-slate-300'}`}
-                  >
-                    <span className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${form[opt.key] ? 'translate-x-[22px]' : 'translate-x-0.5'}`} />
-                  </button>
+                  <Toggle
+                    checked={!!form[opt.key]}
+                    onChange={(v) => setForm({ ...form, [opt.key]: v })}
+                    aria-label={opt.title}
+                  />
                 </label>
               ))}
             </CardBody>

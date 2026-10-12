@@ -19,9 +19,10 @@ import {
   Badge,
   StatCard,
   Stars,
+  Checkbox,
 } from '../../components/ui'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, average, cn } from '../../lib/utils'
+import { formatDate, average, cn, sanitizePhone } from '../../lib/utils'
 
 const emptyForm = {
   role: 'trainer',
@@ -237,7 +238,7 @@ export function ManageTrainers() {
               />
             </FormField>
             <FormField label="Phone Number">
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} />
+              <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} />
             </FormField>
           </FormRow>
           <FormRow cols={2}>
@@ -254,22 +255,22 @@ export function ManageTrainers() {
           <FormField label="Assigned Programs">
             <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
               {programs.map((p) => (
-                <label
+                <Checkbox
                   key={p.id}
+                  accent="emerald"
+                  checked={form.programs.includes(p.id)}
+                  onChange={() => toggleProgram(p.id)}
                   className={cn(
                     'flex cursor-pointer items-center gap-3 rounded-lg border p-3 transition',
                     form.programs.includes(p.id) ? 'border-emerald-500 bg-emerald-50' : 'border-slate-200 hover:bg-slate-50',
                   )}
-                >
-                  <input
-                    type="checkbox"
-                    checked={form.programs.includes(p.id)}
-                    onChange={() => toggleProgram(p.id)}
-                    className="h-4 w-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500"
-                  />
-                  <span className="text-lg">{p.emoji}</span>
-                  <span className="text-sm text-slate-700">{p.title}</span>
-                </label>
+                  label={
+                    <>
+                      <span className="text-lg">{p.emoji}</span>
+                      <span className="text-sm text-slate-700">{p.title}</span>
+                    </>
+                  }
+                />
               ))}
             </div>
           </FormField>

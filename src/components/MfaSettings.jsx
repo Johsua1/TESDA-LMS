@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { ShieldCheck, QrCode, Copy, KeyRound, CheckCircle2, Smartphone } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 import { supabase, isSupabaseConfigured } from '../lib/supabase'
-import { Card, CardBody, CardHeader, Button, Input, FormField, Badge, Modal } from './ui'
+import { Card, CardBody, CardHeader, Button, Input, FormField, Badge, Modal, Toggle } from './ui'
 
 // ---------------------------------------------------------------------------
 // Super Admin MFA settings.
@@ -179,29 +179,19 @@ export function MfaSettings() {
           ) : (
             <>
               <label className="flex cursor-pointer items-start justify-between gap-4">
-                <span>
+                <span className="min-w-0 flex-1">
                   <span className="block text-sm font-medium text-slate-700">Require MFA for Super Admin</span>
                   <span className="block text-xs text-slate-400">
                     When on, sensitive actions (managing trainers, users, programs) require a code from your
                     authenticator app in addition to your password.
                   </span>
                 </span>
-                <button
-                  type="button"
-                  role="switch"
-                  aria-checked={enabled}
+                <Toggle
+                  checked={enabled}
+                  onChange={toggle}
                   disabled={busy}
-                  onClick={toggle}
-                  className={`relative mt-0.5 h-6 w-11 shrink-0 rounded-full transition-colors disabled:opacity-60 ${
-                    enabled ? 'bg-brand-600' : 'bg-slate-300'
-                  }`}
-                >
-                  <span
-                    className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform ${
-                      enabled ? 'translate-x-[22px]' : 'translate-x-0.5'
-                    }`}
-                  />
-                </button>
+                  aria-label="Require MFA for Super Admin"
+                />
               </label>
 
               <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs text-slate-500">

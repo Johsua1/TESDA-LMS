@@ -31,7 +31,7 @@ import {
   SearchInput,
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
-import { currency, formatDate, cn } from '../../lib/utils'
+import { currency, formatDate, cn, sanitizePhone } from '../../lib/utils'
 
 const VOUCHER_OPTIONS = [
   'TESDA Training for Work Scholarship Program (TWSP)',
@@ -406,7 +406,7 @@ export function Enrollment() {
                       <Input type="email" value={form.email || ''} onChange={(e) => setForm({ ...form, email: e.target.value })} />
                     </FormField>
                     <FormField label="Contact Number" required>
-                      <Input value={form.contact || ''} onChange={(e) => setForm({ ...form, contact: e.target.value })} placeholder="+63 917 000 0000" />
+                      <Input type="tel" inputMode="tel" value={form.contact || ''} onChange={(e) => setForm({ ...form, contact: sanitizePhone(e.target.value) })} placeholder="+63 917 000 0000" />
                     </FormField>
                     <FormField label="Date of Birth">
                       <Input type="date" value={form.birthDate || ''} onChange={(e) => setForm({ ...form, birthDate: e.target.value })} />

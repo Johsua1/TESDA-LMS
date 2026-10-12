@@ -4,7 +4,7 @@ import { useApp } from '../../store/AppContext'
 import { programById, activeEnrollmentsOf, courseProgress, trainerPrograms, trainerRatingSummary } from '../../store/selectors'
 import { PageHeader, Card, CardBody, CardHeader, Avatar, Button, Input, Select, FormField, FormRow, Badge, ProgressBar } from '../../components/ui'
 import { roleMeta } from '../../config/navigation'
-import { formatDate } from '../../lib/utils'
+import { formatDate, sanitizePhone } from '../../lib/utils'
 
 export function ProfilePage() {
   const { db, user, updateProfile, changePassword } = useApp()
@@ -110,7 +110,7 @@ export function ProfilePage() {
                 </FormRow>
                 <FormRow>
                   <FormField label="Phone Number">
-                    <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+63 9xx xxx xxxx" />
+                    <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} placeholder="+63 9xx xxx xxxx" />
                   </FormField>
                   {user.role === 'trainee' ? (
                     <FormField label="Date of Birth">

@@ -22,6 +22,7 @@ import {
   EmptyState,
 } from '../../components/ui'
 import { currency, average, cn } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const blankCourse = () => ({
   title: '',
@@ -124,7 +125,7 @@ export function ManageCourses() {
                 )}
                 <div className={cn('absolute inset-0 bg-gradient-to-t opacity-80', p.color)} />
                 <div className="absolute inset-0 flex items-start justify-between p-4 text-white">
-                  <span className="text-3xl drop-shadow" aria-hidden="true">{p.emoji}</span>
+                  <CourseIcon program={p} className="h-8 w-8" />
                   <div className="flex flex-col items-end gap-1">
                     {p.special && <Badge className="bg-white/20 text-white ring-white/30">Special</Badge>}
                     <Badge className="bg-white/20 text-white ring-white/30">{p.level}</Badge>
@@ -193,7 +194,7 @@ export function ManageCourses() {
           <div className="space-y-5">
             <div className={cn('rounded-xl bg-gradient-to-br p-5 text-white', selected.color)}>
               <div className="flex items-center gap-3">
-                <span className="text-3xl">{selected.emoji}</span>
+                <CourseIcon program={selected} className="h-8 w-8" />
                 <div>
                   <p className="text-sm font-semibold">{selected.title}</p>
                   <p className="text-xs text-white/80">{selected.category} · {selected.duration} · {selected.hours} hrs</p>

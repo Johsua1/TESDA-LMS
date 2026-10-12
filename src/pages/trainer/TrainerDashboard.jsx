@@ -20,6 +20,7 @@ import { Card, CardBody, CardHeader, StatCard, ProgressBar, Button, Badge, Empty
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { Avatar } from '../../components/ui'
 import { ScheduleCard } from '../../components/cards/Cards'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 import { formatDate, formatTime, relativeDay, average, cn } from '../../lib/utils'
 
 export function TrainerDashboard() {
@@ -106,8 +107,8 @@ export function TrainerDashboard() {
                 const avg = enrs.length ? Math.round(average(enrs.map((e) => courseProgress(e, p.id).percent))) : 0
                 return (
                   <Card key={p.id} hover className="flex flex-col gap-4 p-4 sm:flex-row sm:items-center">
-                    <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-2xl', p.color)}>
-                      {p.emoji}
+                    <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br', p.color)}>
+                      <CourseIcon program={p} className="h-6 w-6" />
                     </span>
                     <div className="min-w-0 flex-1">
                       <p className="text-sm font-semibold text-slate-800">{p.title}</p>

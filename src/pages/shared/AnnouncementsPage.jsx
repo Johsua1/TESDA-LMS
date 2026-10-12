@@ -17,6 +17,7 @@ import {
   EmptyState,
   SearchInput,
   Dropdown,
+  Checkbox,
 } from '../../components/ui'
 import { formatDate, cn } from '../../lib/utils'
 
@@ -190,15 +191,11 @@ export function AnnouncementsPage({ canManage = false }) {
               </Select>
             </FormField>
           </FormRow>
-          <label className="inline-flex items-center gap-2 text-sm text-slate-700">
-            <input
-              type="checkbox"
-              checked={!!form.pinned}
-              onChange={(e) => setForm({ ...form, pinned: e.target.checked })}
-              className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-            />
-            Pin this announcement to the top
-          </label>
+          <Checkbox
+            checked={!!form.pinned}
+            onChange={(e) => setForm({ ...form, pinned: e.target.checked })}
+            label="Pin this announcement to the top"
+          />
         </div>
       </Modal>
 

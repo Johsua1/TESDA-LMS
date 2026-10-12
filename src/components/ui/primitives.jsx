@@ -149,6 +149,38 @@ export function ProgressBar({ value = 0, className, tone, showLabel = false, siz
   )
 }
 
+// --------------------------------- Toggle -----------------------------------
+// Accessible on/off switch. Every size is expressed in the same unit (rem) so
+// the knob can never drift outside the track at a different root font size —
+// mixing rem sizing with a fixed-px translate is what made it overlap before.
+export function Toggle({ checked = false, onChange, disabled = false, className, id, 'aria-label': ariaLabel }) {
+  return (
+    <button
+      type="button"
+      id={id}
+      role="switch"
+      aria-checked={checked}
+      aria-label={ariaLabel}
+      disabled={disabled}
+      onClick={() => onChange?.(!checked)}
+      className={cn(
+        'relative inline-flex h-6 w-11 shrink-0 cursor-pointer items-center rounded-full p-0.5 transition-colors',
+        'focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-brand-500 focus-visible:ring-offset-2',
+        'disabled:cursor-not-allowed disabled:opacity-60',
+        checked ? 'bg-brand-600' : 'bg-slate-300',
+        className,
+      )}
+    >
+      <span
+        className={cn(
+          'pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow transition-transform',
+          checked ? 'translate-x-5' : 'translate-x-0',
+        )}
+      />
+    </button>
+  )
+}
+
 // --------------------------------- Avatar -----------------------------------
 const avatarSizes = {
   sm: 'h-8 w-8 text-xs',

@@ -22,12 +22,6 @@ import {
   UserCircle,
 } from 'lucide-react'
 
-// Route to the in-app meeting room for a given role + schedule
-export const meetPath = (role, scheduleId) => {
-  const base = role === 'admin' ? 'admin' : role === 'trainer' ? 'trainer' : 'trainee'
-  return `/${base}/meet/${scheduleId}`
-}
-
 export const roleMeta = {
   admin: {
     label: 'Super Admin',

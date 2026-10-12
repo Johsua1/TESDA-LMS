@@ -3,6 +3,7 @@ import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, UserPlus, Upload, ArrowLeft, ShieldCheck, BookOpen, Award } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 import { Button, FormField, FormRow, Input, Textarea, Checkbox, Modal } from '../components/ui'
+import { sanitizePhone } from '../lib/utils'
 
 const BENEFITS = [
   { icon: BookOpen, text: 'Enroll in the Virtual Assistant program' },
@@ -133,7 +134,7 @@ export function SignUp() {
                 <Input id="email" type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="you@email.com" required />
               </FormField>
               <FormField label="Contact Number" htmlFor="phone">
-                <Input id="phone" value={form.phone} onChange={(e) => set({ phone: e.target.value })} placeholder="+63 917 000 0000" />
+                <Input id="phone" type="tel" inputMode="tel" value={form.phone} onChange={(e) => set({ phone: sanitizePhone(e.target.value) })} placeholder="+63 917 000 0000" />
               </FormField>
             </FormRow>
 

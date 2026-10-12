@@ -126,6 +126,12 @@ export const slugify = (s = '') =>
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-|-$/g, '')
 
+// ----------------------------- Form helpers ---------------------------------
+
+// Keep only digits and common phone punctuation (+, space, -, parentheses) so a
+// phone field can never accept letters.
+export const sanitizePhone = (value = '') => String(value).replace(/[^\d+\-()\s]/g, '')
+
 export const classNamesForStatus = (status) => {
   const map = {
     present: 'success',

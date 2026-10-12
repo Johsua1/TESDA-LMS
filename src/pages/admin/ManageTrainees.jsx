@@ -24,7 +24,7 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, average, cn } from '../../lib/utils'
+import { formatDate, average, cn, sanitizePhone } from '../../lib/utils'
 
 const emptyForm = {
   role: 'trainee',
@@ -302,7 +302,7 @@ export function ManageTrainees() {
               />
             </FormField>
             <FormField label="Phone Number">
-              <Input value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+63 9xx xxx xxxx" />
+              <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} placeholder="+63 9xx xxx xxxx" />
             </FormField>
           </FormRow>
           <FormRow cols={3}>
@@ -343,17 +343,18 @@ export function ManageTrainees() {
                       noTrainer && !on && 'opacity-70',
                     )}
                   >
-                    <label className={cn('flex items-center gap-3', noTrainer && !on ? 'cursor-not-allowed' : 'cursor-pointer')}>
-                      <input
-                        type="checkbox"
-                        checked={on}
-                        disabled={noTrainer && !on}
-                        onChange={() => toggleProgram(p.id)}
-                        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500 disabled:cursor-not-allowed"
-                      />
-                      <span className="text-lg">{p.emoji}</span>
-                      <span className="text-sm text-slate-700">{p.title}</span>
-                    </label>
+                    <Checkbox
+                      checked={on}
+                      disabled={noTrainer && !on}
+                      onChange={() => toggleProgram(p.id)}
+                      className={cn('flex items-center gap-3', noTrainer && !on ? 'cursor-not-allowed' : 'cursor-pointer')}
+                      label={
+                        <>
+                          <span className="text-lg">{p.emoji}</span>
+                          <span className="text-sm text-slate-700">{p.title}</span>
+                        </>
+                      }
+                    />
 
                     {on && (
                       <div className="mt-2.5">

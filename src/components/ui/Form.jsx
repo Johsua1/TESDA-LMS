@@ -42,13 +42,25 @@ export function Select({ className, children, ...props }) {
   )
 }
 
-export function Checkbox({ label, className, id, ...props }) {
+const checkboxAccents = {
+  brand: 'text-brand-600 focus:ring-brand-500',
+  emerald: 'text-emerald-600 focus:ring-emerald-500',
+}
+
+// Shared checkbox. `className` sets the wrapper's layout classes and replaces
+// the defaults when provided — cn() here is a plain class join (no
+// tailwind-merge), so additive overrides of utilities like `flex`/`gap`/`cursor`
+// would be resolved by stylesheet order instead of the caller's intent.
+export function Checkbox({ label, className, accent = 'brand', id, ...props }) {
   return (
-    <label htmlFor={id} className={cn('inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700', className)}>
+    <label
+      htmlFor={id}
+      className={className || 'inline-flex cursor-pointer items-center gap-2 text-sm text-slate-700'}
+    >
       <input
         id={id}
         type="checkbox"
-        className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
+        className={cn('h-4 w-4 shrink-0 rounded border-slate-300', checkboxAccents[accent])}
         {...props}
       />
       {label}

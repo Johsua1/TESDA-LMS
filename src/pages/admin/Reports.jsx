@@ -19,7 +19,6 @@ import {
   Tooltip,
   ResponsiveContainer,
   CartesianGrid,
-  Legend,
   PieChart,
   Pie,
   Cell,
@@ -41,9 +40,28 @@ import {
   Select,
   FormField,
 } from '../../components/ui'
+import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '../../components/ui/chart'
 import { average, currency, cn } from '../../lib/utils'
 
 const COLORS = ['#2572eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#0ea5e9']
+
+// Chart configs power the shared ChartContainer tooltip/legend (labels + colors).
+const ENROLLMENT_BY_COURSE_CONFIG = {
+  Enrolled: { label: 'Enrolled', color: '#2572eb' },
+  Pending: { label: 'Pending', color: '#f59e0b' },
+  Completed: { label: 'Completed', color: '#10b981' },
+}
+
+const PERFORMANCE_BY_COURSE_CONFIG = {
+  Quiz: { label: 'Quiz', color: '#2572eb' },
+  Exam: { label: 'Exam', color: '#8b5cf6' },
+}
+
+const REVENUE_BY_COURSE_CONFIG = {
+  Billed: { label: 'Billed', color: '#94a3b8' },
+  Collected: { label: 'Collected', color: '#10b981' },
+  Balance: { label: 'Balance', color: '#ef4444' },
+}
 
 function SectionCard({ title, subtitle, icon, children, className }) {
   return (
@@ -316,20 +334,18 @@ export function Reports() {
         <Card>
           <CardHeader title="Enrollment by Course" subtitle="Approved, pending and completed" icon={BarChart3} />
           <CardBody>
-            <div className="h-72 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data.enrollmentByCourse} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                  <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <YAxis allowDecimals={false} tick={{ fontSize: 11, fill: '#64748b' }} />
-                  <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                  <Bar dataKey="Enrolled" fill="#2572eb" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  <Bar dataKey="Completed" fill="#10b981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
+            <ChartContainer config={ENROLLMENT_BY_COURSE_CONFIG} className="h-72 w-full">
+              <BarChart accessibilityLayer data={data.enrollmentByCourse} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+                <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
+                <YAxis allowDecimals={false} tickLine={false} axisLine={false} />
+                <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                <ChartLegend content={<ChartLegendContent />} />
+                <Bar dataKey="Enrolled" fill="var(--color-Enrolled)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Pending" fill="var(--color-Pending)" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="Completed" fill="var(--color-Completed)" radius={[4, 4, 0, 0]} />
+              </BarChart>
+            </ChartContainer>
           </CardBody>
         </Card>
 
@@ -488,19 +504,17 @@ export function Reports() {
           <MiniStat label="Passed" value={data.performance.passed} tone="success" />
           <MiniStat label="Failed" value={data.performance.failed} tone="danger" />
         </div>
-        <div className="mt-5 h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.performanceByCourse} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-              <YAxis domain={[0, 100]} tick={{ fontSize: 11, fill: '#64748b' }} />
-              <Tooltip formatter={(v) => `${v}%`} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Quiz" fill="#2572eb" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Exam" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartContainer config={PERFORMANCE_BY_COURSE_CONFIG} className="mt-5 h-64 w-full">
+          <BarChart accessibilityLayer data={data.performanceByCourse} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
+            <YAxis domain={[0, 100]} tickLine={false} axisLine={false} />
+            <ChartTooltip cursor={false} content={<ChartTooltipContent valueFormatter={(v) => `${v}%`} />} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="Quiz" fill="var(--color-Quiz)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Exam" fill="var(--color-Exam)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ChartContainer>
       </SectionCard>
 
       {/* --------------------------- Accounting ------------------------------ */}
@@ -512,20 +526,18 @@ export function Reports() {
           <MiniStat label="Unpaid" value={data.accounting.unpaid} tone="danger" />
           <MiniStat label="Outstanding" value={currency(data.accounting.balance)} tone="danger" />
         </div>
-        <div className="mt-5 h-64 w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={data.revenueByCourse} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-              <YAxis tickFormatter={(v) => `₱${v / 1000}k`} tick={{ fontSize: 11, fill: '#64748b' }} />
-              <Tooltip formatter={(v) => currency(v)} contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="Billed" fill="#94a3b8" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Collected" fill="#10b981" radius={[4, 4, 0, 0]} />
-              <Bar dataKey="Balance" fill="#ef4444" radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
+        <ChartContainer config={REVENUE_BY_COURSE_CONFIG} className="mt-5 h-64 w-full">
+          <BarChart accessibilityLayer data={data.revenueByCourse} margin={{ top: 8, right: 8, left: -8, bottom: 0 }}>
+            <CartesianGrid vertical={false} strokeDasharray="3 3" />
+            <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={8} />
+            <YAxis tickFormatter={(v) => `₱${v / 1000}k`} tickLine={false} axisLine={false} />
+            <ChartTooltip cursor={false} content={<ChartTooltipContent valueFormatter={(v) => currency(v)} />} />
+            <ChartLegend content={<ChartLegendContent />} />
+            <Bar dataKey="Billed" fill="var(--color-Billed)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Collected" fill="var(--color-Collected)" radius={[4, 4, 0, 0]} />
+            <Bar dataKey="Balance" fill="var(--color-Balance)" radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ChartContainer>
       </SectionCard>
 
       <p className="mt-6 flex items-center gap-2 text-xs text-slate-400">

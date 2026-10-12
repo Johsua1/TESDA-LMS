@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { BookOpen, ClipboardList, User, CalendarDays, Clock, ArrowRight, Lock } from 'lucide-react'
 import { Card, ProgressBar, Badge } from '../ui'
 import { StatusBadge } from '../ui/StatusBadge'
+import { CourseIcon } from '../courses/CourseIcon'
 import { cn, formatDate, relativeDay, formatTime } from '../../lib/utils'
 import { programLessonCount, programQuizCount } from '../../data/programs'
 
@@ -25,9 +26,7 @@ export function CourseCard({ program, enrollment, trainer, nextSchedule, progres
         />
         <div className={cn('absolute inset-0 bg-gradient-to-t opacity-80', program.color)} />
         <div className="absolute inset-0 flex items-start justify-between p-4">
-          <span className="text-3xl drop-shadow" aria-hidden="true">
-            {program.emoji}
-          </span>
+          <CourseIcon program={program} className="h-8 w-8" />
           <div className="flex flex-col items-end gap-1.5">
             {program.special && <Badge tone="purple">Special</Badge>}
             {enrollment && <StatusBadge status={enrollment.status} />}

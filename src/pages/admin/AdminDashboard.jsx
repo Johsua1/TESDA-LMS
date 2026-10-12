@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   Users,
@@ -13,29 +14,62 @@ import {
   Megaphone,
   BarChart3,
 } from 'lucide-react'
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  Tooltip,
-  ResponsiveContainer,
-  CartesianGrid,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-} from 'recharts'
+import { AreaChart, Area, CartesianGrid, XAxis } from 'recharts'
 import { useApp } from '../../store/AppContext'
 import { revenueStats, programStats, attendanceStats } from '../../store/selectors'
 import { Card, CardBody, CardHeader, StatCard, Badge, Button, ProgressBar, EmptyState, SectionTitle, Avatar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { DonutChart } from '../../components/ui/donut-chart'
+import { ChartContainer, ChartTooltip, ChartTooltipContent } from '../../components/ui/chart'
 import { formatDate, currency, average, cn } from '../../lib/utils'
 
 const PIE_COLORS = ['#2572eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444']
 
+const ENROLLMENT_CHART_CONFIG = {
+  Enrolled: { label: 'Enrolled', color: '#2572eb' },
+  Completed: { label: 'Completed', color: '#10b981' },
+  Pending: { label: 'Pending', color: '#f59e0b' },
+}
+
+// Animated hatched fill shown when a series is hovered (from the reference demo).
+function HatchedBackgroundPattern({ config }) {
+  const items = Object.fromEntries(Object.entries(config).map(([key, value]) => [key, value.color]))
+  return (
+    <>
+      {Object.entries(items).map(([key, value]) => (
+        <pattern
+          key={key}
+          id={`hatched-background-pattern-${key}`}
+          x="0"
+          y="0"
+          width="6.81"
+          height="6.81"
+          patternUnits="userSpaceOnUse"
+          patternTransform="rotate(-45)"
+          overflow="visible"
+        >
+          <g overflow="visible" className="will-change-transform">
+            <animateTransform
+              attributeName="transform"
+              type="translate"
+              from="0 0"
+              to="6 0"
+              dur="1s"
+              repeatCount="indefinite"
+            />
+            <rect width="10" height="10" opacity={0.05} fill={value} />
+            <rect width="1" height="10" fill={value} />
+          </g>
+        </pattern>
+      ))}
+    </>
+  )
+}
+
 export function AdminDashboard() {
   const { db, user } = useApp()
+  const [hoveredProgram, setHoveredProgram] = useState(null)
+  const [activeProperty, setActiveProperty] = useState(null)
   const revenue = revenueStats(db)
   const allTrainees = db.users.filter((u) => u.role === 'trainee')
   const allTrainers = db.users.filter((u) => u.role === 'trainer')
@@ -47,10 +81,20 @@ export function AdminDashboard() {
     return { name: p.code, Enrolled: s.enrolled, Completed: s.completed, Pending: s.pending }
   })
 
-  const enrollmentPie = db.programs.map((p) => ({
-    name: p.title.split(' ')[0],
-    value: db.enrollments.filter((e) => e.programId === p.id).length,
-  }))
+  const enrollmentPie = db.programs.map((p, i) => {
+    const label = p.title.split(' ')[0]
+    return {
+      label,
+      name: label,
+      value: db.enrollments.filter((e) => e.programId === p.id).length,
+      color: PIE_COLORS[i % PIE_COLORS.length],
+    }
+  })
+  const totalEnrollments = enrollmentPie.reduce((sum, d) => sum + d.value, 0)
+  const activeSegment = enrollmentPie.find((d) => d.label === hoveredProgram)
+  const donutValue = activeSegment ? activeSegment.value : totalEnrollments
+  const donutLabel = activeSegment ? activeSegment.label : 'Total'
+  const donutPercentage = activeSegment ? (activeSegment.value / (totalEnrollments || 1)) * 100 : 100
 
   const specialPrograms = db.programs.filter((p) => p.special).length
   const ncPrograms = db.programs.length - specialPrograms
@@ -119,20 +163,40 @@ export function AdminDashboard() {
           <Card>
             <CardHeader title="Enrollment by Program" subtitle="Enrolled, completed and pending per program" icon={BarChart3} />
             <CardBody>
-              <div className="h-72 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <BarChart data={enrollmentByProgram} margin={{ top: 8, right: 8, left: -16, bottom: 0 }}>
-                    <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
-                    <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#64748b' }} />
-                    <YAxis tick={{ fontSize: 11, fill: '#64748b' }} allowDecimals={false} />
-                    <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                    <Bar dataKey="Enrolled" fill="#2572eb" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Completed" fill="#10b981" radius={[4, 4, 0, 0]} />
-                    <Bar dataKey="Pending" fill="#f59e0b" radius={[4, 4, 0, 0]} />
-                  </BarChart>
-                </ResponsiveContainer>
-              </div>
+              <ChartContainer config={ENROLLMENT_CHART_CONFIG} className="h-72 w-full">
+                <AreaChart accessibilityLayer data={enrollmentByProgram} margin={{ top: 8, right: 24, left: 24, bottom: 8 }}>
+                  <CartesianGrid vertical={false} strokeDasharray="3 3" />
+                  <XAxis dataKey="name" tickLine={false} axisLine={false} tickMargin={10} interval={0} />
+                  <ChartTooltip cursor={false} content={<ChartTooltipContent />} />
+                  <defs>
+                    <HatchedBackgroundPattern config={ENROLLMENT_CHART_CONFIG} />
+                    {Object.entries(ENROLLMENT_CHART_CONFIG).map(([key]) => (
+                      <linearGradient key={key} id={`hatched-grad-${key}`} x1="0" y1="0" x2="0" y2="1">
+                        <stop offset="5%" stopColor={`var(--color-${key})`} stopOpacity={0.4} />
+                        <stop offset="95%" stopColor={`var(--color-${key})`} stopOpacity={0} />
+                      </linearGradient>
+                    ))}
+                  </defs>
+                  {Object.keys(ENROLLMENT_CHART_CONFIG).map((key) => (
+                    <Area
+                      key={key}
+                      dataKey={key}
+                      type="monotone"
+                      stackId="a"
+                      stroke={`var(--color-${key})`}
+                      strokeWidth={0.8}
+                      fillOpacity={0.4}
+                      onMouseEnter={() => setActiveProperty(key)}
+                      onMouseLeave={() => setActiveProperty(null)}
+                      fill={
+                        activeProperty === key
+                          ? `url(#hatched-background-pattern-${key})`
+                          : `url(#hatched-grad-${key})`
+                      }
+                    />
+                  ))}
+                </AreaChart>
+              </ChartContainer>
             </CardBody>
           </Card>
 
@@ -174,24 +238,39 @@ export function AdminDashboard() {
           <Card>
             <CardHeader title="Enrollment Distribution" icon={TrendingUp} />
             <CardBody>
-              <div className="h-56 w-full">
-                <ResponsiveContainer width="100%" height="100%">
-                  <PieChart>
-                    <Pie data={enrollmentPie} dataKey="value" nameKey="name" innerRadius={45} outerRadius={80} paddingAngle={3}>
-                      {enrollmentPie.map((_, i) => (
-                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                      ))}
-                    </Pie>
-                    <Tooltip contentStyle={{ borderRadius: 12, border: '1px solid #e2e8f0', fontSize: 12 }} />
-                  </PieChart>
-                </ResponsiveContainer>
+              <div className="flex justify-center">
+                <DonutChart
+                  data={enrollmentPie}
+                  size={200}
+                  strokeWidth={28}
+                  animationDuration={1.1}
+                  animationDelayPerSegment={0.05}
+                  onSegmentHover={(seg) => setHoveredProgram(seg?.label ?? null)}
+                  centerContent={
+                    <div className="flex flex-col items-center justify-center text-center">
+                      <p className="max-w-[120px] truncate text-xs font-medium text-slate-500">{donutLabel}</p>
+                      <p className="text-3xl font-bold text-slate-800">{donutValue}</p>
+                      {activeSegment && (
+                        <p className="text-xs font-semibold text-slate-400">{donutPercentage.toFixed(0)}%</p>
+                      )}
+                    </div>
+                  }
+                />
               </div>
-              <div className="mt-2 space-y-1.5">
-                {enrollmentPie.map((d, i) => (
-                  <div key={d.name} className="flex items-center justify-between text-xs">
+              <div className="mt-4 space-y-1">
+                {enrollmentPie.map((d) => (
+                  <div
+                    key={d.label}
+                    onMouseEnter={() => setHoveredProgram(d.label)}
+                    onMouseLeave={() => setHoveredProgram(null)}
+                    className={cn(
+                      'flex cursor-pointer items-center justify-between rounded-md px-2 py-1.5 text-xs transition-colors',
+                      hoveredProgram === d.label ? 'bg-slate-100' : '',
+                    )}
+                  >
                     <span className="flex items-center gap-2 text-slate-600">
-                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: PIE_COLORS[i % PIE_COLORS.length] }} />
-                      {d.name}
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: d.color }} />
+                      {d.label}
                     </span>
                     <span className="font-semibold text-slate-700">{d.value}</span>
                   </div>
