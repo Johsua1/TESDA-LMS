@@ -95,7 +95,8 @@ function loadLocalDB() {
 
 function loadLocalSession() {
   try {
-    const raw = localStorage.getItem(SESSION_KEY)
+    // Session lives in sessionStorage so closing the tab signs the user out.
+    const raw = sessionStorage.getItem(SESSION_KEY)
     return raw ? JSON.parse(raw) : null
   } catch {
     return null
@@ -233,8 +234,9 @@ export function AppProvider({ children }) {
   useEffect(() => {
     if (isSupabaseConfigured) return
     try {
-      if (user) localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-      else localStorage.removeItem(SESSION_KEY)
+      // Tab-scoped: cleared automatically when the tab is closed.
+      if (user) sessionStorage.setItem(SESSION_KEY, JSON.stringify(user))
+      else sessionStorage.removeItem(SESSION_KEY)
     } catch {
       /* ignore */
     }

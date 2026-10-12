@@ -2,6 +2,7 @@ import { Route, Routes } from 'react-router-dom'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
 import { MfaGate } from './components/MfaGate'
+import { DevtoolsGuard } from './components/DevtoolsGuard'
 import { ToastContainer } from './components/ui/Toasts'
 import { useApp } from './store/AppContext'
 
@@ -66,6 +67,7 @@ export default function App() {
   const { mfaPending } = useApp()
   return (
     <>
+      <DevtoolsGuard />
       {mfaPending ? (
         <MfaGate />
       ) : (

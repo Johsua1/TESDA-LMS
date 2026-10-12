@@ -4,7 +4,6 @@ import { Mail, Lock, Eye, EyeOff, ShieldCheck, UserCog, User, ArrowRight, KeyRou
 import { useApp } from '../store/AppContext'
 import { Button, Input, FormField, Modal } from '../components/ui'
 import { roleMeta } from '../config/navigation'
-import { REMEMBER_KEY } from '../lib/supabase'
 import * as backend from '../lib/backend'
 import { cn } from '../lib/utils'
 
@@ -25,7 +24,6 @@ export function Login() {
   const [loading, setLoading] = useState(false)
   const [mfa, setMfa] = useState(null)
   const [code, setCode] = useState('')
-  const [remember, setRemember] = useState(true)
   const [forgotOpen, setForgotOpen] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotLoading, setForgotLoading] = useState(false)
@@ -36,13 +34,6 @@ export function Login() {
     e.preventDefault()
     setError('')
     setLoading(true)
-    // Persist the "Remember me" preference before signing in — the Supabase
-    // client reads it when deciding where to store the session.
-    try {
-      localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0')
-    } catch {
-      /* ignore */
-    }
 
     // Step 2 — verify the authenticator code (MFA enabled accounts).
     if (mfa) {
@@ -235,16 +226,7 @@ export function Login() {
                   </div>
                 </FormField>
 
-                <div className="flex items-center justify-between">
-                  <label className="inline-flex items-center gap-2 text-sm text-slate-600">
-                    <input
-                      type="checkbox"
-                      checked={remember}
-                      onChange={(e) => setRemember(e.target.checked)}
-                      className="h-4 w-4 rounded border-slate-300 text-brand-600 focus:ring-brand-500"
-                    />
-                    Remember me
-                  </label>
+                <div className="flex items-center justify-end">
                   <button
                     type="button"
                     onClick={() => {

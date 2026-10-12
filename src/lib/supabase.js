@@ -32,35 +32,26 @@ const anonKey = String(import.meta.env?.VITE_SUPABASE_ANON_KEY || SUPABASE_CONFI
 
 export const isSupabaseConfigured = Boolean(url && anonKey && /^https?:\/\//.test(url))
 
-// Set by the Login page's "Remember me" checkbox. When '1' the auth session is
-// kept in localStorage (survives a browser restart); otherwise it lives in
-// sessionStorage and is cleared when the tab closes.
-export const REMEMBER_KEY = 'tesda-lms-remember'
-
+// Auth sessions are stored in sessionStorage only: the session is scoped to the
+// browser tab and is discarded the moment the tab is closed, so the user has to
+// sign in again. Page reloads within the same tab keep the session.
 const authStorage = {
   getItem: (key) => {
     try {
-      return window.localStorage.getItem(key) ?? window.sessionStorage.getItem(key)
+      return window.sessionStorage.getItem(key)
     } catch {
       return null
     }
   },
   setItem: (key, value) => {
     try {
-      if (window.localStorage.getItem(REMEMBER_KEY) === '1') {
-        window.localStorage.setItem(key, value)
-        window.sessionStorage.removeItem(key)
-      } else {
-        window.sessionStorage.setItem(key, value)
-        window.localStorage.removeItem(key)
-      }
+      window.sessionStorage.setItem(key, value)
     } catch {
       /* storage unavailable — ignore */
     }
   },
   removeItem: (key) => {
     try {
-      window.localStorage.removeItem(key)
       window.sessionStorage.removeItem(key)
     } catch {
       /* ignore */
