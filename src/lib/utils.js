@@ -120,6 +120,17 @@ export const videoEmbed = (url) => {
   return { type: 'video', src: value }
 }
 
+// Turn a stored meeting/external link into an absolute URL. Admins often paste
+// "meet.google.com/abc-defg-hij" without a scheme; without one the browser
+// treats it as a path relative to the app origin (→ 404 on the Vercel domain).
+export const toExternalUrl = (link) => {
+  const value = String(link || '').trim()
+  if (!value) return ''
+  if (/^[a-z][a-z0-9+.-]*:\/\//i.test(value)) return value // already absolute
+  if (value.startsWith('//')) return `https:${value}` // protocol-relative
+  return `https://${value}`
+}
+
 export const slugify = (s = '') =>
   String(s)
     .toLowerCase()

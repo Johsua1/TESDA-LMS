@@ -15,7 +15,7 @@ import {
 } from 'lucide-react'
 import { Card, Badge, Button } from '../ui'
 import { StatusBadge } from '../ui/StatusBadge'
-import { cn, formatDate, relativeDay, formatTime } from '../../lib/utils'
+import { cn, formatDate, relativeDay, formatTime, toExternalUrl } from '../../lib/utils'
 
 // ------------------------------- LessonCard ---------------------------------
 export function LessonCard({ lesson, index, completed, to, competency, unitTitle }) {
@@ -162,7 +162,7 @@ export function ScheduleCard({ schedule, trainer, program, className }) {
             <StatusBadge status={schedule.status} />
             {isOnline ? (
               schedule.meetingLink && (
-                <a href={schedule.meetingLink} target="_blank" rel="noreferrer">
+                <a href={toExternalUrl(schedule.meetingLink)} target="_blank" rel="noreferrer">
                   <Button size="sm" variant="success" icon={Video}>
                     Join Class
                   </Button>

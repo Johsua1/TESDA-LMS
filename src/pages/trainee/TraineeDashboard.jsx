@@ -41,7 +41,7 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { ScheduleCard, AnnouncementCard } from '../../components/cards/Cards'
 import { CourseIcon } from '../../components/courses/CourseIcon'
-import { formatDate, formatTime, relativeDay, currency, cn } from '../../lib/utils'
+import { formatDate, formatTime, relativeDay, currency, cn, toExternalUrl } from '../../lib/utils'
 
 export function TraineeDashboard() {
   const { db, user, settings } = useApp()
@@ -104,7 +104,7 @@ export function TraineeDashboard() {
                 </Button>
               </Link>
               {nextClass?.meetingLink && (
-                <a href={nextClass.meetingLink} target="_blank" rel="noreferrer">
+                <a href={toExternalUrl(nextClass.meetingLink)} target="_blank" rel="noreferrer">
                   <Button variant="ghost" className="text-white hover:bg-white/10" icon={Video}>
                     Join next class
                   </Button>
@@ -220,7 +220,7 @@ export function TraineeDashboard() {
                       </p>
                     </div>
                     {nextClass.meetingLink && (
-                      <a href={nextClass.meetingLink} target="_blank" rel="noreferrer" className="mt-4 block">
+                      <a href={toExternalUrl(nextClass.meetingLink)} target="_blank" rel="noreferrer" className="mt-4 block">
                         <Button size="sm" variant="success" icon={Video} className="w-full">
                           Join Class
                         </Button>

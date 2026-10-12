@@ -21,7 +21,7 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, formatTime, startOfDay, combineDateTime, cn } from '../../lib/utils'
+import { formatDate, formatTime, startOfDay, combineDateTime, cn, toExternalUrl } from '../../lib/utils'
 
 const emptyForm = {
   programId: '',
@@ -119,7 +119,7 @@ export function TrainerSchedules() {
         <Dropdown
           items={[
             { label: 'Edit', icon: Pencil, onClick: () => openEdit(r) },
-            ...(r.meetingLink ? [{ label: 'Copy Meet link', icon: Video, onClick: () => { navigator.clipboard?.writeText(r.meetingLink); toast('Meeting link copied.', 'info') } }] : []),
+            ...(r.meetingLink ? [{ label: 'Copy Meet link', icon: Video, onClick: () => { navigator.clipboard?.writeText(toExternalUrl(r.meetingLink)); toast('Meeting link copied.', 'info') } }] : []),
             { divider: true },
             { label: 'Delete', icon: Trash2, danger: true, onClick: () => setConfirm(r) },
           ]}

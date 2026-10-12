@@ -31,6 +31,7 @@ import {
   SearchInput,
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 import { currency, formatDate, cn, sanitizePhone } from '../../lib/utils'
 
 const VOUCHER_OPTIONS = [
@@ -147,7 +148,14 @@ export function Enrollment() {
                 return (
                   <div key={e.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
-                      <span className="text-2xl">{p?.emoji}</span>
+                      <span
+                        className={cn(
+                          'flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br',
+                          p?.color,
+                        )}
+                      >
+                        <CourseIcon program={p} className="h-5 w-5" />
+                      </span>
                       <div>
                         <p className="text-sm font-semibold text-slate-700">{p?.title}</p>
                         <p className="text-xs text-slate-400">
@@ -184,9 +192,21 @@ export function Enrollment() {
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 xl:grid-cols-3">
             {filtered.map((p) => (
               <Card key={p.id} hover className="flex flex-col overflow-hidden">
-                <div className={cn('relative h-28 bg-gradient-to-br', p.color)}>
-                  <div className="absolute inset-0 flex items-center justify-between p-4 text-white">
-                    <span className="text-3xl">{p.emoji}</span>
+                <div className="relative h-28 overflow-hidden bg-slate-100">
+                  {p.image && (
+                    <img
+                      src={p.image}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  )}
+                  <div className={cn('absolute inset-0 bg-gradient-to-t opacity-80', p.color)} />
+                  <div className="absolute inset-0 flex items-start justify-between p-4 text-white">
+                    <CourseIcon program={p} className="h-8 w-8" />
                     <div className="flex flex-col items-end gap-1">
                       {p.special && <Badge className="bg-white/20 text-white ring-white/30">Special</Badge>}
                       <Badge className="bg-white/20 text-white ring-white/30">{p.level}</Badge>
@@ -248,7 +268,7 @@ export function Enrollment() {
 
         <div className={cn('relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 text-white', selected.color)}>
           <div className="flex items-center gap-4">
-            <span className="text-4xl">{selected.emoji}</span>
+            <CourseIcon program={selected} className="h-10 w-10" />
             <div>
               <p className="text-xs opacity-90">{selected.code} · {selected.level}</p>
               <h1 className="text-2xl font-bold">{selected.title}</h1>
