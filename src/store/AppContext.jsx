@@ -37,7 +37,9 @@ const EMPTY_DB = {
 
 const AppContext = createContext(null)
 
-// Strong, unambiguous temporary password for newly created trainer accounts.
+// Random placeholder password for a newly created account. It is never shown
+// to anyone: the trainer/trainee sets their OWN password from the emailed
+// activation link (see backend.sendActivationEmail + the /welcome page).
 function generateTempPassword(len = 12) {
   const charset = 'ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%*'
   const bytes = new Uint8Array(len)
@@ -419,16 +421,16 @@ export function AppProvider({ children }) {
 
   // Create a TRAINER account (online): creates the auth user + profile via the
   // admin_create_user RPC, then emails an activation link via Supabase Auth.
-  // The generated temporary password is returned so the admin can share it
-  // manually when email delivery is unavailable.
+  // The account is created with a random placeholder password that is never
+  // shown — the trainer sets their OWN password from the emailed link.
   const createTrainer = useCallback(
     async (payload) => {
       if (!isSupabaseConfigured) {
         saveUser(payload)
-        return { ok: true, emailed: false, tempPassword: payload.password || null }
+        return { ok: true, emailed: false }
       }
       const id = payload.id || uid('tr')
-      const tempPassword = payload.password || generateTempPassword()
+      const tempPassword = generateTempPassword()
       try {
         const { password: _pw, id: _id, role: _role, ...rest } = payload
         const { email, name, ...data } = rest
@@ -451,7 +453,7 @@ export function AppProvider({ children }) {
         const users = await backend.fetchProfiles()
         dbRef.current = { ...dbRef.current, users }
         setDb(dbRef.current)
-        return { ok: true, tempPassword, emailed }
+        return { ok: true, emailed }
       } catch (e) {
         console.error(e)
         return { ok: false, error: e?.message || 'Failed to create the trainer.' }
@@ -510,8 +512,9 @@ export function AppProvider({ children }) {
 
   // Create a TRAINEE account (online): creates the auth user + profile via the
   // admin_create_user RPC, emails an activation link, and turns their program
-  // assignments into enrollments (their courses). The generated temporary
-  // password is returned so the admin can share it when email is unavailable.
+  // assignments into enrollments (their courses). The account is created with a
+  // random placeholder password that is never shown — the trainee sets their
+  // OWN password from the emailed link.
   const createTrainee = useCallback(
     async (payload) => {
       const id = payload.id || uid('tn')
@@ -520,9 +523,9 @@ export function AppProvider({ children }) {
       if (!isSupabaseConfigured) {
         saveUser({ ...payload, id })
         syncTraineeEnrollments(id, assigned, programTrainers)
-        return { ok: true, emailed: false, tempPassword: payload.password || null }
+        return { ok: true, emailed: false }
       }
-      const tempPassword = payload.password || generateTempPassword()
+      const tempPassword = generateTempPassword()
       try {
         const { password: _pw, id: _id, role: _role, ...rest } = payload
         const { email, name, ...data } = rest
@@ -540,7 +543,7 @@ export function AppProvider({ children }) {
         const users = await backend.fetchProfiles()
         dbRef.current = { ...dbRef.current, users }
         setDb(dbRef.current)
-        return { ok: true, tempPassword, emailed }
+        return { ok: true, emailed }
       } catch (e) {
         console.error(e)
         return { ok: false, error: e?.message || 'Failed to create the trainee.' }

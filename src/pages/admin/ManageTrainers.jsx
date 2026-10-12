@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { GraduationCap, Plus, Pencil, Trash2, Eye, Mail, Phone, MapPin, Star, Users, BookOpen, Copy, CheckCircle2 } from 'lucide-react'
+import { GraduationCap, Plus, Pencil, Trash2, Eye, Mail, Phone, MapPin, Star, Users, BookOpen, CheckCircle2 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerTrainees, trainerPrograms, trainerRatingSummary, programById } from '../../store/selectors'
 import { programs } from '../../data/programs'
@@ -22,13 +22,13 @@ import {
   Checkbox,
 } from '../../components/ui'
 import { DataTable } from '../../components/ui/Table'
+import { sendActivationEmail } from '../../lib/backend'
 import { formatDate, average, cn, sanitizePhone } from '../../lib/utils'
 
 const emptyForm = {
   role: 'trainer',
   name: '',
   email: '',
-  password: '',
   phone: '',
   address: '',
   position: '',
@@ -37,7 +37,7 @@ const emptyForm = {
 }
 
 export function ManageTrainers() {
-  const { db, createTrainer, updateTrainer, deleteUser, toast, isSupabaseConfigured } = useApp()
+  const { db, createTrainer, updateTrainer, deleteUser, toast } = useApp()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -45,6 +45,7 @@ export function ManageTrainers() {
   const [viewing, setViewing] = useState(null)
   const [created, setCreated] = useState(null)
   const [saving, setSaving] = useState(false)
+  const [resending, setResending] = useState(false)
 
   const trainers = db.users.filter((u) => u.role === 'trainer')
   const rows = trainers.map((t) => {
@@ -89,7 +90,8 @@ export function ManageTrainers() {
       return
     }
 
-    // Creating: the backend generates a temp password and emails an activation link.
+    // Creating: the backend creates the account and emails an activation link.
+    // The trainer sets their OWN password from that link.
     setSaving(true)
     const res = await createTrainer(base)
     setSaving(false)
@@ -98,15 +100,20 @@ export function ManageTrainers() {
       return
     }
     setModalOpen(false)
-    setCreated({ name: form.name, email: form.email, password: res.tempPassword, emailed: res.emailed })
+    setCreated({ name: form.name, email: form.email, emailed: res.emailed })
   }
 
-  const copyCreatedPassword = async () => {
+  const resendActivation = async () => {
+    if (!created?.email) return
+    setResending(true)
     try {
-      await navigator.clipboard.writeText(created?.password || '')
-      toast('Temporary password copied.', 'success')
-    } catch {
-      toast('Copy failed — select it manually.', 'warning')
+      await sendActivationEmail(created.email)
+      setCreated((c) => (c ? { ...c, emailed: true } : c))
+      toast('Activation email sent again.', 'success')
+    } catch (e) {
+      toast(e?.message || 'Could not resend the email.', 'error')
+    } finally {
+      setResending(false)
     }
   }
 
@@ -222,33 +229,21 @@ export function ManageTrainers() {
             <FormField label="Full Name" required>
               <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Juan Dela Cruz" />
             </FormField>
-            <FormField label="Email Address" required>
+            <FormField label="Email Address" required hint="We email an activation link here so they create their own password.">
               <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="juan@tesda.gov.ph" />
             </FormField>
           </FormRow>
           <FormRow>
-            <FormField
-              label="Temporary password"
-              hint={!editing && isSupabaseConfigured ? 'Leave blank to auto-generate a secure password.' : undefined}
-            >
-              <Input
-                value={form.password}
-                onChange={(e) => setForm({ ...form, password: e.target.value })}
-                placeholder={!editing && isSupabaseConfigured ? 'Auto-generated' : ''}
-              />
-            </FormField>
             <FormField label="Phone Number">
               <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} />
             </FormField>
-          </FormRow>
-          <FormRow cols={2}>
             <FormField label="Position">
               <Input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} placeholder="Trainer / Assessor" />
             </FormField>
-            <FormField label="Specialization">
-              <Input value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })} placeholder="Housekeeping NC II" />
-            </FormField>
           </FormRow>
+          <FormField label="Specialization">
+            <Input value={form.specialization} onChange={(e) => setForm({ ...form, specialization: e.target.value })} placeholder="Housekeeping NC II" />
+          </FormField>
           <FormField label="Address">
             <Input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })} />
           </FormField>
@@ -364,31 +359,25 @@ export function ManageTrainers() {
               />
               <p className={cn('text-xs', created.emailed ? 'text-emerald-800' : 'text-amber-800')}>
                 {created.emailed
-                  ? 'An activation email has been sent to the trainer. They can set their own password from the link.'
-                  : 'Account created, but the activation email could not be sent (check the email/SMTP settings). Share the temporary password below instead.'}
+                  ? 'An activation email has been sent. The trainer will create their OWN password from the link, then land straight on their dashboard.'
+                  : 'Account created, but the activation email could not be sent. Check the email/SMTP settings, then resend it below.'}
               </p>
             </div>
 
-            <div className="space-y-3 rounded-lg bg-slate-50 p-3">
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-slate-400">Email (LMS Portal login)</p>
-                <p className="text-sm font-medium text-slate-700">{created.email}</p>
-              </div>
-              <div>
-                <p className="text-[11px] uppercase tracking-wide text-slate-400">Temporary password</p>
-                <div className="mt-1 flex items-center gap-2">
-                  <code className="min-w-0 flex-1 select-all break-all rounded-md bg-white px-2 py-1.5 font-mono text-xs text-slate-700 ring-1 ring-inset ring-slate-200">
-                    {created.password || '—'}
-                  </code>
-                  <Button size="sm" variant="secondary" icon={Copy} onClick={copyCreatedPassword} disabled={!created.password}>
-                    Copy
-                  </Button>
-                </div>
-              </div>
+            <div className="rounded-lg bg-slate-50 p-3">
+              <p className="text-[11px] uppercase tracking-wide text-slate-400">Email (LMS Portal login)</p>
+              <p className="text-sm font-medium text-slate-700">{created.email}</p>
+            </div>
+
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-xs text-slate-500">Didn&apos;t get the email? Send it again.</p>
+              <Button size="sm" variant="secondary" icon={Mail} loading={resending} onClick={resendActivation}>
+                Resend email
+              </Button>
             </div>
 
             <p className="text-xs text-slate-500">
-              The trainer can sign in at the LMS Portal with this email and temporary password, then change it.
+              There is no temporary password to share — the trainer chooses their own password from the email link.
             </p>
           </div>
         )}
