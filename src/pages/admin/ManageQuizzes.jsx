@@ -5,6 +5,7 @@ import { PageHeader, Card, CardHeader, Badge, StatCard, Select, Modal, Button, E
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { average, formatDate } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
@@ -17,7 +18,7 @@ export function ManageQuizzes() {
   const quizzes = useMemo(() => {
     const source = programFilter === 'all' ? db.programs : db.programs.filter((p) => p.id === programFilter)
     return source.flatMap((p) =>
-      p.quizzes.map((q) => ({ ...q, programTitle: p.title, programCode: p.code, programEmoji: p.emoji })),
+      p.quizzes.map((q) => ({ ...q, programTitle: p.title, programCode: p.code, program: p })),
     )
   }, [db.programs, programFilter])
 
@@ -30,7 +31,7 @@ export function ManageQuizzes() {
       header: 'Quiz',
       render: (r) => (
         <div className="flex items-center gap-3">
-          <span className="text-lg">{r.programEmoji}</span>
+          <CourseIcon program={r.program} tone="dark" className="h-5 w-5" />
           <div>
             <p className="font-medium text-slate-700">{r.title}</p>
             <p className="text-xs text-slate-400">{r.programTitle}</p>

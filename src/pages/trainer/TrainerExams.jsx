@@ -21,6 +21,7 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { QuestionBuilder } from '../../components/content/QuestionBuilder'
 import { average, formatDate, cn } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const blankExam = () => ({
   id: '',
@@ -44,7 +45,7 @@ export function TrainerExams() {
 
   const source = programFilter === 'all' ? programs : programs.filter((p) => p.id === programFilter)
   const exams = source.flatMap((p) =>
-    p.exams.map((e) => ({ ...e, programId: p.id, programTitle: p.title, programEmoji: p.emoji, programColor: p.color })),
+    p.exams.map((e) => ({ ...e, programId: p.id, programTitle: p.title, program: p, programColor: p.color })),
   )
 
   const allAttempts = db.examAttempts.filter((a) => exams.some((e) => e.id === a.examId))
@@ -132,8 +133,8 @@ export function TrainerExams() {
             <Card key={e.id} className="p-5">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex items-start gap-4">
-                  <span className={cn('flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br text-2xl', e.programColor)}>
-                    {e.programEmoji}
+                  <span className={cn('flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br', e.programColor)}>
+                    <CourseIcon program={e.program} className="h-6 w-6" />
                   </span>
                   <div>
                     <div className="flex items-center gap-2">

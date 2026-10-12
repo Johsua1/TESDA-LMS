@@ -24,6 +24,7 @@ import {
 import { DataTable } from '../../components/ui/Table'
 import { sendActivationEmail } from '../../lib/backend'
 import { formatDate, average, cn, sanitizePhone } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const emptyForm = {
   role: 'trainer',
@@ -295,7 +296,7 @@ export function ManageTrainers() {
                   )}
                   label={
                     <>
-                      <span className="text-lg">{p.emoji}</span>
+                      <CourseIcon program={p} tone="dark" className="h-5 w-5" />
                       <span className="text-sm text-slate-700">{p.title}</span>
                     </>
                   }
@@ -359,7 +360,7 @@ export function ManageTrainers() {
               <div className="space-y-2">
                 {viewing.assigned.map((p) => (
                   <div key={p.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3">
-                    <span className="text-xl">{p.emoji}</span>
+                    <CourseIcon program={p} tone="dark" className="h-6 w-6" />
                     <div>
                       <p className="text-sm font-medium text-slate-700">{p.title}</p>
                       <p className="text-xs text-slate-400">{p.code}</p>

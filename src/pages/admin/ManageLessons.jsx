@@ -3,6 +3,7 @@ import { FileText, Clock, Eye, BookOpen, VideoOff, Layers } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { programLessons } from '../../data/programs'
 import { videoEmbed } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 import { PageHeader, Card, CardHeader, Badge, StatCard, Select, Modal, Button, EmptyState, SearchInput } from '../../components/ui'
 import { DataTable } from '../../components/ui/Table'
 
@@ -20,7 +21,7 @@ export function ManageLessons() {
         ...l,
         id: l.id,
         programTitle: p.title,
-        programEmoji: p.emoji,
+        program: p,
         programCode: p.code,
       })),
     )
@@ -36,7 +37,7 @@ export function ManageLessons() {
       header: 'Lesson',
       render: (r) => (
         <div className="flex items-center gap-3">
-          <span className="text-lg">{r.programEmoji}</span>
+          <CourseIcon program={r.program} tone="dark" className="h-5 w-5" />
           <div>
             <p className="font-medium text-slate-700">{r.title}</p>
             <p className="text-xs text-slate-400">{r.programTitle}{r.unitTitle ? ` · ${r.unitTitle}` : ''}</p>

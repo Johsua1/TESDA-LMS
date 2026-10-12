@@ -6,6 +6,7 @@ import { PageHeader, Card, CardHeader, CardBody, StatCard, Select, ProgressBar, 
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { formatDate, formatTime, average } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 export function ManageAttendance() {
   const { db } = useApp()
@@ -99,7 +100,7 @@ export function ManageAttendance() {
           <CardBody className="space-y-3">
             {byProgram.map((b) => (
               <div key={b.program.id} className="flex items-center gap-3">
-                <span className="text-xl">{b.program.emoji}</span>
+                <CourseIcon program={b.program} tone="dark" className="h-5 w-5" />
                 <div className="min-w-0 flex-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="truncate font-medium text-slate-600">{b.program.title}</span>

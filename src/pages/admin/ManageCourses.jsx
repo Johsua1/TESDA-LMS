@@ -33,7 +33,6 @@ const blankCourse = () => ({
   hours: '',
   duration: '',
   trainerId: '',
-  emoji: '📘',
   description: '',
 })
 
@@ -382,14 +381,6 @@ export function ManageCourses() {
               </Select>
             </FormField>
           </FormRow>
-          <FormField label="Icon (emoji)">
-            <Input
-              value={addForm.emoji}
-              onChange={(e) => setAddForm({ ...addForm, emoji: e.target.value })}
-              placeholder="📘"
-              maxLength={4}
-            />
-          </FormField>
           <FormField label="Description">
             <Textarea
               rows={3}

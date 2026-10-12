@@ -26,6 +26,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { sendActivationEmail } from '../../lib/backend'
 import { formatDate, average, cn, sanitizePhone } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const emptyForm = {
   role: 'trainee',
@@ -344,7 +345,7 @@ export function ManageTrainees() {
                       className={cn('flex items-center gap-3', noTrainer && !on ? 'cursor-not-allowed' : 'cursor-pointer')}
                       label={
                         <>
-                          <span className="text-lg">{p.emoji}</span>
+                          <CourseIcon program={p} tone="dark" className="h-5 w-5" />
                           <span className="text-sm text-slate-700">{p.title}</span>
                         </>
                       }
@@ -436,7 +437,7 @@ export function ManageTrainees() {
                 {viewing.enrs.map((e) => (
                   <div key={e.id} className="flex items-center justify-between rounded-lg border border-slate-100 p-3">
                     <div className="flex items-center gap-2">
-                      <span className="text-xl">{programById(e.programId)?.emoji}</span>
+                      <CourseIcon program={programById(e.programId)} tone="dark" className="h-5 w-5" />
                       <div>
                         <p className="text-sm font-medium text-slate-700">{programById(e.programId)?.title}</p>
                         <p className="text-xs text-slate-400">{e.type === 'scholarship' ? 'Scholarship' : 'Self-Pay'}</p>

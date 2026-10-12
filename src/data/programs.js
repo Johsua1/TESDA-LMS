@@ -807,7 +807,10 @@ function buildProgram(meta) {
     }
   })
 
-  const quizzes = (quizBank[id] || []).map((q, i) => ({
+  // Quiz templates drawn from the program's bank. Each is cloned once per
+  // lesson below — never shared — so a trainee's attempt on one lesson can
+  // never be attributed to a different lesson.
+  const quizTemplates = (quizBank[id] || []).map((q, i) => ({
     id: `${id}-quiz-${i + 1}`,
     programId: id,
     title: q.title,
@@ -818,16 +821,35 @@ function buildProgram(meta) {
   }))
 
   // Seed each exam with its own question bank (drawn from the quiz pool)
-  const examQuestions = quizzes
+  const examQuestions = quizTemplates
     .flatMap((q) => q.questions)
     .slice(0, 10)
     .map((qq, qi) => ({ ...qq, id: `${id}-exam-1-q${qi + 1}` }))
 
-  // attach quizzes to core lessons round-robin
-  const coreLessonsFlat = core.units.flatMap((u) => u.lessons)
-  coreLessonsFlat.forEach((lesson, i) => {
-    if (quizzes.length) lesson.quizId = quizzes[i % quizzes.length].id
-  })
+  // Give every lesson (basic, common and core) its own quiz with a unique id
+  // and unique question ids. Sharing a quizId across lessons made one attempt
+  // show as "Failed" on every lesson that reused the same quiz.
+  const allLessons = [basic, common, core].flatMap((comp) =>
+    comp.units ? comp.units.flatMap((u) => u.lessons) : comp.lessons,
+  )
+  const quizzes = allLessons
+    .map((lesson, i) => {
+      if (!quizTemplates.length) {
+        lesson.quizId = null
+        return null
+      }
+      const template = quizTemplates[i % quizTemplates.length]
+      const quizId = `${lesson.id}-quiz`
+      lesson.quizId = quizId
+      return {
+        ...template,
+        id: quizId,
+        lessonId: lesson.id,
+        title: `${lesson.title} Quiz`,
+        questions: template.questions.map((qq, qi) => ({ ...qq, id: `${quizId}-q${qi + 1}` })),
+      }
+    })
+    .filter(Boolean)
 
   return {
     id,
@@ -844,7 +866,6 @@ function buildProgram(meta) {
     hours: meta.hours,
     fee: meta.fee,
     color: meta.color,
-    emoji: meta.emoji,
     image: meta.image,
     requirements: meta.requirements,
     trainerId: meta.trainerId,
@@ -883,7 +904,6 @@ export const programs = [
     hours: 160,
     fee: 8500,
     color: 'from-sky-500 to-blue-600',
-    emoji: '🧹',
     image: '/courses/housekeeping.jpg',
     trainerId: 'tr-001',
     examDate: '2026-11-20',
@@ -912,7 +932,6 @@ export const programs = [
     hours: 120,
     fee: 7500,
     color: 'from-amber-500 to-orange-600',
-    emoji: '☕',
     image: '/courses/barista.jpg',
     trainerId: 'tr-002',
     examDate: '2026-11-25',
@@ -941,7 +960,6 @@ export const programs = [
     hours: 150,
     fee: 9000,
     color: 'from-emerald-500 to-teal-600',
-    emoji: '💆',
     image: '/courses/hilot.jpg',
     trainerId: 'tr-003',
     examDate: '2026-12-01',
@@ -970,7 +988,6 @@ export const programs = [
     hours: 140,
     fee: 8800,
     color: 'from-fuchsia-500 to-purple-600',
-    emoji: '🎉',
     image: '/courses/event-management.jpg',
     trainerId: 'tr-004',
     examDate: '2026-12-05',
@@ -1001,7 +1018,6 @@ export const programs = [
     hours: 100,
     fee: 5000,
     color: 'from-indigo-500 to-violet-600',
-    emoji: '💻',
     image: '/courses/virtual-assistant.jpg',
     trainerId: 'tr-005',
     examDate: '2026-11-30',

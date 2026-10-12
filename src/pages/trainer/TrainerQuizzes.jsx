@@ -21,6 +21,7 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { QuestionBuilder } from '../../components/content/QuestionBuilder'
 import { average, formatDate, cn } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
@@ -36,7 +37,7 @@ export function TrainerQuizzes() {
 
   const source = programFilter === 'all' ? programs : programs.filter((p) => p.id === programFilter)
   const quizzes = source.flatMap((p) =>
-    p.quizzes.map((q) => ({ ...q, programId: p.id, programTitle: p.title, programEmoji: p.emoji, programColor: p.color })),
+    p.quizzes.map((q) => ({ ...q, programId: p.id, programTitle: p.title, program: p, programColor: p.color })),
   )
 
   const allAttempts = db.quizAttempts.filter((a) => quizzes.some((q) => q.id === a.quizId))
@@ -113,8 +114,8 @@ export function TrainerQuizzes() {
             return (
               <Card key={q.id} hover className="flex flex-col p-4">
                 <div className="flex items-start justify-between">
-                  <span className={cn('flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-lg', q.programColor)}>
-                    {q.programEmoji}
+                  <span className={cn('flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br', q.programColor)}>
+                    <CourseIcon program={q.program} className="h-5 w-5" />
                   </span>
                   <div className="flex items-center gap-1.5">
                     {q.published === false && (

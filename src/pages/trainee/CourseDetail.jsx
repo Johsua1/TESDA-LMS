@@ -33,6 +33,7 @@ import {
 import { programLessonCount, programQuizCount } from '../../data/programs'
 import { Card, CardBody, CardHeader, Badge, Button, ProgressBar, Tabs, EmptyState } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 import { cn, formatDate, formatTime, relativeDay } from '../../lib/utils'
 
 function CompetencyAccordion({ competency, programId, progress, quizzes, attempts, open, onToggle }) {
@@ -239,11 +240,24 @@ export function CourseDetail() {
 
       {/* Hero */}
       <div className={cn('relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 text-white sm:p-8', program.color)}>
-        <div className="absolute inset-0 bg-black/10" />
+        {program.image && (
+          <img
+            src={program.image}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        )}
+        <div className={cn('absolute inset-0 bg-gradient-to-br opacity-85', program.color)} />
+        <div className="absolute inset-0 bg-black/15" />
         <div className="relative flex flex-col gap-6 lg:flex-row lg:items-end lg:justify-between">
           <div className="max-w-2xl">
             <div className="flex items-center gap-3">
-              <span className="text-4xl">{program.emoji}</span>
+              <CourseIcon program={program} className="h-10 w-10" />
               <div>
                 <p className="text-xs font-medium opacity-90">{program.code} · {program.level}</p>
                 <h1 className="text-2xl font-bold sm:text-3xl">{program.title}</h1>

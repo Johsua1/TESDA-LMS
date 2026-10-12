@@ -42,6 +42,7 @@ import {
 } from '../../components/ui'
 import { ChartContainer, ChartTooltip, ChartTooltipContent, ChartLegend, ChartLegendContent } from '../../components/ui/chart'
 import { average, currency, cn } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const COLORS = ['#2572eb', '#10b981', '#f59e0b', '#8b5cf6', '#ef4444', '#0ea5e9']
 
@@ -124,7 +125,7 @@ export function Reports() {
     const enrollmentByCourse = db.programs.map((p) => ({
       name: p.code,
       title: p.title,
-      emoji: p.emoji,
+      program: p,
       Enrolled: enrollments.filter((e) => e.programId === p.id && ['Approved', 'Enrolled'].includes(e.status)).length,
       Pending: enrollments.filter((e) => e.programId === p.id && ['Pending', 'Under Review'].includes(e.status)).length,
       Completed: enrollments.filter((e) => e.programId === p.id && e.status === 'Completed').length,
@@ -395,7 +396,7 @@ export function Reports() {
               {courseRows.map((r) => (
                 <tr key={r.name} className="text-slate-600">
                   <td className="px-4 py-2.5">
-                    <span className="mr-2">{r.emoji}</span>
+                    <CourseIcon program={r.program} tone="dark" className="mr-2 inline-block h-4 w-4 align-text-bottom" />
                     {r.title}
                   </td>
                   <td className="px-4 py-2.5 text-right font-semibold text-slate-700">{r.Enrolled}</td>

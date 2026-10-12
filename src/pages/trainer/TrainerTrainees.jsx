@@ -30,6 +30,7 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { formatDate, average, cn } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 export function TrainerTrainees() {
   const { db, user } = useApp()
@@ -204,7 +205,7 @@ function TraineeDetail({ selected, tab, setTab, db }) {
             return (
               <div key={e.id} className="rounded-lg border border-slate-100 p-4">
                 <div className="flex items-center gap-3">
-                  <span className="text-2xl">{p?.emoji}</span>
+                  <CourseIcon program={p} tone="dark" className="h-7 w-7" />
                   <div className="min-w-0 flex-1">
                     <p className="text-sm font-semibold text-slate-700">{p?.title}</p>
                     <p className="text-xs text-slate-400">

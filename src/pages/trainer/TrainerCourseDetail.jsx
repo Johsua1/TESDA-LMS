@@ -20,6 +20,7 @@ import { programLessons, programLessonCount } from '../../data/programs'
 import { Card, CardBody, CardHeader, StatCard, Tabs, Badge, ProgressBar, EmptyState, Avatar, Button } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 import { formatDate, average, cn } from '../../lib/utils'
 
 export function TrainerCourseDetail() {
@@ -98,11 +99,24 @@ export function TrainerCourseDetail() {
       </Link>
 
       <div className={cn('relative overflow-hidden rounded-2xl bg-gradient-to-br p-6 text-white sm:p-8', program.color)}>
-        <div className="absolute inset-0 bg-black/10" />
+        {program.image && (
+          <img
+            src={program.image}
+            alt=""
+            aria-hidden="true"
+            loading="lazy"
+            className="absolute inset-0 h-full w-full object-cover"
+            onError={(e) => {
+              e.currentTarget.style.display = 'none'
+            }}
+          />
+        )}
+        <div className={cn('absolute inset-0 bg-gradient-to-br opacity-85', program.color)} />
+        <div className="absolute inset-0 bg-black/15" />
         <div className="relative flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
           <div>
             <div className="flex items-center gap-3">
-              <span className="text-4xl">{program.emoji}</span>
+              <CourseIcon program={program} className="h-10 w-10" />
               <div>
                 <p className="text-xs opacity-90">{program.code} · {program.level}</p>
                 <h1 className="text-2xl font-bold sm:text-3xl">{program.title}</h1>

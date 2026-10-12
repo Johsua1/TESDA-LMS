@@ -35,6 +35,7 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { currency, formatDate, cn } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const PAYMENT_METHODS = [
   { key: 'GCash', label: 'GCash', icon: Smartphone, hint: 'Mobile wallet' },
@@ -66,8 +67,8 @@ function PaymentCard({ enrollment, onPay }) {
     <Card className="overflow-hidden">
       <div className="flex flex-col gap-4 p-5 sm:flex-row sm:items-start sm:justify-between">
         <div className="flex items-start gap-3">
-          <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br text-2xl', program?.color || 'from-brand-500 to-brand-700')}>
-            {program?.emoji || '📘'}
+          <span className={cn('flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br', program?.color || 'from-brand-500 to-brand-700')}>
+            <CourseIcon program={program} className="h-6 w-6" />
           </span>
           <div>
             <p className="text-xs font-medium text-slate-400">{program?.code}</p>

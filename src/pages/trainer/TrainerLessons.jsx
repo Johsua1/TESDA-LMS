@@ -21,6 +21,7 @@ import {
 } from '../../components/ui'
 import { MaterialEditor } from '../../components/content/MaterialEditor'
 import { cn, videoEmbed } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const blankLesson = () => ({
   id: '',
@@ -46,7 +47,7 @@ export function TrainerLessons() {
   const lessons = useMemo(() => {
     const source = programFilter === 'all' ? programs : programs.filter((p) => p.id === programFilter)
     return source.flatMap((p) =>
-      programLessons(p.id).map((l) => ({ ...l, programId: p.id, programTitle: p.title, programEmoji: p.emoji, programColor: p.color })),
+      programLessons(p.id).map((l) => ({ ...l, programId: p.id, programTitle: p.title, program: p, programColor: p.color })),
     )
   }, [programs, programFilter])
 
@@ -141,8 +142,8 @@ export function TrainerLessons() {
           {filtered.map((l) => (
             <Card key={l.id} hover className="flex flex-col p-4">
               <div className="flex items-start justify-between">
-                <span className={cn('flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br text-lg', l.programColor)}>
-                  {l.programEmoji}
+                <span className={cn('flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br', l.programColor)}>
+                  <CourseIcon program={l.program} className="h-5 w-5" />
                 </span>
                 <div className="flex items-center gap-1.5">
                   {l.published === false && (

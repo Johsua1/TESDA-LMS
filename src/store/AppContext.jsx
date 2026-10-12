@@ -752,7 +752,6 @@ export function AppProvider({ children }) {
         hours: Number(payload.hours) || 0,
         fee: Number(payload.fee) || 0,
         color: payload.color || 'from-brand-500 to-indigo-600',
-        emoji: String(payload.emoji || '').trim() || '📘',
         image: '',
         requirements: [],
         trainerId: payload.trainerId || null,

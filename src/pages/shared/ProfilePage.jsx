@@ -5,6 +5,7 @@ import { programById, activeEnrollmentsOf, courseProgress, trainerPrograms, trai
 import { PageHeader, Card, CardBody, CardHeader, Avatar, Button, Input, Select, FormField, FormRow, Badge, ProgressBar } from '../../components/ui'
 import { roleMeta } from '../../config/navigation'
 import { formatDate, sanitizePhone } from '../../lib/utils'
+import { CourseIcon } from '../../components/courses/CourseIcon'
 
 export function ProfilePage() {
   const { db, user, updateProfile, changePassword } = useApp()
@@ -173,7 +174,7 @@ export function ProfilePage() {
                     return (
                       <div key={e.id} className="rounded-lg border border-slate-100 p-4">
                         <div className="flex items-center gap-3">
-                          <span className="text-2xl">{p?.emoji}</span>
+                          <CourseIcon program={p} tone="dark" className="h-7 w-7" />
                           <div className="min-w-0 flex-1">
                             <p className="text-sm font-semibold text-slate-700">{p?.title}</p>
                             <p className="text-xs text-slate-400">
@@ -210,7 +211,7 @@ export function ProfilePage() {
                 </div>
                 {assignedPrograms.map((p) => (
                   <div key={p.id} className="flex items-center gap-3 rounded-lg border border-slate-100 p-3">
-                    <span className="text-2xl">{p.emoji}</span>
+                    <CourseIcon program={p} tone="dark" className="h-7 w-7" />
                     <div>
                       <p className="text-sm font-semibold text-slate-700">{p.title}</p>
                       <p className="text-xs text-slate-400">{p.code} · {p.duration}</p>
