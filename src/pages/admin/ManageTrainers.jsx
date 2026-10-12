@@ -46,12 +46,16 @@ export function ManageTrainers() {
   const [created, setCreated] = useState(null)
   const [saving, setSaving] = useState(false)
   const [resending, setResending] = useState(false)
+  const [resendingId, setResendingId] = useState(null)
 
   const trainers = db.users.filter((u) => u.role === 'trainer')
   const rows = trainers.map((t) => {
     const assigned = trainerPrograms(db, t.id)
     const traineeCount = trainerTrainees(db, t.id).length
-    return { id: t.id, trainer: t, assigned, traineeCount, rating: trainerRatingSummary(db, t.id) }
+    // A trainer stays pending_activation until they open the emailed link and
+    // set their own password (activate_my_account flips it to active).
+    const awaiting = t.status === 'pending_activation'
+    return { id: t.id, trainer: t, assigned, traineeCount, rating: trainerRatingSummary(db, t.id), awaiting }
   })
   // Average across trainers that actually have trainee ratings.
   const ratedRows = rows.filter((r) => r.rating.count > 0)
@@ -117,6 +121,20 @@ export function ManageTrainers() {
     }
   }
 
+  // Resend the activation link for a trainer still waiting to set their
+  // password — the case where the original email bounced or was never opened.
+  const resendRowActivation = async (row) => {
+    setResendingId(row.id)
+    try {
+      await sendActivationEmail(row.trainer.email)
+      toast(`Activation email sent to ${row.trainer.email}.`, 'success')
+    } catch (e) {
+      toast(e?.message || 'Could not send the email.', 'error')
+    } finally {
+      setResendingId(null)
+    }
+  }
+
   const toggleProgram = (programId) => {
     setForm((f) => ({
       ...f,
@@ -134,6 +152,11 @@ export function ManageTrainers() {
           <div>
             <p className="font-medium text-slate-700">{r.trainer.name}</p>
             <p className="text-xs text-slate-400">{r.trainer.position}</p>
+            {r.awaiting && (
+              <Badge tone="warning" dot className="mt-1">
+                Awaiting activation
+              </Badge>
+            )}
           </div>
         </div>
       ),
@@ -170,6 +193,17 @@ export function ManageTrainers() {
       header: '',
       render: (r) => (
         <div className="flex items-center justify-end gap-1">
+          {r.awaiting && (
+            <button
+              onClick={() => resendRowActivation(r)}
+              disabled={resendingId === r.id}
+              className="rounded-lg p-2 text-amber-500 transition hover:bg-amber-50 hover:text-amber-600 disabled:opacity-50"
+              aria-label="Resend activation email"
+              title="Resend activation email"
+            >
+              <Mail className="h-4 w-4" />
+            </button>
+          )}
           <button onClick={() => setViewing(r)} className="rounded-lg p-2 text-slate-400 transition hover:bg-slate-100 hover:text-brand-600" aria-label="View">
             <Eye className="h-4 w-4" />
           </button>
@@ -307,6 +341,7 @@ export function ManageTrainers() {
                 { icon: Phone, label: 'Phone', value: viewing.trainer.phone || '—' },
                 { icon: MapPin, label: 'Address', value: viewing.trainer.address || '—' },
                 { icon: Star, label: 'Specialization', value: viewing.trainer.specialization || '—' },
+                { icon: CheckCircle2, label: 'Account Status', value: viewing.awaiting ? 'Awaiting activation' : 'Active' },
               ].map((row) => (
                 <div key={row.label} className="flex items-center gap-3">
                   <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-slate-100 text-slate-500">

@@ -75,12 +75,18 @@ function fromProfileRow(row) {
     role: row.role,
     email: row.email,
     name: row.name,
+    // Account lifecycle column (e.g. 'pending_activation' until the invited
+    // trainer sets their own password). Read-only here — it is only ever
+    // changed by the backend RPCs.
+    status: row.status,
     authUserId: row.auth_user_id,
   }
 }
 
 function toProfileRow(user) {
-  const { id, role, email, name, authUserId, ...rest } = user
+  // `status` is a column managed by the backend RPCs, never written from the
+  // client — exclude it from `rest` so it is not duplicated into `data`.
+  const { id, role, email, name, authUserId, status: _status, ...rest } = user
   delete rest.password
   const row = {
     id,
