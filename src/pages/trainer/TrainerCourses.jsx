@@ -26,16 +26,28 @@ export function TrainerCourses() {
             const completed = enrs.filter((e) => e.status === 'Completed').length
             return (
               <Card key={p.id} hover className="overflow-hidden">
-                <div className={cn('relative h-32 bg-gradient-to-br', p.color)}>
+                <div className="relative h-32 overflow-hidden bg-slate-100">
+                  {p.image && (
+                    <img
+                      src={p.image}
+                      alt=""
+                      loading="lazy"
+                      className="h-full w-full object-cover"
+                      onError={(e) => {
+                        e.currentTarget.style.display = 'none'
+                      }}
+                    />
+                  )}
+                  <div className={cn('absolute inset-0 bg-gradient-to-t opacity-80', p.color)} />
                   <div className="absolute inset-0 flex items-start justify-between p-4 text-white">
-                    <span className="text-4xl">{p.emoji}</span>
+                    <span className="text-4xl drop-shadow" aria-hidden="true">{p.emoji}</span>
                     <div className="flex flex-col items-end gap-1">
                       <Badge className="bg-white/20 text-white ring-white/30">{p.level}</Badge>
                       <Badge className="bg-white/20 text-white ring-white/30">{p.code}</Badge>
                     </div>
                   </div>
-                  <div className="absolute bottom-3 left-4 right-4">
-                    <h3 className="text-lg font-bold text-white drop-shadow">{p.title}</h3>
+                  <div className="absolute bottom-3 left-4 right-4 text-white">
+                    <h3 className="text-lg font-bold leading-tight drop-shadow">{p.title}</h3>
                   </div>
                 </div>
                 <CardBody className="space-y-4">

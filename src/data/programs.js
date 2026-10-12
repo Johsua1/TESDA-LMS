@@ -884,7 +884,7 @@ export const programs = [
     fee: 8500,
     color: 'from-sky-500 to-blue-600',
     emoji: '🧹',
-    image: 'https://images.unsplash.com/photo-1582719478250-c89cae4dc85b?auto=format&fit=crop&w=1200&q=60',
+    image: '/courses/housekeeping.jpg',
     trainerId: 'tr-001',
     examDate: '2026-11-20',
     coreDescription:
@@ -913,7 +913,7 @@ export const programs = [
     fee: 7500,
     color: 'from-amber-500 to-orange-600',
     emoji: '☕',
-    image: 'https://images.unsplash.com/photo-1495474472287-4d71bcdd2085?auto=format&fit=crop&w=1200&q=60',
+    image: '/courses/barista.jpg',
     trainerId: 'tr-002',
     examDate: '2026-11-25',
     coreDescription:
@@ -942,7 +942,7 @@ export const programs = [
     fee: 9000,
     color: 'from-emerald-500 to-teal-600',
     emoji: '💆',
-    image: 'https://images.unsplash.com/photo-1544161515-4ab6ce6db874?auto=format&fit=crop&w=1200&q=60',
+    image: '/courses/hilot.jpg',
     trainerId: 'tr-003',
     examDate: '2026-12-01',
     coreDescription:
@@ -971,7 +971,7 @@ export const programs = [
     fee: 8800,
     color: 'from-fuchsia-500 to-purple-600',
     emoji: '🎉',
-    image: 'https://images.unsplash.com/photo-1511578314322-379afb476865?auto=format&fit=crop&w=1200&q=60',
+    image: '/courses/event-management.jpg',
     trainerId: 'tr-004',
     examDate: '2026-12-05',
     coreDescription:
@@ -1002,7 +1002,7 @@ export const programs = [
     fee: 5000,
     color: 'from-indigo-500 to-violet-600',
     emoji: '💻',
-    image: 'https://images.unsplash.com/photo-1587560699334-cc4ff634909a?auto=format&fit=crop&w=1200&q=60',
+    image: '/courses/virtual-assistant.jpg',
     trainerId: 'tr-005',
     examDate: '2026-11-30',
     coreDescription:
