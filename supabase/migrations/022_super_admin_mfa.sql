@@ -2,7 +2,7 @@
 -- 022_super_admin_mfa.sql
 -- ---------------------------------------------------------------------------
 -- 1. Promote the designated Super Admin account
---       institutehytglobal@gmail.com
+--       hytglobalinstitute1@gmail.com
 -- 2. Demote any other Super Admin left over from the original seed.
 -- 3. Harden the legacy admin RPCs so they require Super Admin + MFA (AAL2).
 -- 4. Expose a small MFA status RPC.
@@ -17,7 +17,7 @@
 -- ---------------------------------------------------------------------------
 do $$
 declare
-  v_email text := 'institutehytglobal@gmail.com';
+  v_email text := 'hytglobalinstitute1@gmail.com';
   v_uid   uuid;
   v_has_provider_id boolean;
 begin

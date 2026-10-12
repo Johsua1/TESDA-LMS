@@ -148,7 +148,7 @@ Tokens: single-use, expiring, invalidated after activation, never stored raw.
 **Method:** Supabase Auth built-in **TOTP** (Google Authenticator / Authy).
 Enforced at **AAL2** — no custom crypto, no secrets stored in plaintext.
 
-* Designated account: **`institutehytglobal@gmail.com`** (role `admin`,
+* Designated account: **`hytglobalinstitute1@gmail.com`** (role `admin`,
   `mfa_enforced = true`). Created by `scripts/create-super-admin.mjs` (generates
   a random password, prints it once; never stored in SQL).
 * Enrolment: `scripts/mfa-enroll.mjs` (prints QR + secret, verifies the code).
@@ -290,7 +290,7 @@ APP_ACTIVATION_REDIRECT_URL=https://your-app.example.com/login
 INSTITUTION_NAME=HYT Global Institute
 RESEND_API_KEY=                     # optional
 EMAIL_FROM=                         # optional
-SUPER_ADMIN_EMAIL=institutehytglobal@gmail.com
+SUPER_ADMIN_EMAIL=hytglobalinstitute1@gmail.com
 ```
 
 ---
@@ -391,7 +391,7 @@ Assigned Programs (from `programs`). The backend forces `role = trainer`,
 ## 17. Definition of done
 
 - [x] Super Admin MFA (TOTP / AAL2), enforced server-side.
-- [x] `institutehytglobal@gmail.com` is the designated Super Admin.
+- [x] `hytglobalinstitute1@gmail.com` is the designated Super Admin.
 - [x] Super Admin can securely create trainers.
 - [x] Trainers start `pending_activation` and receive a secure, expiring invite.
 - [x] Trainer sets their own password → account becomes active; temp credential dies.
