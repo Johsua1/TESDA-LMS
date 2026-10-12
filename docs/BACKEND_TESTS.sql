@@ -33,13 +33,13 @@ select name, slug, sort_order, is_active from public.specializations order by so
 -- 4. Designated Super Admin --------------------------------------------------
 select id, email, role, status, is_activated, mfa_enforced
   from public.profiles
- where lower(email) = 'hytglobalinstitute1@gmail.com';
+ where lower(email) = 'globalinstitutehyt@gmail.com';
 
 -- 5. No other Super Admin left over -----------------------------------------
 select id, email, role, status
   from public.profiles
  where role in ('admin','super_admin')
-   and lower(coalesce(email,'')) <> 'hytglobalinstitute1@gmail.com';
+   and lower(coalesce(email,'')) <> 'globalinstitutehyt@gmail.com';
 
 -- 6. Helper + RPC functions exist -------------------------------------------
 select proname

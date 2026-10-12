@@ -1,10 +1,11 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLocation } from 'react-router-dom'
 import { CalendarCheck, Save, Users, CheckCircle2, Clock, UserX, FileCheck2 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerPrograms, trainerEnrollments, programById } from '../../store/selectors'
 import { PageHeader, Card, CardBody, CardHeader, Button, Select, Badge, EmptyState, StatCard, Avatar } from '../../components/ui'
-import { StatusBadge } from '../../components/ui/StatusBadge'
-import { formatDate, formatTime, startOfDay, cn } from '../../lib/utils'
+import { formatDate, formatTime, isSessionRecordable, cn } from '../../lib/utils'
+import { useNow } from '../../lib/useNow'
 
 const STATUSES = [
   { key: 'Present', icon: CheckCircle2, tone: 'text-emerald-600 bg-emerald-50 border-emerald-200' },
@@ -14,18 +15,28 @@ const STATUSES = [
 ]
 
 export function TrainerAttendance() {
-  const { db, user, bulkSaveAttendance } = useApp()
+  const { db, user, bulkSaveAttendance, toast } = useApp()
+  const location = useLocation()
+  const now = useNow()
   const programs = trainerPrograms(db, user.id)
 
-  const [programId, setProgramId] = useState(programs[0]?.id || '')
-  const [scheduleId, setScheduleId] = useState('')
+  // A "Take attendance" click from the Schedules page lands here with the
+  // session preselected, so open that session's program.
+  const preselectedId = location.state?.scheduleId || ''
+  const preselected = preselectedId ? db.schedules.find((s) => s.id === preselectedId) : null
 
+  const [programId, setProgramId] = useState(preselected?.programId || programs[0]?.id || '')
+  const [scheduleId, setScheduleId] = useState(preselectedId)
+
+  // Only THIS trainer's own sessions that have already started (Ongoing or
+  // Completed) — a shared program must not let a trainer mark another
+  // trainer's class, and future sessions have nothing to record yet.
   const sessions = useMemo(
     () =>
       db.schedules
-        .filter((s) => s.programId === programId && new Date(s.date) <= startOfDay())
+        .filter((s) => s.trainerId === user.id && s.programId === programId && isSessionRecordable(s, now))
         .sort((a, b) => new Date(b.date) - new Date(a.date)),
-    [db.schedules, programId],
+    [db.schedules, user.id, programId, now],
   )
 
   const schedule = sessions.find((s) => s.id === scheduleId) || sessions[0]
@@ -47,28 +58,67 @@ export function TrainerAttendance() {
 
   const [marks, setMarks] = useState({})
 
-  // reset marks when schedule changes
-  const key = schedule?.id
-  const [lastKey, setLastKey] = useState(key)
-  if (key !== lastKey) {
-    setLastKey(key)
+  // (Re)seed the form from the saved records whenever the selected session
+  // changes — INCLUDING on first mount. The old render-phase guard only ran
+  // when the id *changed*, so a session that was already selected when the page
+  // loaded (the app renders behind a `ready` gate, so it always mounts with a
+  // session) never loaded its saved marks — saved attendance looked "lost".
+  // Statuses start EMPTY so the trainer must consciously mark each trainee.
+  useEffect(() => {
     const initial = {}
     roster.forEach((r) => {
       initial[r.trainee.id] = {
-        status: r.existing?.status || 'Present',
+        status: r.existing?.status || '',
         timeIn: r.existing?.timeIn || schedule?.startTime || '',
         timeOut: r.existing?.timeOut || schedule?.endTime || '',
       }
     })
     setMarks(initial)
-  }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [schedule?.id])
 
   const setMark = (traineeId, patch) => setMarks((m) => ({ ...m, [traineeId]: { ...m[traineeId], ...patch } }))
 
+  // A late arrival can't be earlier than the session start — a time before the
+  // start would mean they were on time. Clamp anything earlier back to start.
+  const setLateTimeIn = (traineeId, value) => {
+    const clamped = value && schedule && value < schedule.startTime ? schedule.startTime : value
+    setMark(traineeId, { timeIn: clamped })
+  }
+
+  // The departure can't be later than the session end. Clamp anything later
+  // back to the end time.
+  const setLateTimeOut = (traineeId, value) => {
+    const clamped = value && schedule && value > schedule.endTime ? schedule.endTime : value
+    setMark(traineeId, { timeOut: clamped })
+  }
+
+  const markAllPresent = () =>
+    setMarks((m) => {
+      const next = { ...m }
+      roster.forEach((r) => {
+        next[r.trainee.id] = { ...(next[r.trainee.id] || {}), status: 'Present' }
+      })
+      return next
+    })
+
+  const total = roster.length
+  const markedCount = Object.values(marks).filter((m) => m.status).length
+  const allMarked = total > 0 && markedCount === total
+
   const save = () => {
+    if (!allMarked) {
+      toast('Please mark every trainee before saving.', 'warning')
+      return
+    }
+    const stamp = new Date().toISOString()
     const records = roster.map((r) => {
       const m = marks[r.trainee.id] || {}
-      const status = m.status || 'Present'
+      const status = m.status
+      // Late time-in is floored at the session start (never earlier) and the
+      // time-out is capped at the session end (never later).
+      const lateIn = m.timeIn && m.timeIn >= schedule.startTime ? m.timeIn : schedule.startTime
+      const lateOut = m.timeOut && m.timeOut <= schedule.endTime ? m.timeOut : schedule.endTime
       return {
         traineeId: r.trainee.id,
         programId,
@@ -76,16 +126,20 @@ export function TrainerAttendance() {
         lessonTitle: schedule.lessonTitle,
         trainerId: user.id,
         date: schedule.date,
-        timeIn: status === 'Absent' || status === 'Excused' ? null : m.timeIn || schedule.startTime,
-        timeOut: status === 'Absent' || status === 'Excused' ? null : m.timeOut || schedule.endTime,
+        // Present -> times come from the class schedule; Late -> the trainer's
+        // manual input (floored at start, capped at end); Absent/Excused -> none.
+        timeIn: status === 'Present' ? schedule.startTime : status === 'Late' ? lateIn : null,
+        timeOut: status === 'Present' ? schedule.endTime : status === 'Late' ? lateOut : null,
         status,
+        updatedAt: stamp,
+        updatedBy: user.id,
       }
     })
     bulkSaveAttendance(records)
   }
 
   const counts = Object.values(marks).reduce((acc, m) => {
-    acc[m.status] = (acc[m.status] || 0) + 1
+    if (m.status) acc[m.status] = (acc[m.status] || 0) + 1
     return acc
   }, {})
 
@@ -109,7 +163,7 @@ export function TrainerAttendance() {
                   </option>
                 ))
               ) : (
-                <option>No past sessions</option>
+                <option>No sessions to record</option>
               )}
             </Select>
           </div>
@@ -118,7 +172,7 @@ export function TrainerAttendance() {
 
       {!schedule ? (
         <Card>
-          <EmptyState icon={CalendarCheck} title="No past sessions to record" description="Attendance can be recorded once a class session has started." />
+          <EmptyState icon={CalendarCheck} title="No sessions to record" description="Attendance can be recorded once a class session has started." />
         </Card>
       ) : (
         <>
@@ -133,7 +187,7 @@ export function TrainerAttendance() {
               title={schedule.lessonTitle}
               subtitle={`${programById(programId)?.title} · ${formatDate(schedule.date, { weekday: 'long', month: 'long', day: 'numeric' })} · ${formatTime(schedule.startTime)}`}
               icon={Users}
-              action={<Badge tone="brand">{roster.length} trainees</Badge>}
+              action={<Badge tone={allMarked ? 'success' : 'brand'}>{markedCount}/{total} marked</Badge>}
             />
             <CardBody className="space-y-3">
               {roster.map((r) => {
@@ -151,7 +205,7 @@ export function TrainerAttendance() {
                     <div className="flex flex-wrap items-center gap-2">
                       <div className="flex flex-wrap gap-1.5">
                         {STATUSES.map((s) => {
-                          const active = (m.status || 'Present') === s.key
+                          const active = m.status === s.key
                           return (
                             <button
                               key={s.key}
@@ -167,19 +221,28 @@ export function TrainerAttendance() {
                           )
                         })}
                       </div>
-                      {(m.status || 'Present') !== 'Absent' && (m.status || 'Present') !== 'Excused' && (
+                      {m.status === 'Present' && (
+                        <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-2.5 py-1.5 text-xs font-medium text-emerald-700">
+                          <Clock className="h-3.5 w-3.5" />
+                          {formatTime(schedule.startTime)} – {formatTime(schedule.endTime)}
+                          <span className="font-normal text-emerald-600/70">(schedule)</span>
+                        </span>
+                      )}
+                      {m.status === 'Late' && (
                         <div className="flex items-center gap-2">
                           <input
                             type="time"
                             value={m.timeIn || ''}
-                            onChange={(e) => setMark(r.trainee.id, { timeIn: e.target.value })}
+                            min={schedule.startTime}
+                            onChange={(e) => setLateTimeIn(r.trainee.id, e.target.value)}
                             className="input-base w-28 py-1.5 text-xs"
                           />
                           <span className="text-xs text-slate-400">to</span>
                           <input
                             type="time"
                             value={m.timeOut || ''}
-                            onChange={(e) => setMark(r.trainee.id, { timeOut: e.target.value })}
+                            max={schedule.endTime}
+                            onChange={(e) => setLateTimeOut(r.trainee.id, e.target.value)}
                             className="input-base w-28 py-1.5 text-xs"
                           />
                         </div>
@@ -191,8 +254,11 @@ export function TrainerAttendance() {
               {!roster.length && <EmptyState icon={Users} title="No trainees enrolled in this program" />}
             </CardBody>
             {roster.length > 0 && (
-              <div className="flex justify-end border-t border-slate-100 px-5 py-4">
-                <Button icon={Save} onClick={save}>
+              <div className="flex flex-wrap items-center justify-end gap-2 border-t border-slate-100 px-5 py-4">
+                <Button variant="secondary" icon={CheckCircle2} onClick={markAllPresent}>
+                  Mark all present
+                </Button>
+                <Button icon={Save} onClick={save} disabled={!allMarked}>
                   Save Attendance
                 </Button>
               </div>

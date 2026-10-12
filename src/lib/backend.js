@@ -21,6 +21,10 @@ const COLLECTIONS = {
   attendance: {
     table: 'attendance',
     scalars: { traineeId: 'trainee_id', programId: 'program_id', scheduleId: 'schedule_id' },
+    // The table is unique on (trainee_id, schedule_id), NOT just id — upserting
+    // by id alone would violate that constraint when the local id differs from
+    // the stored row. Conflict on the real unique key.
+    onConflict: 'trainee_id,schedule_id',
   },
   quizAttempts: { table: 'quiz_attempts', scalars: { traineeId: 'trainee_id', programId: 'program_id' } },
   examAttempts: { table: 'exam_attempts', scalars: { traineeId: 'trainee_id', programId: 'program_id' } },
@@ -167,15 +171,30 @@ export async function loadAll() {
 
 export async function upsertRow(collection, obj) {
   if (!obj?.id) return
-  const { error } = await supabase.from(COLLECTIONS[collection].table).upsert(toRow(collection, obj))
+  const cfg = COLLECTIONS[collection]
+  const opts = cfg.onConflict ? { onConflict: cfg.onConflict } : undefined
+  const { error } = await supabase.from(cfg.table).upsert(toRow(collection, obj), opts)
   if (error) throw error
 }
 
 export async function upsertRows(collection, objs) {
   const list = (objs || []).filter((o) => o?.id)
   if (!list.length) return
+  const cfg = COLLECTIONS[collection]
   const rows = list.map((o) => toRow(collection, o))
-  const { error } = await supabase.from(COLLECTIONS[collection].table).upsert(rows)
+  if (cfg.onConflict) {
+    // Composite-key tables (attendance). Use .select() so a row silently
+    // skipped by an RLS policy surfaces as an error instead of a false success.
+    const { data, error } = await supabase.from(cfg.table).upsert(rows, { onConflict: cfg.onConflict }).select('id')
+    if (error) throw error
+    if ((data?.length || 0) < rows.length) {
+      throw new Error(
+        `Wrote ${data?.length || 0} of ${rows.length} ${collection} row(s) — the rest were blocked by the table's RLS policy.`,
+      )
+    }
+    return
+  }
+  const { error } = await supabase.from(cfg.table).upsert(rows)
   if (error) throw error
 }
 
@@ -384,14 +403,30 @@ export async function updatePassword(newPassword) {
 // to update email or password when MFA is enabled"). The stateless check leaves
 // the session untouched.
 export async function changePassword(currentPassword, newPassword) {
-  const { data } = await supabase.auth.getUser()
-  const email = data?.user?.email
+  // A live session is required. When the tab's session is stale or gone,
+  // updateUser throws a cryptic "Auth session missing!" — check first and say
+  // something the user can act on.
+  const { data, error: userError } = await supabase.auth.getUser()
+  if (userError || !data?.user) {
+    throw new Error('Your session has expired. Please sign out, sign in again, then retry.')
+  }
+  const email = data.user.email
   if (email && currentPassword) {
     const ok = await verifyPassword(email, currentPassword)
     if (!ok) throw new Error('Your current password is incorrect.')
   }
   const { error } = await supabase.auth.updateUser({ password: newPassword })
-  if (error) throw error
+  if (error) {
+    // With MFA enabled, Supabase requires an AAL2 session (password + a
+    // verified authenticator code) before it will change the password.
+    const code = error.code || error.error_code
+    if (code === 'insufficient_aal' || /AAL2/i.test(error.message || '')) {
+      throw new Error(
+        'Two-factor verification is required to change your password. Sign out, sign in again, enter your authenticator code, then retry.',
+      )
+    }
+    throw error
+  }
 }
 
 // Assign a trainer to programs (the authoritative many-to-many used by RLS).

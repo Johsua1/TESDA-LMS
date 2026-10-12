@@ -136,6 +136,12 @@ export function AppProvider({ children }) {
   // persist it without relying on the async setState updater.
   const dbRef = useRef(db)
   const settingsRef = useRef(settings)
+  // True while a local change is being pushed to Supabase, so the background
+  // refresh never overwrites it with a stale snapshot.
+  const syncingRef = useRef(false)
+  // Bumped on every local change; lets a background refresh detect that a save
+  // landed while it was fetching and discard its now-stale snapshot.
+  const localVersionRef = useRef(0)
 
   // Keep the pure program/lesson helpers in data/programs.js in sync with the
   // persisted store so trainer/admin content edits are visible everywhere.
@@ -158,12 +164,19 @@ export function AppProvider({ children }) {
       const prev = dbRef.current
       const next = typeof updater === 'function' ? updater(prev) : updater
       dbRef.current = next
+      localVersionRef.current += 1
       setDb(next)
       if (isSupabaseConfigured) {
-        backend.syncCollections(prev, next).catch((e) => {
-          console.error('Failed to sync to Supabase', e)
-          toast('Failed to save to the server. Check your connection.', 'error')
-        })
+        syncingRef.current = true
+        backend
+          .syncCollections(prev, next)
+          .catch((e) => {
+            console.error('Failed to sync to Supabase', e)
+            toast(`Failed to save to the server: ${e?.message || e}`, 'error')
+          })
+          .finally(() => {
+            syncingRef.current = false
+          })
       }
       return next
     },
@@ -290,8 +303,12 @@ export function AppProvider({ children }) {
   }, [settings])
 
   // -------------------------------- Auth ------------------------------------
-  const loadRemoteData = useCallback(async () => {
+  const loadRemoteData = useCallback(async (opts = {}) => {
+    const startVersion = localVersionRef.current
     const { db: loaded, settings: loadedSettings } = await backend.loadAll()
+    // If a local change landed while this fetch was in flight, the snapshot is
+    // stale — applying it would wipe the just-saved change. Drop it.
+    if (opts.skipIfLocalChanged && localVersionRef.current !== startVersion) return
     dbRef.current = loaded
     setDb(loaded)
     if (loadedSettings) {
@@ -300,6 +317,32 @@ export function AppProvider({ children }) {
       setSettings(merged)
     }
   }, [])
+
+  // --------------------- Background refresh (near-live) ---------------------
+  // There is no realtime channel, so a save made by another user (e.g. a
+  // trainer recording attendance) would only appear after a manual reload.
+  // Re-fetch when the tab regains focus and every 60s so trainees/admins see
+  // fresh data on their own. Skipped while a local save is still syncing so an
+  // in-flight change is never clobbered by a stale server snapshot.
+  useEffect(() => {
+    if (!isSupabaseConfigured || !user) return
+    const refresh = () => {
+      if (syncingRef.current) return
+      loadRemoteData({ skipIfLocalChanged: true }).catch((e) => console.warn('Background refresh failed:', e))
+    }
+    const onFocus = () => refresh()
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') refresh()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    const id = setInterval(refresh, 60000)
+    return () => {
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+      clearInterval(id)
+    }
+  }, [user, loadRemoteData])
 
   const login = useCallback(
     async (email, password) => {

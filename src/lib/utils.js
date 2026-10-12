@@ -85,6 +85,26 @@ export const combineDateTime = (dateStr, timeStr = '00:00') => {
   return d
 }
 
+// A schedule's status is DERIVED from its date/time window — never hand-set.
+// "Upcoming" before the start time, "Ongoing" inside the window, and
+// "Completed" once the end time has passed. Same-day sessions only: an end
+// time earlier than the start is treated as the start (never stuck Ongoing).
+export const scheduleStatus = (schedule, now = new Date()) => {
+  if (!schedule) return 'Upcoming'
+  const start = combineDateTime(schedule.date, schedule.startTime)
+  if (!start) return 'Upcoming'
+  const end = combineDateTime(schedule.date, schedule.endTime || schedule.startTime)
+  if (now < start) return 'Upcoming'
+  if (end && now >= end) return 'Completed'
+  return 'Ongoing'
+}
+
+// True while attendance may still be recorded for a session (it has started).
+export const isSessionRecordable = (schedule, now = new Date()) => {
+  const status = scheduleStatus(schedule, now)
+  return status === 'Ongoing' || status === 'Completed'
+}
+
 // ----------------------------- Number helpers -------------------------------
 
 export const currency = (n) =>

@@ -4,27 +4,33 @@ import { useApp } from '../../store/AppContext'
 import { activeEnrollmentsOf, programById } from '../../store/selectors'
 import { PageHeader, Card, CardBody, CardHeader, EmptyState, Tabs, Select, Badge, Button } from '../../components/ui'
 import { ScheduleCard } from '../../components/cards/Cards'
-import { startOfDay, formatDate, formatTime, relativeDay, cn } from '../../lib/utils'
+import { formatDate, formatTime, relativeDay, cn, scheduleStatus } from '../../lib/utils'
+import { useNow } from '../../lib/useNow'
 
 export function ClassSchedules() {
   const { db, user } = useApp()
+  const now = useNow()
   const enrollments = activeEnrollmentsOf(db, user.id)
   const programIds = enrollments.map((e) => e.programId)
 
-  const [tab, setTab] = useState('upcoming')
   const [programFilter, setProgramFilter] = useState('all')
   const [typeFilter, setTypeFilter] = useState('all')
 
-  const today = startOfDay()
   const sessions = db.schedules
     .filter((s) => programIds.includes(s.programId))
     .filter((s) => programFilter === 'all' || s.programId === programFilter)
     .filter((s) => typeFilter === 'all' || s.classType === typeFilter)
     .sort((a, b) => new Date(a.date) - new Date(b.date))
 
-  const upcoming = sessions.filter((s) => new Date(s.date) >= today)
-  const past = sessions.filter((s) => new Date(s.date) < today).reverse()
-  const list = tab === 'upcoming' ? upcoming : past
+  // Live status: an in-progress class gets its own group instead of sitting
+  // under "Upcoming" for the whole day.
+  const ongoing = sessions.filter((s) => scheduleStatus(s, now) === 'Ongoing')
+  const upcoming = sessions.filter((s) => scheduleStatus(s, now) === 'Upcoming')
+  const past = sessions.filter((s) => scheduleStatus(s, now) === 'Completed').reverse()
+
+  const [tab, setTab] = useState(() => (ongoing.length ? 'ongoing' : 'upcoming'))
+  const list = tab === 'ongoing' ? ongoing : tab === 'upcoming' ? upcoming : past
+  const nextUpcoming = upcoming[0]
 
   // group by date
   const grouped = list.reduce((acc, s) => {
@@ -34,7 +40,7 @@ export function ClassSchedules() {
     return acc
   }, {})
 
-  const onlineCount = upcoming.filter((s) => s.classType !== 'Face-to-Face').length
+  const onlineCount = [...ongoing, ...upcoming].filter((s) => s.classType !== 'Face-to-Face').length
 
   return (
     <div>
@@ -61,7 +67,16 @@ export function ClassSchedules() {
         }
       />
 
-      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-3">
+      <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <Card className="flex items-center gap-4 p-4">
+          <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+            <Clock className="h-5 w-5" />
+          </span>
+          <div>
+            <p className="text-xs uppercase tracking-wide text-slate-400">Ongoing</p>
+            <p className="text-xl font-bold text-slate-800">{ongoing.length} sessions</p>
+          </div>
+        </Card>
         <Card className="flex items-center gap-4 p-4">
           <span className="flex h-11 w-11 items-center justify-center rounded-xl bg-brand-50 text-brand-600">
             <CalendarClock className="h-5 w-5" />
@@ -94,6 +109,7 @@ export function ClassSchedules() {
       <div className="mb-5">
         <Tabs
           tabs={[
+            { key: 'ongoing', label: 'Ongoing', icon: Clock, badge: ongoing.length },
             { key: 'upcoming', label: 'Upcoming', icon: CalendarClock, badge: upcoming.length },
             { key: 'past', label: 'Past Sessions', icon: History, badge: past.length },
           ]}
@@ -123,11 +139,37 @@ export function ClassSchedules() {
             </div>
           ))}
         </div>
+      ) : tab === 'ongoing' ? (
+        <Card>
+          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+            <span className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600" />
+            <div>
+              <p className="text-sm font-semibold text-slate-700">Waiting for the next class to start…</p>
+              {nextUpcoming ? (
+                <p className="mt-1 text-xs text-slate-500">
+                  Next: {nextUpcoming.lessonTitle || nextUpcoming.unitTitle} · {relativeDay(nextUpcoming.date)} at {formatTime(nextUpcoming.startTime)}
+                </p>
+              ) : (
+                <p className="mt-1 text-xs text-slate-500">No upcoming class scheduled.</p>
+              )}
+            </div>
+          </div>
+        </Card>
+      ) : tab === 'upcoming' ? (
+        <Card>
+          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+            <span className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600" />
+            <div>
+              <p className="text-sm font-semibold text-slate-700">No upcoming classes</p>
+              <p className="mt-1 text-xs text-slate-500">New sessions will show up here once your trainer schedules them.</p>
+            </div>
+          </div>
+        </Card>
       ) : (
         <Card>
           <EmptyState
             icon={CalendarDays}
-            title={tab === 'upcoming' ? 'No upcoming classes' : 'No past sessions'}
+            title="No past sessions"
             description="Classes will appear here once scheduled by your trainer."
           />
         </Card>

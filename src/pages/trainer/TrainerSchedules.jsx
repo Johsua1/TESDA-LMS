@@ -1,7 +1,8 @@
 import { useMemo, useState } from 'react'
-import { CalendarDays, Plus, Pencil, Trash2, Video, Clock, MapPin, Search } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import { CalendarDays, CalendarCheck, Plus, Pencil, Trash2, Video, Clock, MapPin, Search } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { trainerPrograms, programById } from '../../store/selectors'
+import { trainerPrograms, programById, scheduleAttendance } from '../../store/selectors'
 import { programLessons } from '../../data/programs'
 import {
   PageHeader,
@@ -21,7 +22,8 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, formatTime, startOfDay, combineDateTime, cn, toExternalUrl } from '../../lib/utils'
+import { formatDate, formatTime, combineDateTime, cn, toExternalUrl, scheduleStatus, isSessionRecordable } from '../../lib/utils'
+import { useNow } from '../../lib/useNow'
 
 const emptyForm = {
   programId: '',
@@ -32,11 +34,12 @@ const emptyForm = {
   classType: 'Online',
   meetingLink: 'https://meet.google.com/abc-defg-hij',
   room: 'Room 101',
-  status: 'Upcoming',
 }
 
 export function TrainerSchedules() {
   const { db, user, saveSchedule, deleteSchedule, toast } = useApp()
+  const navigate = useNavigate()
+  const now = useNow()
   const programs = trainerPrograms(db, user.id)
   const programIds = programs.map((p) => p.id)
 
@@ -81,8 +84,7 @@ export function TrainerSchedules() {
       return
     }
     const lesson = programLessons(form.programId).find((l) => l.id === form.lessonId)
-    const isPast = new Date(form.date) < startOfDay()
-    saveSchedule({
+    const payload = {
       ...form,
       id: editing?.id,
       trainerId: user.id,
@@ -91,8 +93,10 @@ export function TrainerSchedules() {
       competency: lesson?.competency,
       competencyId: lesson?.competencyId,
       meetingLink: form.classType === 'Face-to-Face' ? null : form.meetingLink,
-      status: isPast ? 'Completed' : form.status,
-    })
+    }
+    // Status is derived from the time window (see scheduleStatus); persist the
+    // computed value only for backward compatibility with existing records.
+    saveSchedule({ ...payload, status: scheduleStatus(payload) })
     setModalOpen(false)
   }
 
@@ -111,13 +115,27 @@ export function TrainerSchedules() {
     { key: 'time', header: 'Time', render: (r) => `${formatTime(r.startTime)} – ${formatTime(r.endTime)}` },
     { key: 'classType', header: 'Type', render: (r) => <Badge tone={r.classType === 'Online' ? 'info' : r.classType === 'Hybrid' ? 'purple' : 'success'}>{r.classType}</Badge> },
     { key: 'room', header: 'Room', render: (r) => <span className="text-slate-500">{r.room}</span> },
-    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={scheduleStatus(r, now)} /> },
+    {
+      key: 'attendance',
+      header: 'Attendance',
+      render: (r) => {
+        if (!isSessionRecordable(r, now)) return <span className="text-slate-300">—</span>
+        const count = scheduleAttendance(db, r.id).length
+        return count
+          ? <Badge tone="success" dot>Recorded · {count}</Badge>
+          : <Badge tone="warning" dot>Missing</Badge>
+      },
+    },
     {
       key: 'actions',
       header: '',
       render: (r) => (
         <Dropdown
           items={[
+            ...(isSessionRecordable(r, now)
+              ? [{ label: 'Take attendance', icon: CalendarCheck, onClick: () => navigate('/trainer/attendance', { state: { scheduleId: r.id } }) }]
+              : []),
             { label: 'Edit', icon: Pencil, onClick: () => openEdit(r) },
             ...(r.meetingLink ? [{ label: 'Copy Meet link', icon: Video, onClick: () => { navigator.clipboard?.writeText(toExternalUrl(r.meetingLink)); toast('Meeting link copied.', 'info') } }] : []),
             { divider: true },
@@ -225,13 +243,6 @@ export function TrainerSchedules() {
               <Input value={form.meetingLink} onChange={(e) => setForm({ ...form, meetingLink: e.target.value })} placeholder="https://meet.google.com/xxx-xxxx-xxx" />
             </FormField>
           )}
-          <FormField label="Status">
-            <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-              <option>Upcoming</option>
-              <option>Ongoing</option>
-              <option>Completed</option>
-            </Select>
-          </FormField>
         </div>
       </Modal>
 

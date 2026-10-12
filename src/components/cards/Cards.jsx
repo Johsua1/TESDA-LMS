@@ -15,7 +15,8 @@ import {
 } from 'lucide-react'
 import { Card, Badge, Button } from '../ui'
 import { StatusBadge } from '../ui/StatusBadge'
-import { cn, formatDate, relativeDay, formatTime, toExternalUrl } from '../../lib/utils'
+import { cn, formatDate, relativeDay, formatTime, toExternalUrl, scheduleStatus } from '../../lib/utils'
+import { useNow } from '../../lib/useNow'
 
 // ------------------------------- LessonCard ---------------------------------
 export function LessonCard({ lesson, index, completed, to, competency, unitTitle }) {
@@ -114,8 +115,12 @@ export function QuizCard({ quiz, bestAttempt, attempts = 0, onStart, locked = fa
 // ------------------------------ ScheduleCard --------------------------------
 const classTypeTone = { Online: 'info', 'Face-to-Face': 'success', Hybrid: 'purple' }
 
-export function ScheduleCard({ schedule, trainer, program, className }) {
+export function ScheduleCard({ schedule, trainer, program, className, now: nowProp }) {
   const isOnline = schedule.classType === 'Online' || schedule.classType === 'Hybrid'
+  // Status is derived from the time window; the internal tick keeps it live
+  // unless a parent already passes a shared `now`.
+  const tick = useNow()
+  const status = scheduleStatus(schedule, nowProp || tick)
   return (
     <Card className={cn('overflow-hidden', className)}>
       <div className="flex">
@@ -159,7 +164,7 @@ export function ScheduleCard({ schedule, trainer, program, className }) {
           </div>
 
           <div className="mt-3 flex items-center justify-between gap-3">
-            <StatusBadge status={schedule.status} />
+            <StatusBadge status={status} />
             {isOnline ? (
               schedule.meetingLink && (
                 <a href={toExternalUrl(schedule.meetingLink)} target="_blank" rel="noreferrer">
@@ -169,7 +174,7 @@ export function ScheduleCard({ schedule, trainer, program, className }) {
                 </a>
               )
             ) : (
-              <Badge tone="neutral">{schedule.status === 'Completed' ? 'Session ended' : 'On-site'}</Badge>
+              <Badge tone="neutral">{status === 'Completed' ? 'Session ended' : 'On-site'}</Badge>
             )}
           </div>
         </div>

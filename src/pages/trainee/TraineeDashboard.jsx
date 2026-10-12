@@ -41,10 +41,12 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { ScheduleCard, AnnouncementCard } from '../../components/cards/Cards'
 import { CourseIcon } from '../../components/courses/CourseIcon'
-import { formatDate, formatTime, relativeDay, currency, cn, toExternalUrl } from '../../lib/utils'
+import { formatDate, formatTime, relativeDay, currency, cn, toExternalUrl, scheduleStatus } from '../../lib/utils'
+import { useNow } from '../../lib/useNow'
 
 export function TraineeDashboard() {
   const { db, user, settings } = useApp()
+  const now = useNow()
   const enrollments = activeEnrollmentsOf(db, user.id)
   const primary = enrollments[0]
   const primaryProgram = primary ? programById(primary.programId) : null
@@ -203,11 +205,14 @@ export function TraineeDashboard() {
           {/* Upcoming class + quiz highlight */}
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <Card className="overflow-hidden">
-              <CardHeader title="Upcoming Class" icon={CalendarDays} />
+              <CardHeader title="Next Class" icon={CalendarDays} />
               <CardBody className="pt-4">
                 {nextClass ? (
                   <>
-                    <p className="text-sm font-semibold text-slate-800">{nextClass.lessonTitle || nextClass.unitTitle}</p>
+                    <div className="flex items-start justify-between gap-2">
+                      <p className="text-sm font-semibold text-slate-800">{nextClass.lessonTitle || nextClass.unitTitle}</p>
+                      <StatusBadge status={scheduleStatus(nextClass, now)} />
+                    </div>
                     <p className="mt-0.5 text-xs text-slate-500">{programById(nextClass.programId)?.title}</p>
                     <div className="mt-3 space-y-1.5 text-xs text-slate-500">
                       <p className="inline-flex items-center gap-1.5">

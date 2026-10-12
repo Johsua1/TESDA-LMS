@@ -81,8 +81,12 @@ export const trainerEnrollments = (db, trainerId, programId) =>
     (e) => enrollmentTrainerId(db, e) === trainerId && (!programId || e.programId === programId),
   )
 
-export const attendanceStats = (db, traineeId, programId) => {
-  let records = db.attendance.filter((a) => a.traineeId === traineeId)
+// Attendance records captured for a given session (schedule). Used to flag
+// sessions where attendance is still missing.
+export const scheduleAttendance = (db, scheduleId) =>
+  db.attendance.filter((a) => a.scheduleId === scheduleId)
+
+export const attendanceStats = (db, traineeId, programId) => {  let records = db.attendance.filter((a) => a.traineeId === traineeId)
   if (programId) records = records.filter((a) => a.programId === programId)
   const present = records.filter((a) => a.status === 'Present').length
   const late = records.filter((a) => a.status === 'Late').length

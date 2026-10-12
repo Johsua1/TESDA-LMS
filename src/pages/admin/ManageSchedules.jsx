@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react'
 import { CalendarDays, Plus, Pencil, Trash2, Video, Copy } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { programById } from '../../store/selectors'
+import { programById, scheduleAttendance } from '../../store/selectors'
 import { programLessons } from '../../data/programs'
 import {
   PageHeader,
@@ -22,7 +22,8 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, formatTime, startOfDay, combineDateTime, toExternalUrl } from '../../lib/utils'
+import { formatDate, formatTime, startOfDay, combineDateTime, toExternalUrl, scheduleStatus, isSessionRecordable } from '../../lib/utils'
+import { useNow } from '../../lib/useNow'
 
 const emptyForm = {
   programId: '',
@@ -34,11 +35,11 @@ const emptyForm = {
   classType: 'Online',
   meetingLink: 'https://meet.google.com/abc-defg-hij',
   room: 'Room 101',
-  status: 'Upcoming',
 }
 
 export function ManageSchedules() {
   const { db, saveSchedule, deleteSchedule, toast } = useApp()
+  const now = useNow()
   const trainers = db.users.filter((u) => u.role === 'trainer')
 
   const [modalOpen, setModalOpen] = useState(false)
@@ -87,8 +88,7 @@ export function ManageSchedules() {
       return
     }
     const lesson = programLessons(form.programId).find((l) => l.id === form.lessonId)
-    const isPast = new Date(form.date) < today
-    saveSchedule({
+    const payload = {
       ...form,
       id: editing?.id,
       lessonTitle: lesson?.title,
@@ -96,8 +96,10 @@ export function ManageSchedules() {
       competency: lesson?.competency,
       competencyId: lesson?.competencyId,
       meetingLink: form.classType === 'Face-to-Face' ? null : form.meetingLink,
-      status: isPast ? 'Completed' : form.status,
-    })
+    }
+    // Status is derived from the time window (see scheduleStatus); persist the
+    // computed value only for backward compatibility with existing records.
+    saveSchedule({ ...payload, status: scheduleStatus(payload) })
     setModalOpen(false)
   }
 
@@ -117,7 +119,18 @@ export function ManageSchedules() {
     { key: 'time', header: 'Time', render: (r) => `${formatTime(r.startTime)} – ${formatTime(r.endTime)}` },
     { key: 'classType', header: 'Type', render: (r) => <Badge tone={r.classType === 'Online' ? 'info' : r.classType === 'Hybrid' ? 'purple' : 'success'}>{r.classType}</Badge> },
     { key: 'room', header: 'Room' },
-    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.status} /> },
+    { key: 'status', header: 'Status', render: (r) => <StatusBadge status={scheduleStatus(r, now)} /> },
+    {
+      key: 'attendance',
+      header: 'Attendance',
+      render: (r) => {
+        if (!isSessionRecordable(r, now)) return <span className="text-slate-300">—</span>
+        const count = scheduleAttendance(db, r.id).length
+        return count
+          ? <Badge tone="success" dot>Recorded · {count}</Badge>
+          : <Badge tone="warning" dot>Missing</Badge>
+      },
+    },
     {
       key: 'actions',
       header: '',
@@ -245,13 +258,6 @@ export function ManageSchedules() {
                 <option>Online</option>
                 <option>Face-to-Face</option>
                 <option>Hybrid</option>
-              </Select>
-            </FormField>
-            <FormField label="Status">
-              <Select value={form.status} onChange={(e) => setForm({ ...form, status: e.target.value })}>
-                <option>Upcoming</option>
-                <option>Ongoing</option>
-                <option>Completed</option>
               </Select>
             </FormField>
           </FormRow>

@@ -3,7 +3,7 @@
 // scripts/create-super-admin.mjs
 // ---------------------------------------------------------------------------
 // Creates (or links) the designated Super Admin auth account:
-//     hytglobalinstitute1@gmail.com
+//     globalinstitutehyt@gmail.com
 //
 // * The password is generated here with a CSPRNG and printed ONCE. It is never
 //   written to the database in plaintext and never committed.
@@ -22,7 +22,7 @@ import { resolve, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { createClient } from '@supabase/supabase-js'
 
-const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || 'hytglobalinstitute1@gmail.com'
+const SUPER_ADMIN_EMAIL = process.env.SUPER_ADMIN_EMAIL || 'globalinstitutehyt@gmail.com'
 const SUPER_ADMIN_PROFILE_ID = 'sa-hyt'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
