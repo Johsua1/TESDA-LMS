@@ -36,11 +36,23 @@ const blankCourse = () => ({
   description: '',
 })
 
+const editCourse = (p) => ({
+  title: p.title || '',
+  code: p.code || '',
+  category: p.category || '',
+  level: p.level || 'NC II',
+  fee: p.fee ?? '',
+  hours: p.hours ?? '',
+  duration: p.duration || '',
+  trainerId: p.trainerId || '',
+  description: p.description || '',
+})
+
 export function ManageCourses() {
   const { db, saveProgram, addProgram, deleteProgram, toast } = useApp()
   const [selected, setSelected] = useState(null)
   const [editing, setEditing] = useState(false)
-  const [editForm, setEditForm] = useState({ trainerId: '', fee: 0 })
+  const [editForm, setEditForm] = useState(editCourse({}))
   const [openComp, setOpenComp] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
   const [addForm, setAddForm] = useState(blankCourse())
@@ -51,13 +63,26 @@ export function ManageCourses() {
   const openDetail = (p) => {
     setSelected(p)
     setEditing(false)
-    setEditForm({ trainerId: p.trainerId, fee: p.fee })
+    setEditForm(editCourse(p))
     setOpenComp(null)
   }
 
   const saveEdit = () => {
-    saveProgram(selected.id, { trainerId: editForm.trainerId, fee: Number(editForm.fee) })
-    setSelected((s) => ({ ...s, ...editForm }))
+    const description = String(editForm.description || '').trim()
+    const patch = {
+      title: String(editForm.title || '').trim() || selected.title,
+      code: String(editForm.code || '').trim() || selected.code,
+      category: String(editForm.category || '').trim() || selected.category,
+      level: editForm.level || selected.level,
+      fee: Number(editForm.fee) || 0,
+      hours: Number(editForm.hours) || 0,
+      duration: String(editForm.duration || '').trim(),
+      trainerId: editForm.trainerId || null,
+      description,
+      overview: description || selected.overview,
+    }
+    saveProgram(selected.id, patch)
+    setSelected((s) => ({ ...s, ...patch }))
     setEditing(false)
   }
 
@@ -203,18 +228,84 @@ export function ManageCourses() {
             </div>
 
             {editing ? (
-              <FormRow>
-                <FormField label="Assigned Trainer">
-                  <Select value={editForm.trainerId} onChange={(e) => setEditForm({ ...editForm, trainerId: e.target.value })}>
-                    {trainers.map((t) => (
-                      <option key={t.id} value={t.id}>{t.name}</option>
-                    ))}
-                  </Select>
+              <div className="space-y-4">
+                <FormRow>
+                  <FormField label="Course Title">
+                    <Input
+                      value={editForm.title}
+                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      placeholder="e.g. Bread and Pastry Production NC II"
+                    />
+                  </FormField>
+                  <FormField label="Course Code">
+                    <Input
+                      value={editForm.code}
+                      onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                      placeholder="e.g. BP-201"
+                    />
+                  </FormField>
+                </FormRow>
+                <FormRow>
+                  <FormField label="Category">
+                    <Input
+                      value={editForm.category}
+                      onChange={(e) => setEditForm({ ...editForm, category: e.target.value })}
+                      placeholder="e.g. Tourism & Hospitality"
+                    />
+                  </FormField>
+                  <FormField label="Level">
+                    <Select value={editForm.level} onChange={(e) => setEditForm({ ...editForm, level: e.target.value })}>
+                      <option>NC I</option>
+                      <option>NC II</option>
+                      <option>NC III</option>
+                      <option>NC IV</option>
+                    </Select>
+                  </FormField>
+                </FormRow>
+                <FormRow>
+                  <FormField label="Training Fee (₱)">
+                    <Input
+                      type="number"
+                      value={editForm.fee}
+                      onChange={(e) => setEditForm({ ...editForm, fee: e.target.value })}
+                      placeholder="0"
+                    />
+                  </FormField>
+                  <FormField label="Duration">
+                    <Input
+                      value={editForm.duration}
+                      onChange={(e) => setEditForm({ ...editForm, duration: e.target.value })}
+                      placeholder="e.g. 3 months"
+                    />
+                  </FormField>
+                </FormRow>
+                <FormRow>
+                  <FormField label="Total Hours">
+                    <Input
+                      type="number"
+                      value={editForm.hours}
+                      onChange={(e) => setEditForm({ ...editForm, hours: e.target.value })}
+                      placeholder="0"
+                    />
+                  </FormField>
+                  <FormField label="Assigned Trainer">
+                    <Select value={editForm.trainerId} onChange={(e) => setEditForm({ ...editForm, trainerId: e.target.value })}>
+                      <option value="">Unassigned</option>
+                      {trainers.map((t) => (
+                        <option key={t.id} value={t.id}>{t.name}</option>
+                      ))}
+                    </Select>
+                  </FormField>
+                </FormRow>
+                <FormField label="Description">
+                  <Textarea
+                    rows={3}
+                    value={editForm.description}
+                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
+                    placeholder="Short description shown to trainees."
+                  />
                 </FormField>
-                <FormField label="Training Fee (₱)">
-                  <Input type="number" value={editForm.fee} onChange={(e) => setEditForm({ ...editForm, fee: e.target.value })} />
-                </FormField>
-              </FormRow>
+              </div>
             ) : (
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {[
