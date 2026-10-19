@@ -25,7 +25,7 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { sendActivationEmail } from '../../lib/backend'
-import { formatDate, average, cn, sanitizePhone } from '../../lib/utils'
+import { formatDate, average, cn, sanitizePhone, isValidPhone, PHONE_LENGTH } from '../../lib/utils'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const emptyForm = {
@@ -96,6 +96,10 @@ export function ManageTrainees() {
   const save = async () => {
     if (!form.name.trim() || !form.email.trim()) {
       toast('Name and email are required.', 'warning')
+      return
+    }
+    if (form.phone.trim() && !isValidPhone(form.phone)) {
+      toast(`Phone number must be exactly ${PHONE_LENGTH} digits.`, 'warning')
       return
     }
     // A course may only be assigned when it has a trainer. A course with no
@@ -298,7 +302,7 @@ export function ManageTrainees() {
             </FormField>
           </FormRow>
           <FormField label="Phone Number">
-            <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} placeholder="+63 9xx xxx xxxx" />
+            <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} placeholder="09171234567" />
           </FormField>
           <FormRow cols={3}>
             <FormField label="Date of Birth">

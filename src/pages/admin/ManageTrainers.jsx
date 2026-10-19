@@ -23,7 +23,7 @@ import {
 } from '../../components/ui'
 import { DataTable } from '../../components/ui/Table'
 import { sendActivationEmail } from '../../lib/backend'
-import { formatDate, average, cn, sanitizePhone } from '../../lib/utils'
+import { formatDate, average, cn, sanitizePhone, isValidPhone, PHONE_LENGTH } from '../../lib/utils'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const emptyForm = {
@@ -77,6 +77,10 @@ export function ManageTrainers() {
   const save = async () => {
     if (!form.name.trim() || !form.email.trim()) {
       toast('Name and email are required.', 'warning')
+      return
+    }
+    if (form.phone.trim() && !isValidPhone(form.phone)) {
+      toast(`Phone number must be exactly ${PHONE_LENGTH} digits.`, 'warning')
       return
     }
     const colors = ['from-emerald-500 to-teal-600', 'from-sky-500 to-blue-600', 'from-amber-500 to-orange-600', 'from-fuchsia-500 to-purple-600', 'from-indigo-500 to-violet-600']
@@ -270,7 +274,7 @@ export function ManageTrainers() {
           </FormRow>
           <FormRow>
             <FormField label="Phone Number">
-              <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} />
+              <Input type="tel" inputMode="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: sanitizePhone(e.target.value) })} placeholder="09171234567" />
             </FormField>
             <FormField label="Position">
               <Input value={form.position} onChange={(e) => setForm({ ...form, position: e.target.value })} placeholder="Trainer / Assessor" />

@@ -3,7 +3,9 @@ import { Link, useNavigate } from 'react-router-dom'
 import { CheckCircle2, UserPlus, Upload, ArrowLeft, ShieldCheck, BookOpen, Award } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 import { Button, FormField, FormRow, Input, Textarea, Checkbox, Modal } from '../components/ui'
-import { sanitizePhone } from '../lib/utils'
+import { sanitizePhone, isValidPhone, PHONE_LENGTH } from '../lib/utils'
+import { PasswordStrengthMeter, getPasswordStrength } from '../components/ui/v-meter-7'
+import { AssistedPasswordConfirmation } from '../components/ui/assisted-password-confirmation'
 
 const BENEFITS = [
   { icon: BookOpen, text: 'Enroll in the Virtual Assistant program' },
@@ -50,7 +52,13 @@ export function SignUp() {
     setError('')
     if (!form.firstName.trim() || !form.lastName.trim()) return setError('Please enter your first and last name.')
     if (!/^\S+@\S+\.\S+$/.test(form.email)) return setError('Please enter a valid email address.')
-    if (form.password.length < 6) return setError('Password must be at least 6 characters.')
+    if (!form.phone.trim()) return setError('Please enter your contact number.')
+    if (!isValidPhone(form.phone)) return setError(`Contact number must be exactly ${PHONE_LENGTH} digits.`)
+    // Weak and Fair passwords are rejected; the account needs at least a
+    // "Good" rating (score 3) from the strength meter.
+    if (getPasswordStrength(form.password).value < 60) {
+      return setError('Password is too weak. Use a password rated Good, Strong, or Very strong.')
+    }
     if (form.password !== form.confirmPassword) return setError('Passwords do not match.')
     if (!agree) return setError('Please agree to the Terms and Conditions and Privacy Policy.')
 
@@ -78,16 +86,28 @@ export function SignUp() {
     <div className="min-h-screen bg-slate-50">
       <div className="mx-auto grid max-w-7xl gap-10 px-4 py-10 sm:px-6 lg:grid-cols-[1fr_1.2fr] lg:px-8 lg:py-14">
         {/* Brand panel */}
-        <aside className="relative hidden overflow-hidden rounded-3xl bg-gradient-to-br from-tesda-blue via-brand-800 to-brand-950 p-10 text-white lg:flex lg:flex-col lg:justify-between">
+        <aside className="relative hidden overflow-hidden rounded-3xl p-10 text-white lg:flex lg:flex-col lg:justify-between">
+          <img
+            src="/login-building.jpg"
+            alt=""
+            aria-hidden="true"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
           <div
-            className="absolute inset-0 opacity-30"
+            className="absolute inset-0"
             style={{
-              backgroundImage:
-                'radial-gradient(circle at 85% 12%, rgba(246,192,0,0.5) 0, transparent 45%), radial-gradient(circle at 5% 95%, rgba(120,140,255,0.35) 0, transparent 45%)',
+              background:
+                'linear-gradient(135deg, rgba(9,13,46,0.96) 0%, rgba(20,26,88,0.90) 45%, rgba(35,43,126,0.82) 100%)',
             }}
           />
-          <div className="relative">
-            <img src="/hgi-logo.png" alt="HYT Global Institute" className="h-28 w-auto drop-shadow-xl" />
+          <div
+            className="absolute inset-0"
+            style={{
+              background: 'radial-gradient(60% 50% at 85% 10%, rgba(120,140,255,0.28) 0%, transparent 70%)',
+            }}
+          />
+          <div className="relative flex justify-center">
+            <img src="/hgi-logo.png" alt="HYT Global Institute" className="h-40 w-auto drop-shadow-xl xl:h-48" />
           </div>
           <div className="relative">
             <h2 className="text-2xl font-bold leading-tight">Create your trainee account</h2>
@@ -133,19 +153,32 @@ export function SignUp() {
               <FormField label="Email" required htmlFor="email">
                 <Input id="email" type="email" value={form.email} onChange={(e) => set({ email: e.target.value })} placeholder="you@email.com" required />
               </FormField>
-              <FormField label="Contact Number" htmlFor="phone">
-                <Input id="phone" type="tel" inputMode="tel" value={form.phone} onChange={(e) => set({ phone: sanitizePhone(e.target.value) })} placeholder="+63 917 000 0000" />
+              <FormField label="Contact Number" required htmlFor="phone">
+                <Input id="phone" type="tel" inputMode="tel" value={form.phone} onChange={(e) => set({ phone: sanitizePhone(e.target.value) })} placeholder="09171234567" required />
               </FormField>
             </FormRow>
 
-            <FormRow>
-              <FormField label="Password" required htmlFor="password" hint="At least 6 characters">
-                <Input id="password" type="password" value={form.password} onChange={(e) => set({ password: e.target.value })} placeholder="••••••••" required />
-              </FormField>
-              <FormField label="Confirm Password" required htmlFor="confirmPassword">
-                <Input id="confirmPassword" type="password" value={form.confirmPassword} onChange={(e) => set({ confirmPassword: e.target.value })} placeholder="••••••••" required />
-              </FormField>
-            </FormRow>
+            <FormField label="Password" required htmlFor="password" hint="Must be rated Good or higher">
+              <PasswordStrengthMeter
+                password={form.password}
+                onPasswordChange={(value) => set({ password: value })}
+                id="password"
+                name="password"
+                autoComplete="new-password"
+                required
+              />
+            </FormField>
+
+            <FormField label="Confirm Password" required htmlFor="confirmPassword">
+              <AssistedPasswordConfirmation
+                password={form.password}
+                confirmPassword={form.confirmPassword}
+                onConfirmPasswordChange={(value) => set({ confirmPassword: value })}
+                id="confirmPassword"
+                name="confirmPassword"
+                required
+              />
+            </FormField>
 
             <FormRow>
               <FormField label="Date of Birth" htmlFor="birthDate" hint="Optional">

@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { KeyRound, Lock, Eye, EyeOff, ShieldCheck, AlertTriangle, ArrowLeft } from 'lucide-react'
+import { KeyRound, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { useApp } from '../store/AppContext'
 import { supabase } from '../lib/supabase'
 import * as backend from '../lib/backend'
-import { Button, Input, FormField } from '../components/ui'
+import { Button, FormField } from '../components/ui'
+import { PasswordStrengthMeter, getPasswordStrength } from '../components/ui/v-meter-7'
+import { AssistedPasswordConfirmation } from '../components/ui/assisted-password-confirmation'
 
 // Landing page for the password-recovery link. Supabase appends the recovery
 // token to the URL hash; the client (detectSessionInUrl) exchanges it for a
@@ -15,7 +17,6 @@ export function ResetPassword() {
   const [status, setStatus] = useState('checking') // checking | ready | invalid
   const [password, setPassword] = useState('')
   const [confirm, setConfirm] = useState('')
-  const [showPass, setShowPass] = useState(false)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
@@ -42,8 +43,8 @@ export function ResetPassword() {
   const submit = async (e) => {
     e.preventDefault()
     setError('')
-    if (password.length < 6) {
-      setError('Password must be at least 6 characters.')
+    if (getPasswordStrength(password).value < 60) {
+      setError('Password is too weak. Use a password rated Good, Strong, or Very strong.')
       return
     }
     if (password !== confirm) {
@@ -108,44 +109,26 @@ export function ResetPassword() {
             </p>
 
             <form onSubmit={submit} className="mt-7 space-y-4">
-              <FormField label="New password" htmlFor="new-password">
-                <div className="relative">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="new-password"
-                    type={showPass ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    placeholder="••••••••"
-                    className="pl-9 pr-10"
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    required
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setShowPass((s) => !s)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 rounded-md p-1 text-slate-400 hover:text-slate-600"
-                    aria-label={showPass ? 'Hide password' : 'Show password'}
-                  >
-                    {showPass ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                  </button>
-                </div>
+              <FormField label="New password" htmlFor="new-password" hint="Must be rated Good or higher">
+                <PasswordStrengthMeter
+                  password={password}
+                  onPasswordChange={setPassword}
+                  id="new-password"
+                  name="password"
+                  autoComplete="new-password"
+                  required
+                />
               </FormField>
 
               <FormField label="Confirm new password" htmlFor="confirm-password" error={error}>
-                <div className="relative">
-                  <ShieldCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <Input
-                    id="confirm-password"
-                    type={showPass ? 'text' : 'password'}
-                    autoComplete="new-password"
-                    placeholder="••••••••"
-                    className="pl-9"
-                    value={confirm}
-                    onChange={(e) => setConfirm(e.target.value)}
-                    required
-                  />
-                </div>
+                <AssistedPasswordConfirmation
+                  password={password}
+                  confirmPassword={confirm}
+                  onConfirmPasswordChange={setConfirm}
+                  id="confirm-password"
+                  name="confirmPassword"
+                  required
+                />
               </FormField>
 
               <Button type="submit" className="w-full" size="lg" loading={loading} icon={KeyRound}>

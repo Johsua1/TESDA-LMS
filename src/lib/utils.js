@@ -159,9 +159,29 @@ export const slugify = (s = '') =>
 
 // ----------------------------- Form helpers ---------------------------------
 
+// Philippine mobile numbers are 11 digits (e.g. 09171234567). Count digits only
+// so a formatted value like "0917 123 4567" is still accepted.
+export const PHONE_LENGTH = 11
+export const phoneDigits = (value = '') => String(value).replace(/\D/g, '')
+export const isValidPhone = (value = '') => phoneDigits(value).length === PHONE_LENGTH
+
 // Keep only digits and common phone punctuation (+, space, -, parentheses) so a
-// phone field can never accept letters.
-export const sanitizePhone = (value = '') => String(value).replace(/[^\d+\-()\s]/g, '')
+// phone field can never accept letters, and stop accepting digits once the
+// number is complete.
+export const sanitizePhone = (value = '') => {
+  let digits = 0
+  let out = ''
+  for (const ch of String(value)) {
+    if (/\d/.test(ch)) {
+      if (digits >= PHONE_LENGTH) continue
+      digits += 1
+      out += ch
+    } else if (/[+\-()\s]/.test(ch)) {
+      out += ch
+    }
+  }
+  return out
+}
 
 export const classNamesForStatus = (status) => {
   const map = {

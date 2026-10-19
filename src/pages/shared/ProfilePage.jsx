@@ -5,6 +5,8 @@ import { programById, activeEnrollmentsOf, courseProgress, trainerPrograms, trai
 import { PageHeader, Card, CardBody, CardHeader, Avatar, Button, Input, Select, FormField, FormRow, Badge, ProgressBar } from '../../components/ui'
 import { roleMeta } from '../../config/navigation'
 import { formatDate, sanitizePhone } from '../../lib/utils'
+import { PasswordStrengthMeter, getPasswordStrength } from '../../components/ui/v-meter-7'
+import { AssistedPasswordConfirmation } from '../../components/ui/assisted-password-confirmation'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 export function ProfilePage() {
@@ -39,8 +41,8 @@ export function ProfilePage() {
       setPwError('Enter your current password.')
       return
     }
-    if (pw.next.length < 6) {
-      setPwError('New password must be at least 6 characters.')
+    if (getPasswordStrength(pw.next).value < 60) {
+      setPwError('New password is too weak. Use a password rated Good, Strong, or Very strong.')
       return
     }
     if (pw.next !== pw.confirm) {
@@ -235,26 +237,24 @@ export function ProfilePage() {
                     onChange={(e) => setPw({ ...pw, current: e.target.value })}
                   />
                 </FormField>
-                <FormRow>
-                  <FormField label="New Password">
-                    <Input
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="••••••••"
-                      value={pw.next}
-                      onChange={(e) => setPw({ ...pw, next: e.target.value })}
-                    />
-                  </FormField>
-                  <FormField label="Confirm New Password" error={pwError}>
-                    <Input
-                      type="password"
-                      autoComplete="new-password"
-                      placeholder="••••••••"
-                      value={pw.confirm}
-                      onChange={(e) => setPw({ ...pw, confirm: e.target.value })}
-                    />
-                  </FormField>
-                </FormRow>
+                <FormField label="New Password" htmlFor="new-password" hint="Must be rated Good or higher">
+                  <PasswordStrengthMeter
+                    password={pw.next}
+                    onPasswordChange={(value) => setPw({ ...pw, next: value })}
+                    id="new-password"
+                    name="new-password"
+                    autoComplete="new-password"
+                  />
+                </FormField>
+                <FormField label="Confirm New Password" htmlFor="confirm-password" error={pwError}>
+                  <AssistedPasswordConfirmation
+                    password={pw.next}
+                    confirmPassword={pw.confirm}
+                    onConfirmPasswordChange={(value) => setPw({ ...pw, confirm: value })}
+                    id="confirm-password"
+                    name="confirmPassword"
+                  />
+                </FormField>
                 <div className="flex justify-end">
                   <Button type="submit" icon={Shield} loading={pwLoading}>
                     Update Password
