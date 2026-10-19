@@ -582,7 +582,7 @@ const quizBank = {
     {
       title: 'Housekeeping Safety & Sanitation Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'Which chemical is best for disinfecting bathroom surfaces?', options: ['Bleach solution', 'Cooking oil', 'Shampoo', 'Fabric softener'], answer: 'Bleach solution' },
         { type: 'tf', q: 'Cleaning chemicals should always be stored in unlabeled containers.', answer: false },
@@ -594,7 +594,7 @@ const quizBank = {
     {
       title: 'Room Cleaning Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'How many flat sheets are typically used in triple sheeting?', options: ['One', 'Two', 'Three', 'Four'], answer: 'Three' },
         { type: 'tf', q: 'You should knock and announce yourself before entering an occupied guest room.', answer: true },
@@ -606,7 +606,7 @@ const quizBank = {
     {
       title: 'Bed Making & Linen Quiz',
       passing: 75,
-      timeLimit: 8,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'What is the first step in bed making?', options: ['Stripping the bed', 'Placing the duvet', 'Fluffing pillows', 'Vacuuming'], answer: 'Stripping the bed' },
         { type: 'tf', q: 'Soiled linen should be sorted by color and fabric type.', answer: true },
@@ -619,7 +619,7 @@ const quizBank = {
     {
       title: 'Coffee Fundamentals Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'Which coffee species is generally considered higher quality?', options: ['Arabica', 'Robusta', 'Liberica', 'Excelsa'], answer: 'Arabica' },
         { type: 'tf', q: 'Finer grind is used for espresso than for French press.', answer: true },
@@ -631,7 +631,7 @@ const quizBank = {
     {
       title: 'Espresso Preparation Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'A standard single espresso shot is approximately how many ounces?', options: ['1 oz', '3 oz', '5 oz', '8 oz'], answer: '1 oz' },
         { type: 'tf', q: 'Under-extracted espresso tastes sour and thin.', answer: true },
@@ -642,7 +642,7 @@ const quizBank = {
     {
       title: 'Milk Steaming & Latte Art Quiz',
       passing: 75,
-      timeLimit: 8,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'The ideal microfoam texture is best described as:', options: ['Glossy wet paint', 'Dry and stiff', 'Large bubbles', 'Watery'], answer: 'Glossy wet paint' },
         { type: 'tf', q: 'Milk should be steamed to about 60-65°C for best taste.', answer: true },
@@ -655,7 +655,7 @@ const quizBank = {
     {
       title: 'Anatomy & Physiology Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'Which system carries blood throughout the body?', options: ['Circulatory', 'Skeletal', 'Nervous', 'Digestive'], answer: 'Circulatory' },
         { type: 'tf', q: 'Massage strokes generally follow the direction of blood flow toward the heart.', answer: true },
@@ -667,7 +667,7 @@ const quizBank = {
     {
       title: 'Hilot Techniques Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'A long, gliding stroke is called:', options: ['Effleurage', 'Tapotement', 'Petrissage', 'Friction'], answer: 'Effleurage' },
         { type: 'tf', q: 'Hilot is a traditional Filipino healing art.', answer: true },
@@ -678,7 +678,7 @@ const quizBank = {
     {
       title: 'Client Care & Safety Quiz',
       passing: 75,
-      timeLimit: 8,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'A condition where massage should be avoided is called a:', options: ['Contraindication', 'Prescription', 'Indication', 'Diagnosis'], answer: 'Contraindication' },
         { type: 'tf', q: 'Informed consent should be obtained before any massage session.', answer: true },
@@ -691,7 +691,7 @@ const quizBank = {
     {
       title: 'Event Planning Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'MICE stands for Meetings, Incentives, Conferences and:', options: ['Exhibitions', 'Events', 'Entertainment', 'Excursions'], answer: 'Exhibitions' },
         { type: 'tf', q: 'A theme should align with the client’s objectives.', answer: true },
@@ -703,7 +703,7 @@ const quizBank = {
     {
       title: 'Budgeting & Logistics Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'A contingency fund in an event budget covers:', options: ['Unexpected costs', 'Staff salaries only', 'Decorations', 'Invitations'], answer: 'Unexpected costs' },
         { type: 'tf', q: 'Venue capacity should match the expected number of guests.', answer: true },
@@ -714,7 +714,7 @@ const quizBank = {
     {
       title: 'Event Execution Quiz',
       passing: 75,
-      timeLimit: 8,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'A minute-by-minute schedule of an event is called:', options: ['Run sheet', 'Menu', 'Contract', 'Invoice'], answer: 'Run sheet' },
         { type: 'tf', q: 'Backstage coordination is handled by stage management.', answer: true },
@@ -727,7 +727,7 @@ const quizBank = {
     {
       title: 'Virtual Assistant Fundamentals Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'A VA who manages social media accounts is in which niche?', options: ['Social media management', 'Bookkeeping', 'Web development', 'Legal'], answer: 'Social media management' },
         { type: 'tf', q: 'Time zone awareness is important for virtual assistants.', answer: true },
@@ -739,7 +739,7 @@ const quizBank = {
     {
       title: 'Administrative Support Quiz',
       passing: 75,
-      timeLimit: 10,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'Inbox zero is a technique for:', options: ['Email management', 'Calendar design', 'Data entry', 'Graphic design'], answer: 'Email management' },
         { type: 'tf', q: 'Shared calendars help teams avoid scheduling conflicts.', answer: true },
@@ -750,7 +750,7 @@ const quizBank = {
     {
       title: 'Communication & Support Quiz',
       passing: 75,
-      timeLimit: 8,
+      timeLimit: 30,
       questions: [
         { type: 'mcq', q: 'A professional email should always include:', options: ['A clear subject line', 'Emojis only', 'No greeting', 'Slang'], answer: 'A clear subject line' },
         { type: 'tf', q: 'Ticketing systems help track customer support requests.', answer: true },
@@ -879,7 +879,7 @@ function buildProgram(meta) {
         competency: 'Core Competency',
         questions: examQuestions,
         questionCount: examQuestions.length,
-        timeLimit: 30,
+        timeLimit: 60,
         passing: 75,
         date: meta.examDate,
         status: 'Upcoming',

@@ -42,7 +42,9 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { ScheduleCard, AnnouncementCard } from '../../components/cards/Cards'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 import { formatDate, formatTime, relativeDay, currency, cn, toExternalUrl, scheduleStatus } from '../../lib/utils'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { useNow } from '../../lib/useNow'
+import { traineeQuizRequests } from '../../lib/quizAccess'
 
 export function TraineeDashboard() {
   const { db, user, settings } = useApp()
@@ -59,6 +61,7 @@ export function TraineeDashboard() {
   const announcements = announcementsFor(db, user).slice(0, 3)
   const overall = overallProgress(db, user.id)
   const duePayments = outstandingPayments(db, user.id)
+  const quizNotices = traineeQuizRequests(db, user.id).slice(0, 4)
   const paymentDue = duePayments.reduce((sum, e) => sum + (Number(e.payment?.balance) || 0), 0)
 
   // next quiz to take (unattempted or not yet passed)
@@ -247,7 +250,7 @@ export function TraineeDashboard() {
                     <p className="mt-0.5 text-xs text-slate-500">{nextQuizProgram?.title}</p>
                     <div className="mt-3 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                       <span>{nextQuiz.questions.length} items</span>
-                      <span>{nextQuiz.timeLimit} min</span>
+                      <span>{ATTEMPT_MINUTES.quiz} min</span>
                       <span>{nextQuiz.passing}% to pass</span>
                     </div>
                     <Link to={`/trainee/courses/${nextQuizProgram.id}`} className="mt-4 block">
@@ -339,6 +342,38 @@ export function TraineeDashboard() {
               {!enrollments.length && <p className="py-4 text-center text-sm text-slate-400">No active enrollment</p>}
             </CardBody>
           </Card>
+
+          {quizNotices.length > 0 && (
+            <Card>
+              <CardHeader title="Quiz Access Requests" icon={ClipboardList} />
+              <CardBody className="space-y-3 pt-4">
+                {quizNotices.map((r) => (
+                  <div key={r.id} className="rounded-lg border border-slate-100 p-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-semibold text-slate-700">{r.quizTitle}</p>
+                        <p className="text-[11px] text-slate-400">
+                          {r.type === 'late' ? 'Late access' : 'Retake'} ·{' '}
+                          {formatDate(r.decidedAt || r.requestedAt)}
+                        </p>
+                      </div>
+                      <Badge tone={r.status === 'approved' ? 'success' : r.status === 'rejected' ? 'danger' : 'warning'}>
+                        {r.status === 'approved' ? 'Approved' : r.status === 'rejected' ? 'Rejected' : 'Pending'}
+                      </Badge>
+                    </div>
+                    {r.note && <p className="mt-1 text-xs text-slate-500">Trainer note: {r.note}</p>}
+                    <p className="mt-1 text-[11px] text-slate-500">
+                      {r.status === 'approved'
+                        ? 'Approved — open the quiz to take your extra attempt.'
+                        : r.status === 'rejected'
+                          ? 'Rejected — the quiz stays locked.'
+                          : 'Waiting for your trainer’s decision.'}
+                    </p>
+                  </div>
+                ))}
+              </CardBody>
+            </Card>
+          )}
 
           <Card>
             <CardHeader

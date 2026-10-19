@@ -5,6 +5,7 @@ import { PageHeader, Card, CardHeader, Badge, StatCard, Select, Modal, Button, E
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { average, formatDate } from '../../lib/utils'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
@@ -40,7 +41,7 @@ export function ManageQuizzes() {
       ),
     },
     { key: 'questions', header: 'Questions', sortable: true, sortValue: (r) => r.questions.length, render: (r) => r.questions.length },
-    { key: 'timeLimit', header: 'Time Limit', render: (r) => `${r.timeLimit} min` },
+    { key: 'timeLimit', header: 'Time Limit', render: () => `${ATTEMPT_MINUTES.quiz} min` },
     { key: 'passing', header: 'Passing', render: (r) => `${r.passing}%` },
     {
       key: 'attempts',
@@ -115,7 +116,7 @@ export function ManageQuizzes() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { label: 'Questions', value: selected.questions.length },
-                { label: 'Time Limit', value: `${selected.timeLimit} min` },
+                { label: 'Time Limit', value: `${ATTEMPT_MINUTES.quiz} min` },
                 { label: 'Passing', value: `${selected.passing}%` },
                 { label: 'Attempts', value: db.quizAttempts.filter((a) => a.quizId === selected.id).length },
               ].map((s) => (

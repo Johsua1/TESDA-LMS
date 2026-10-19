@@ -113,6 +113,15 @@ create table if not exists public.settings (
 );
 
 -- ---------------------------------------------------------------------------
+-- Bring a pre-existing profiles table up to the shape this file expects.
+-- `create table if not exists` does not add columns to an older table, and the
+-- helper functions below reference auth_user_id immediately.
+-- ---------------------------------------------------------------------------
+alter table public.profiles add column if not exists auth_user_id uuid;
+create unique index if not exists profiles_auth_user_id_key
+  on public.profiles (auth_user_id);
+
+-- ---------------------------------------------------------------------------
 -- HELPER FUNCTIONS
 -- SECURITY DEFINER so RLS policies can read `profiles` without recursing.
 -- ---------------------------------------------------------------------------

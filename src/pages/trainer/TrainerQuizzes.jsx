@@ -1,10 +1,30 @@
 import { useState } from 'react'
-import { ClipboardList, Clock, Award, Users, Eye, TrendingUp, Plus, Pencil, Trash2, EyeOff } from 'lucide-react'
+import {
+  ClipboardList,
+  Clock,
+  Award,
+  Users,
+  Eye,
+  TrendingUp,
+  Plus,
+  Pencil,
+  Trash2,
+  EyeOff,
+  CalendarDays,
+  Inbox,
+  CheckCircle2,
+  XCircle,
+  RotateCcw,
+  UserX,
+  AlertTriangle,
+} from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerPrograms } from '../../store/selectors'
 import {
   PageHeader,
   Card,
+  CardHeader,
+  CardBody,
   Badge,
   EmptyState,
   Select,
@@ -21,19 +41,38 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { QuestionBuilder } from '../../components/content/QuestionBuilder'
 import { average, formatDate, cn } from '../../lib/utils'
+import { formatQuizSchedule, validateSchedule, combineDateTime } from '../../lib/quizAccess'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
-const blankQuiz = () => ({ id: '', title: '', passing: 75, timeLimit: 15, published: true, questions: [] })
+// Local (not UTC) date/time strings, used for the date-picker minimums.
+const localDate = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const localTime = (d = new Date()) =>
+  `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+
+const blankQuiz = () => ({
+  id: '',
+  title: '',
+  passing: 75,
+  published: true,
+  startDate: '',
+  startTime: '',
+  deadlineDate: '',
+  deadlineTime: '',
+  questions: [],
+})
 
 export function TrainerQuizzes() {
-  const { db, user, saveQuiz, deleteQuiz, toast } = useApp()
+  const { db, user, saveQuiz, deleteQuiz, decideQuizRequest, toast } = useApp()
   const programs = trainerPrograms(db, user.id)
   const [programFilter, setProgramFilter] = useState('all')
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [scheduleError, setScheduleError] = useState(null)
 
   const source = programFilter === 'all' ? programs : programs.filter((p) => p.id === programFilter)
   const quizzes = source.flatMap((p) =>
@@ -43,6 +82,39 @@ export function TrainerQuizzes() {
   const allAttempts = db.quizAttempts.filter((a) => quizzes.some((q) => q.id === a.quizId))
   const avgScore = allAttempts.length ? Math.round(average(allAttempts.map((a) => a.percentage))) : 0
 
+  // Access requests for every quiz the trainer owns (not just the filtered
+  // program), so a pending request is never hidden by the program filter.
+  const programIds = new Set(programs.map((p) => p.id))
+  const requests = (db.quizRequests || []).filter((r) => programIds.has(r.programId))
+  const pendingRequests = requests.filter((r) => r.status === 'pending')
+  const decidedRequests = requests
+    .filter((r) => r.status !== 'pending')
+    .sort((a, b) => new Date(b.decidedAt || 0) - new Date(a.decidedAt || 0))
+
+  // Everyone actively enrolled in a program — used for the "not taken" list.
+  const programTrainees = (programId) => {
+    const ids = [
+      ...new Set(
+        db.enrollments
+          .filter((e) => e.programId === programId && ['Enrolled', 'Approved', 'Completed'].includes(e.status))
+          .map((e) => e.traineeId),
+      ),
+    ]
+    return ids.map((id) => db.users.find((u) => u.id === id)).filter(Boolean)
+  }
+
+  const decide = (request, decision) => {
+    const res = decideQuizRequest(request.id, decision)
+    if (!res.ok) toast(res.error, 'error')
+  }
+
+  // Data for the per-quiz view modal.
+  const selectedTrainees = selected ? programTrainees(selected.programId) : []
+  const selectedAttemptedIds = new Set((selected?.attempts || []).map((a) => a.traineeId))
+  const selectedCompleted = selectedTrainees.filter((t) => selectedAttemptedIds.has(t.id))
+  const selectedNotTaken = selectedTrainees.filter((t) => !selectedAttemptedIds.has(t.id))
+  const selectedRequests = selected ? (db.quizRequests || []).filter((r) => r.quizId === selected.id) : []
+
   const openCreate = () => {
     const p = programs.find((x) => x.id === (programFilter === 'all' ? programs[0]?.id : programFilter)) || programs[0]
     if (!p) return
@@ -51,10 +123,41 @@ export function TrainerQuizzes() {
   const openEdit = (q) => {
     setForm({
       programId: q.programId,
-      quiz: { id: q.id, title: q.title, passing: q.passing, timeLimit: q.timeLimit, published: q.published !== false, questions: q.questions || [] },
+      quiz: {
+        id: q.id,
+        title: q.title,
+        passing: q.passing,
+        published: q.published !== false,
+        startDate: q.startDate || '',
+        startTime: q.startTime || '',
+        deadlineDate: q.deadlineDate || '',
+        deadlineTime: q.deadlineTime || '',
+        originalStartDate: q.startDate || '',
+        originalStartTime: q.startTime || '',
+        questions: q.questions || [],
+      },
     })
   }
   const setQuiz = (patch) => setForm((f) => ({ ...f, quiz: { ...f.quiz, ...patch } }))
+  const todayISO = localDate()
+  const nowTime = localTime()
+
+  // Live schedule check: shows the error as soon as a past start/deadline is
+  // entered and keeps the Save button disabled until it is fixed.
+  const originalStart = form ? combineDateTime(form.originalStartDate, form.originalStartTime, 'start') : null
+  const currentStart = form ? combineDateTime(form.quiz.startDate, form.quiz.startTime, 'start') : null
+  const allowPastStart = Boolean(
+    form?.quiz.id && originalStart && currentStart && originalStart.getTime() === currentStart.getTime(),
+  )
+  const scheduleCheck = form
+    ? validateSchedule({
+        startDate: form.quiz.startDate,
+        startTime: form.quiz.startTime,
+        deadlineDate: form.quiz.deadlineDate,
+        deadlineTime: form.quiz.deadlineTime,
+        allowPastStart,
+      })
+    : { ok: true, error: '' }
 
   const save = () => {
     if (!form.quiz.title.trim()) {
@@ -65,12 +168,16 @@ export function TrainerQuizzes() {
       toast('Add at least one question.', 'error')
       return
     }
+    if (!scheduleCheck.ok) {
+      setScheduleError(scheduleCheck.error)
+      return
+    }
     const quiz = {
       ...form.quiz,
       id: form.quiz.id || `${form.programId}-quiz-${Date.now().toString(36)}`,
       programId: form.programId,
       passing: Number(form.quiz.passing) || 0,
-      timeLimit: Number(form.quiz.timeLimit) || 0,
+      timeLimit: ATTEMPT_MINUTES.quiz,
       questions: form.quiz.questions.map((q, i) => ({ ...q, id: q.id || `${form.programId}-q-${Date.now().toString(36)}-${i}` })),
     }
     saveQuiz(form.programId, quiz)
@@ -105,10 +212,74 @@ export function TrainerQuizzes() {
         <StatCard label="Average Score" value={`${avgScore}%`} icon={TrendingUp} tone="success" />
       </div>
 
+      <Card className="mb-5">
+        <CardHeader
+          title="Quiz Access Requests"
+          icon={Inbox}
+          action={
+            pendingRequests.length ? (
+              <Badge tone="warning">{pendingRequests.length} pending</Badge>
+            ) : (
+              <Badge tone="neutral">None pending</Badge>
+            )
+          }
+        />
+        <CardBody className="space-y-3">
+          {pendingRequests.length ? (
+            pendingRequests.map((r) => (
+              <div key={r.id} className="rounded-xl border border-amber-200 bg-amber-50/60 p-3">
+                <div className="flex flex-wrap items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-slate-800">{r.traineeName || 'Trainee'}</p>
+                    <p className="truncate text-xs text-slate-500">{r.quizTitle}</p>
+                    <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-500">
+                      {r.type === 'late' ? <Clock className="h-3 w-3" /> : <RotateCcw className="h-3 w-3" />}
+                      {r.type === 'late' ? 'Late quiz access' : 'Retake request'} · {formatDate(r.requestedAt)}
+                    </p>
+                  </div>
+                  <div className="flex shrink-0 gap-2">
+                    <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => decide(r, 'approved')}>
+                      Approve
+                    </Button>
+                    <Button size="sm" variant="secondary" icon={XCircle} onClick={() => decide(r, 'rejected')}>
+                      Reject
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            ))
+          ) : (
+            <p className="text-sm text-slate-400">No pending retake or late-access requests.</p>
+          )}
+
+          {decidedRequests.length > 0 && (
+            <div className="border-t border-slate-100 pt-3">
+              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Decision history</p>
+              <div className="space-y-1.5">
+                {decidedRequests.slice(0, 6).map((r) => (
+                  <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
+                    <span className="min-w-0 truncate text-slate-600">
+                      {r.traineeName} · {r.quizTitle}
+                    </span>
+                    <span className="flex shrink-0 items-center gap-2">
+                      <Badge tone={r.status === 'approved' ? 'success' : 'danger'}>
+                        {r.status === 'approved' ? 'Approved' : 'Rejected'}
+                      </Badge>
+                      <span className="text-slate-400">{r.decidedAt ? formatDate(r.decidedAt) : ''}</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
       {quizzes.length ? (
         <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-3">
           {quizzes.map((q) => {
             const attempts = db.quizAttempts.filter((a) => a.quizId === q.id)
+            const pendingCount = requests.filter((r) => r.quizId === q.id && r.status === 'pending').length
             const passRate = attempts.length ? Math.round((attempts.filter((a) => a.passed).length / attempts.length) * 100) : 0
             const avg = attempts.length ? Math.round(average(attempts.map((a) => a.percentage))) : 0
             return (
@@ -130,12 +301,22 @@ export function TrainerQuizzes() {
                 </div>
                 <h4 className="mt-3 text-sm font-semibold text-slate-800">{q.title}</h4>
                 <p className="text-xs text-slate-400">{q.programTitle}</p>
+                <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
+                  <CalendarDays className="h-3 w-3" /> {formatQuizSchedule(q)}
+                </p>
+                {pendingCount > 0 && (
+                  <p className="mt-1">
+                    <Badge tone="warning">
+                      <Inbox className="h-3 w-3" /> {pendingCount} request{pendingCount > 1 ? 's' : ''}
+                    </Badge>
+                  </p>
+                )}
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1">
                     <ClipboardList className="h-3 w-3" /> {q.questions.length} items
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <Clock className="h-3 w-3" /> {q.timeLimit} min
+                    <Clock className="h-3 w-3" /> {ATTEMPT_MINUTES.quiz} min
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <Award className="h-3 w-3" /> {q.passing}%
@@ -205,6 +386,94 @@ export function TrainerQuizzes() {
                   {selected.attempts.length ? Math.round((selected.attempts.filter((a) => a.passed).length / selected.attempts.length) * 100) : 0}%
                 </p>
                 <p className="text-[10px] uppercase text-slate-400">Pass Rate</p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-slate-400">Schedule</p>
+              <p className="mt-1 inline-flex items-center gap-1.5 text-sm text-slate-700">
+                <CalendarDays className="h-4 w-4 text-slate-400" /> {formatQuizSchedule(selected)}
+              </p>
+            </div>
+
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Completed ({selectedCompleted.length})
+                </p>
+                <div className="space-y-1.5">
+                  {selectedCompleted.length ? (
+                    selectedCompleted.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-1.5 text-sm">
+                        <span className="truncate text-slate-700">{t.name}</span>
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400">No submissions yet.</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Not taken ({selectedNotTaken.length})
+                </p>
+                <div className="space-y-1.5">
+                  {selectedNotTaken.length ? (
+                    selectedNotTaken.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-1.5 text-sm">
+                        <span className="truncate text-slate-600">{t.name}</span>
+                        <UserX className="h-4 w-4 shrink-0 text-slate-400" />
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400">Everyone has taken this quiz.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                Access Requests ({selectedRequests.length})
+              </p>
+              <div className="space-y-2">
+                {selectedRequests.length ? (
+                  selectedRequests
+                    .slice()
+                    .sort((a, b) => new Date(b.requestedAt || 0) - new Date(a.requestedAt || 0))
+                    .map((r) => (
+                      <div key={r.id} className="rounded-lg border border-slate-100 px-3 py-2">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="min-w-0">
+                            <p className="truncate text-sm text-slate-700">
+                              {r.traineeName} · {r.type === 'late' ? 'Late access' : 'Retake'}
+                            </p>
+                            <p className="text-[11px] text-slate-400">
+                              Requested {formatDate(r.requestedAt)}
+                              {r.decidedAt ? ` · Decided ${formatDate(r.decidedAt)}` : ''}
+                            </p>
+                          </div>
+                          {r.status === 'pending' ? (
+                            <div className="flex shrink-0 gap-1.5">
+                              <Button size="sm" variant="success" icon={CheckCircle2} onClick={() => decide(r, 'approved')}>
+                                Approve
+                              </Button>
+                              <Button size="sm" variant="secondary" icon={XCircle} onClick={() => decide(r, 'rejected')}>
+                                Reject
+                              </Button>
+                            </div>
+                          ) : (
+                            <Badge tone={r.status === 'approved' ? 'success' : 'danger'}>
+                              {r.status === 'approved' ? 'Approved' : 'Rejected'}
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                ) : (
+                  <p className="text-xs text-slate-400">No requests for this quiz.</p>
+                )}
               </div>
             </div>
 
@@ -293,14 +562,45 @@ export function TrainerQuizzes() {
               <FormField label="Passing Score (%)">
                 <Input type="number" min="0" max="100" value={form.quiz.passing} onChange={(e) => setQuiz({ passing: e.target.value })} />
               </FormField>
-              <FormField label="Time Limit (minutes)">
-                <Input type="number" min="1" value={form.quiz.timeLimit} onChange={(e) => setQuiz({ timeLimit: e.target.value })} />
-              </FormField>
             </FormRow>
 
             <FormField label="Quiz Title" required>
               <Input value={form.quiz.title} onChange={(e) => setQuiz({ title: e.target.value })} placeholder="e.g. Module 1 Assessment" />
             </FormField>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <CalendarDays className="h-3.5 w-3.5" /> Schedule &amp; Deadline
+              </p>
+              <FormRow>
+                <FormField label="Start Date">
+                  <Input type="date" min={todayISO} value={form.quiz.startDate} onChange={(e) => setQuiz({ startDate: e.target.value })} />
+                </FormField>
+                <FormField label="Start Time">
+                  <Input
+                    type="time"
+                    min={form.quiz.startDate === todayISO ? nowTime : undefined}
+                    value={form.quiz.startTime}
+                    onChange={(e) => setQuiz({ startTime: e.target.value })}
+                  />
+                </FormField>
+              </FormRow>
+              <div className="mt-3">
+                <FormRow>
+                  <FormField label="Deadline Date">
+                    <Input type="date" min={todayISO} value={form.quiz.deadlineDate} onChange={(e) => setQuiz({ deadlineDate: e.target.value })} />
+                  </FormField>
+                  <FormField label="Deadline Time">
+                    <Input
+                      type="time"
+                      min={form.quiz.deadlineDate === todayISO ? nowTime : undefined}
+                      value={form.quiz.deadlineTime}
+                      onChange={(e) => setQuiz({ deadlineTime: e.target.value })}
+                    />
+                  </FormField>
+                </FormRow>
+              </div>
+            </div>
 
             <FormField label="Questions" required>
               <QuestionBuilder questions={form.quiz.questions} onChange={(questions) => setQuiz({ questions })} />
@@ -314,6 +614,16 @@ export function TrainerQuizzes() {
             />
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={!!scheduleError}
+        onClose={() => setScheduleError(null)}
+        title="Invalid schedule"
+        icon={AlertTriangle}
+        footer={<Button onClick={() => setScheduleError(null)}>Fix schedule</Button>}
+      >
+        <p className="text-sm text-slate-600">{scheduleError}</p>
       </Modal>
 
       <ConfirmDialog

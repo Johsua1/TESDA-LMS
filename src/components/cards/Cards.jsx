@@ -16,6 +16,7 @@ import {
 import { Card, Badge, Button } from '../ui'
 import { StatusBadge } from '../ui/StatusBadge'
 import { cn, formatDate, relativeDay, formatTime, toExternalUrl, scheduleStatus } from '../../lib/utils'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { useNow } from '../../lib/useNow'
 
 // ------------------------------- LessonCard ---------------------------------
@@ -82,7 +83,7 @@ export function QuizCard({ quiz, bestAttempt, attempts = 0, onStart, locked = fa
           <ClipboardList className="h-3 w-3" /> {quiz.questions.length} items
         </span>
         <span className="inline-flex items-center gap-1">
-          <Timer className="h-3 w-3" /> {quiz.timeLimit} min
+          <Timer className="h-3 w-3" /> {ATTEMPT_MINUTES.quiz} min
         </span>
         <span className="inline-flex items-center gap-1">
           <Award className="h-3 w-3" /> {quiz.passing}% to pass

@@ -13,18 +13,24 @@ import {
   AlertTriangle,
   ListChecks,
   Trophy,
+  CalendarDays,
+  Hourglass,
+  Lock,
+  Send,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { enrollmentOf, programById, traineeQuizAttempts, hasCourseAccess } from '../../store/selectors'
 import { Card, CardBody, CardHeader, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { cn, formatDate } from '../../lib/utils'
+import { getQuizAccess, formatQuizSchedule, quizBlockedMessage } from '../../lib/quizAccess'
+import { attemptSeconds, remainingSeconds, formatCountdown } from '../../lib/quizTimer'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
 export function QuizRunner() {
   const { programId, quizId } = useParams()
-  const { db, user, recordQuizAttempt, toast } = useApp()
+  const { db, user, recordQuizAttempt, startQuizAttempt, requestQuizAccess, toast } = useApp()
 
   const program = programById(programId)
   const enrollment = enrollmentOf(db, user.id, programId)
@@ -33,12 +39,36 @@ export function QuizRunner() {
   const [phase, setPhase] = useState('intro') // intro | taking | result
   const [answers, setAnswers] = useState({})
   const [current, setCurrent] = useState(0)
-  const [secondsLeft, setSecondsLeft] = useState((quiz?.timeLimit || 10) * 60)
+  const [secondsLeft, setSecondsLeft] = useState(attemptSeconds('quiz'))
   const [result, setResult] = useState(null)
   const submittedRef = useRef(false)
+  // Captured when the trainee presses Start; the store checks access against
+  // this instant so a quiz that runs past the deadline still submits.
+  const startedAtRef = useRef(null)
 
   const history = traineeQuizAttempts(db, user.id, programId).filter((a) => a.quizId === quizId)
   const best = useMemo(() => [...history].sort((a, b) => b.percentage - a.percentage)[0], [history])
+
+  const requests = (db.quizRequests || []).filter((r) => r.traineeId === user.id && r.quizId === quizId)
+  const sessions = (db.quizSessions || []).filter((s) => s.traineeId === user.id && s.quizId === quizId)
+  const access = getQuizAccess({ quiz: quiz || {}, attempts: history, requests, sessions })
+  // The session timing the current attempt (set on start and on resume).
+  const sessionRef = useRef(null)
+
+  // Returning to a quiz that is already running continues the same clock: the
+  // remaining time comes from the session's original start, never a fresh 30.
+  useEffect(() => {
+    if (phase !== 'intro' || !access.canResume) return
+    sessionRef.current = access.session
+    startedAtRef.current = access.session.startedAt
+    setSecondsLeft(access.resumeSeconds)
+    setAnswers({})
+    setCurrent(0)
+    setResult(null)
+    submittedRef.current = false
+    setPhase('taking')
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [access.canResume])
 
   // countdown timer
   useEffect(() => {
@@ -64,6 +94,11 @@ export function QuizRunner() {
 
   if (!program || !enrollment || !quiz) return <Navigate to="/trainee/courses" replace />
   if (!hasCourseAccess(enrollment)) return <Navigate to={`/trainee/courses/${programId}`} replace />
+
+  const requestAccess = (type) => {
+    const res = requestQuizAccess({ programId, quizId, type })
+    if (!res.ok) toast(res.error, 'error')
+  }
 
   const total = quiz.questions.length
   const answeredCount = Object.values(answers).filter((v) => v !== undefined && v !== '').length
@@ -93,27 +128,76 @@ export function QuizRunner() {
       percentage,
       passed,
       date: new Date().toISOString().slice(0, 10),
+      startedAt: startedAtRef.current || new Date().toISOString(),
       answers: graded,
     }
-    recordQuizAttempt(attempt)
+    // The store re-validates schedule, attempt limit and trainer approval, and
+    // closes the session that was timing this attempt.
+    const res = recordQuizAttempt(attempt, sessionRef.current?.id || null)
+    if (!res.ok) {
+      submittedRef.current = false
+      toast(res.error || 'This attempt is not authorized.', 'error')
+      setPhase('intro')
+      return
+    }
     setResult(attempt)
     setPhase('result')
     toast(auto ? 'Time is up — quiz submitted automatically.' : 'Quiz submitted successfully.', auto ? 'warning' : 'success')
   }
 
   const start = () => {
+    const res = startQuizAttempt({ programId, quizId })
+    if (!res.ok) {
+      toast(res.error || quizBlockedMessage(access) || 'This quiz is not available.', 'warning')
+      return
+    }
+    sessionRef.current = res.session
+    startedAtRef.current = res.session.startedAt
     setAnswers({})
     setCurrent(0)
-    setSecondsLeft(quiz.timeLimit * 60)
+    setSecondsLeft(
+      res.resumed
+        ? remainingSeconds(res.session.startedAt, attemptSeconds('quiz'))
+        : attemptSeconds('quiz'),
+    )
     setResult(null)
     submittedRef.current = false
     setPhase('taking')
   }
 
-  const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
-
   // ------------------------------- INTRO ------------------------------------
   if (phase === 'intro') {
+    const availabilityLabel = access.approvedRequest
+      ? 'Approved'
+      : access.pendingRequest
+        ? 'Pending approval'
+        : access.blockedReason === 'attempt_expired'
+          ? 'Time expired'
+          : !access.window.scheduled
+          ? 'Not scheduled'
+          : access.window.beforeStart
+            ? 'Scheduled'
+            : access.window.afterDeadline
+              ? 'Closed'
+              : access.attemptCount
+                ? 'Completed'
+                : 'Open'
+    const availabilityTone = access.approvedRequest
+      ? 'success'
+      : access.pendingRequest
+        ? 'warning'
+        : access.blockedReason === 'attempt_expired'
+          ? 'danger'
+          : !access.window.scheduled
+          ? 'neutral'
+          : access.window.beforeStart
+            ? 'info'
+            : access.window.afterDeadline
+              ? 'danger'
+              : access.attemptCount
+                ? 'neutral'
+                : 'success'
+
     return (
       <div className="mx-auto max-w-3xl space-y-5">
         <Link to={`/trainee/courses/${programId}`} className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-700">
@@ -130,7 +214,7 @@ export function QuizRunner() {
             <div className="mt-5 grid grid-cols-3 gap-3">
               {[
                 { label: 'Questions', value: total },
-                { label: 'Time limit', value: `${quiz.timeLimit} min` },
+                { label: 'Time limit', value: '30 min' },
                 { label: 'Passing score', value: `${quiz.passing}%` },
               ].map((s) => (
                 <div key={s.label} className="rounded-lg bg-white/10 p-3 text-center">
@@ -148,12 +232,48 @@ export function QuizRunner() {
                   <span className="text-brand-500">•</span> The quiz contains {total} questions (multiple choice, true/false and identification).
                 </li>
                 <li className="flex gap-2">
-                  <span className="text-brand-500">•</span> You have {quiz.timeLimit} minutes. The quiz auto-submits when time runs out.
+                  <span className="text-brand-500">•</span> You have 30 minutes. The quiz auto-submits when time runs out.
                 </li>
                 <li className="flex gap-2">
-                  <span className="text-brand-500">•</span> You need at least {quiz.passing}% to pass. You may retake the quiz.
+                  <span className="text-brand-500">•</span> You need at least {quiz.passing}% to pass. Additional attempts require trainer approval.
                 </li>
               </ul>
+            </div>
+
+            <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Schedule &amp; access</p>
+                <Badge tone={availabilityTone}>{availabilityLabel}</Badge>
+              </div>
+              <p className="mt-2 inline-flex items-center gap-1.5 text-sm text-slate-600">
+                <CalendarDays className="h-4 w-4 shrink-0 text-slate-400" /> {formatQuizSchedule(quiz)}
+              </p>
+              <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-slate-500">
+                <span>Attempts used: {access.attemptCount}</span>
+                {best && (
+                  <span>
+                    Best score: {best.percentage}% ({best.score}/{best.total})
+                  </span>
+                )}
+              </div>
+
+              {access.pendingRequest && (
+                <p className="mt-3 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                  Your {access.pendingRequest.type === 'late' ? 'late access' : 'retake'} request is waiting for trainer
+                  approval.
+                </p>
+              )}
+              {access.approvedRequest && (
+                <p className="mt-3 rounded-lg bg-emerald-50 px-3 py-2 text-xs font-medium text-emerald-700">
+                  Your trainer approved one additional attempt. You can take the quiz now.
+                </p>
+              )}
+              {access.latestRejected && !access.pendingRequest && !access.approvedRequest && (
+                <p className="mt-3 rounded-lg bg-red-50 px-3 py-2 text-xs font-medium text-red-700">
+                  Your {access.latestRejected.type === 'late' ? 'late access' : 'retake'} request was rejected
+                  {access.latestRejected.note ? `: ${access.latestRejected.note}` : '.'}
+                </p>
+              )}
             </div>
 
             {best && (
@@ -168,9 +288,33 @@ export function QuizRunner() {
               </div>
             )}
 
-            <Button className="w-full" size="lg" onClick={start} icon={ClipboardList}>
-              {history.length ? 'Start New Attempt' : 'Start Quiz'}
-            </Button>
+            {access.canStart ? (
+              <Button className="w-full" size="lg" onClick={start} icon={ClipboardList}>
+                {access.approvedRequest ? 'Start Approved Attempt' : access.attemptCount ? 'Start New Attempt' : 'Start Quiz'}
+              </Button>
+            ) : access.pendingRequest ? (
+              <Button className="w-full" size="lg" variant="secondary" icon={Hourglass} disabled>
+                Waiting for trainer approval
+              </Button>
+            ) : access.canRequestLate ? (
+              <Button className="w-full" size="lg" icon={Send} onClick={() => requestAccess('late')}>
+                Request Late Quiz Access
+              </Button>
+            ) : access.canRequestRetake ? (
+              <Button className="w-full" size="lg" icon={Send} onClick={() => requestAccess('retake')}>
+                Request Retake
+              </Button>
+            ) : (
+              <Button className="w-full" size="lg" variant="secondary" icon={Lock} disabled>
+                {access.blockedReason === 'attempt_expired'
+                  ? 'Time expired'
+                  : !access.window.scheduled
+                    ? 'Not scheduled yet'
+                    : access.window.beforeStart
+                      ? 'Quiz not yet available'
+                      : 'Quiz locked'}
+              </Button>
+            )}
           </CardBody>
         </Card>
       </div>
@@ -197,7 +341,7 @@ export function QuizRunner() {
             )}
           >
             <Clock className="h-4 w-4" />
-            {mmss(secondsLeft)}
+            {formatCountdown(secondsLeft)}
           </div>
         </div>
 
@@ -372,10 +516,20 @@ export function QuizRunner() {
               <Award className="h-4 w-4 text-slate-400" />
               Passing score: {quiz.passing}%
             </div>
-            <div className="flex gap-2">
-              <Button variant="secondary" icon={RotateCcw} onClick={start}>
-                Retake Quiz
-              </Button>
+            <div className="flex flex-wrap gap-2">
+              {access.pendingRequest ? (
+                <Button variant="secondary" icon={Hourglass} disabled>
+                  Retake request pending
+                </Button>
+              ) : access.approvedRequest ? (
+                <Button icon={RotateCcw} onClick={start}>
+                  Start Approved Attempt
+                </Button>
+              ) : (
+                <Button variant="secondary" icon={Send} onClick={() => requestAccess('retake')}>
+                  Request Retake
+                </Button>
+              )}
               <Link to={`/trainee/courses/${programId}`}>
                 <Button>Back to course</Button>
               </Link>

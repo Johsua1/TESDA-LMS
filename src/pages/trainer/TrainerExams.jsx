@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { FileCheck2, CalendarDays, Users, TrendingUp, Eye, Plus, Pencil, Trash2, EyeOff } from 'lucide-react'
+import { FileCheck2, CalendarDays, Users, TrendingUp, Eye, Plus, Pencil, Trash2, EyeOff, AlertTriangle } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerPrograms } from '../../store/selectors'
 import {
@@ -21,6 +21,8 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { QuestionBuilder } from '../../components/content/QuestionBuilder'
 import { average, formatDate, cn } from '../../lib/utils'
+import { formatQuizSchedule, validateSchedule, combineDateTime } from '../../lib/quizAccess'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const blankExam = () => ({
@@ -28,12 +30,22 @@ const blankExam = () => ({
   title: '',
   competency: 'Core Competency',
   questions: [],
-  timeLimit: 30,
   passing: 75,
-  date: new Date().toISOString().slice(0, 10),
+  date: '',
+  startDate: '',
+  startTime: '',
+  deadlineDate: '',
+  deadlineTime: '',
+  originalStartDate: '',
+  originalStartTime: '',
   status: 'Upcoming',
   published: true,
 })
+
+const localDate = (d = new Date()) =>
+  `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
+const localTime = (d = new Date()) =>
+  `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
 export function TrainerExams() {
   const { db, user, saveExam, deleteExam, toast } = useApp()
@@ -42,6 +54,7 @@ export function TrainerExams() {
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState(null)
   const [confirm, setConfirm] = useState(null)
+  const [scheduleError, setScheduleError] = useState(null)
 
   const source = programFilter === 'all' ? programs : programs.filter((p) => p.id === programFilter)
   const exams = source.flatMap((p) =>
@@ -64,15 +77,37 @@ export function TrainerExams() {
         title: e.title,
         competency: e.competency,
         questions: e.questions || [],
-        timeLimit: e.timeLimit,
         passing: e.passing,
-        date: e.date,
+        date: e.date || '',
+        startDate: e.startDate || e.date || '',
+        startTime: e.startTime || '',
+        deadlineDate: e.deadlineDate || '',
+        deadlineTime: e.deadlineTime || '',
+        originalStartDate: e.startDate || e.date || '',
+        originalStartTime: e.startTime || '',
         status: e.status || 'Upcoming',
         published: e.published !== false,
       },
     })
   }
   const setExam = (patch) => setForm((f) => ({ ...f, exam: { ...f.exam, ...patch } }))
+  const todayISO = localDate()
+  const nowTime = localTime()
+
+  const originalStart = form ? combineDateTime(form.originalStartDate, form.originalStartTime, 'start') : null
+  const currentStart = form ? combineDateTime(form.exam.startDate, form.exam.startTime, 'start') : null
+  const allowPastStart = Boolean(
+    form?.exam.id && originalStart && currentStart && originalStart.getTime() === currentStart.getTime(),
+  )
+  const scheduleCheck = form
+    ? validateSchedule({
+        startDate: form.exam.startDate,
+        startTime: form.exam.startTime,
+        deadlineDate: form.exam.deadlineDate,
+        deadlineTime: form.exam.deadlineTime,
+        allowPastStart,
+      })
+    : { ok: true, error: '' }
 
   const save = () => {
     if (!form.exam.title.trim()) {
@@ -83,6 +118,10 @@ export function TrainerExams() {
       toast('Add at least one question.', 'error')
       return
     }
+    if (!scheduleCheck.ok) {
+      setScheduleError(scheduleCheck.error)
+      return
+    }
     const questions = form.exam.questions.map((q, i) => ({ ...q, id: q.id || `${form.programId}-eq-${Date.now().toString(36)}-${i}` }))
     const exam = {
       ...form.exam,
@@ -90,8 +129,10 @@ export function TrainerExams() {
       programId: form.programId,
       questions,
       questionCount: questions.length,
-      timeLimit: Number(form.exam.timeLimit) || 0,
+      timeLimit: ATTEMPT_MINUTES.exam,
       passing: Number(form.exam.passing) || 0,
+      // Keep the legacy single-date field in sync for older views.
+      date: form.exam.startDate || form.exam.date || '',
     }
     saveExam(form.programId, exam)
     setForm(null)
@@ -149,10 +190,10 @@ export function TrainerExams() {
                     <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                       <span>{e.competency}</span>
                       <span>{e.questions?.length ?? e.questionCount} items</span>
-                      <span>{e.timeLimit} min</span>
+                      <span>{ATTEMPT_MINUTES.exam} min</span>
                       <span>{e.passing}% to pass</span>
                       <span className="inline-flex items-center gap-1">
-                        <CalendarDays className="h-3 w-3" /> {formatDate(e.date)}
+                        <CalendarDays className="h-3 w-3" /> {formatQuizSchedule(e)}
                       </span>
                     </div>
                   </div>
@@ -210,7 +251,7 @@ export function TrainerExams() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { label: 'Questions', value: selected.questions?.length ?? selected.questionCount },
-                { label: 'Time Limit', value: `${selected.timeLimit} min` },
+                { label: 'Time Limit', value: `${ATTEMPT_MINUTES.exam} min` },
                 { label: 'Passing', value: `${selected.passing}%` },
                 { label: 'Attempts', value: selected.attempts.length },
               ].map((s) => (
@@ -286,15 +327,9 @@ export function TrainerExams() {
               <Input value={form.exam.title} onChange={(e) => setExam({ title: e.target.value })} placeholder="e.g. Competency Assessment Exam" />
             </FormField>
 
-            <FormRow cols={4}>
+            <FormRow cols={3}>
               <FormField label="Passing Score (%)">
                 <Input type="number" min="0" max="100" value={form.exam.passing} onChange={(e) => setExam({ passing: e.target.value })} />
-              </FormField>
-              <FormField label="Time Limit (min)">
-                <Input type="number" min="1" value={form.exam.timeLimit} onChange={(e) => setExam({ timeLimit: e.target.value })} />
-              </FormField>
-              <FormField label="Exam Schedule">
-                <Input type="date" value={form.exam.date} onChange={(e) => setExam({ date: e.target.value })} />
               </FormField>
               <FormField label="Status">
                 <Select value={form.exam.status} onChange={(e) => setExam({ status: e.target.value })}>
@@ -304,6 +339,40 @@ export function TrainerExams() {
                 </Select>
               </FormField>
             </FormRow>
+
+            <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">
+              <p className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                <CalendarDays className="h-3.5 w-3.5" /> Schedule &amp; Deadline
+              </p>
+              <FormRow>
+                <FormField label="Start Date">
+                  <Input type="date" min={todayISO} value={form.exam.startDate} onChange={(e) => setExam({ startDate: e.target.value })} />
+                </FormField>
+                <FormField label="Start Time">
+                  <Input
+                    type="time"
+                    min={form.exam.startDate === todayISO ? nowTime : undefined}
+                    value={form.exam.startTime}
+                    onChange={(e) => setExam({ startTime: e.target.value })}
+                  />
+                </FormField>
+              </FormRow>
+              <div className="mt-3">
+                <FormRow>
+                  <FormField label="Deadline Date">
+                    <Input type="date" min={todayISO} value={form.exam.deadlineDate} onChange={(e) => setExam({ deadlineDate: e.target.value })} />
+                  </FormField>
+                  <FormField label="Deadline Time">
+                    <Input
+                      type="time"
+                      min={form.exam.deadlineDate === todayISO ? nowTime : undefined}
+                      value={form.exam.deadlineTime}
+                      onChange={(e) => setExam({ deadlineTime: e.target.value })}
+                    />
+                  </FormField>
+                </FormRow>
+              </div>
+            </div>
 
             <FormField label="Questions" required>
               <QuestionBuilder questions={form.exam.questions} onChange={(questions) => setExam({ questions })} />
@@ -317,6 +386,16 @@ export function TrainerExams() {
             />
           </div>
         )}
+      </Modal>
+
+      <Modal
+        open={!!scheduleError}
+        onClose={() => setScheduleError(null)}
+        title="Invalid schedule"
+        icon={AlertTriangle}
+        footer={<Button onClick={() => setScheduleError(null)}>Fix schedule</Button>}
+      >
+        <p className="text-sm text-slate-600">{scheduleError}</p>
       </Modal>
 
       <ConfirmDialog

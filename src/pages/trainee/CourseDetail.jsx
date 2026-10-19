@@ -35,6 +35,8 @@ import { Card, CardBody, CardHeader, Badge, Button, ProgressBar, Tabs, EmptyStat
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 import { cn, formatDate, formatTime, relativeDay } from '../../lib/utils'
+import { getQuizAccess, quizWindow, formatQuizSchedule } from '../../lib/quizAccess'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 
 function CompetencyAccordion({ competency, programId, progress, quizzes, attempts, open, onToggle }) {
   const isCore = competency.type === 'Core'
@@ -389,21 +391,80 @@ export function CourseDetail() {
           {program.quizzes.map((quiz) => {
             const quizAttempts = attempts.filter((a) => a.quizId === quiz.id)
             const best = quizAttempts.sort((a, b) => b.percentage - a.percentage)[0]
+            const quizRequests = (db.quizRequests || []).filter((r) => r.traineeId === user.id && r.quizId === quiz.id)
+            const quizSessions = (db.quizSessions || []).filter((s) => s.traineeId === user.id && s.quizId === quiz.id)
+            const access = getQuizAccess({ quiz, attempts: quizAttempts, requests: quizRequests, sessions: quizSessions })
+            const stateLabel = access.pendingRequest
+              ? 'Pending approval'
+              : access.approvedRequest
+                ? 'Approved'
+                : access.canResume
+                  ? 'In progress'
+                  : !access.window.scheduled
+                  ? 'Not scheduled'
+                  : access.window.beforeStart
+                  ? 'Scheduled'
+                  : access.window.afterDeadline
+                    ? quizAttempts.length
+                      ? 'Closed'
+                      : 'Late access needed'
+                    : quizAttempts.length
+                      ? 'Completed'
+                      : 'Open'
+            const actionLabel = access.canStart
+              ? access.approvedRequest
+                ? 'Start Approved Attempt'
+                : best
+                  ? 'Take Quiz'
+                  : 'Start Quiz'
+              : access.pendingRequest
+                ? 'View request status'
+                : access.canResume
+                  ? 'Resume Quiz'
+                  : !access.window.scheduled
+                  ? 'Not scheduled'
+                  : access.canRequestLate
+                    ? 'Request Late Access'
+                    : access.canRequestRetake
+                      ? 'Request Retake'
+                      : 'View quiz'
             return (
               <Card key={quiz.id} className="flex flex-col p-4" hover>
                 <div className="flex items-start justify-between">
                   <span className="flex h-10 w-10 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
                     <ClipboardList className="h-5 w-5" />
                   </span>
-                  {best ? <StatusBadge status={best.passed ? 'Passed' : 'Failed'} /> : <Badge tone="neutral">Not taken</Badge>}
+                  <div className="flex flex-col items-end gap-1">
+                    {best ? <StatusBadge status={best.passed ? 'Passed' : 'Failed'} /> : <Badge tone="neutral">Not taken</Badge>}
+                    <Badge
+                      tone={
+                        access.approvedRequest
+                          ? 'success'
+                          : access.pendingRequest
+                            ? 'warning'
+                            : access.canResume
+                              ? 'info'
+                              : access.window.beforeStart
+                              ? 'info'
+                              : access.window.afterDeadline
+                                ? 'danger'
+                                : 'neutral'
+                      }
+                    >
+                      {stateLabel}
+                    </Badge>
+                  </div>
                 </div>
                 <h4 className="mt-3 text-sm font-semibold text-slate-800">{quiz.title}</h4>
+                <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
+                  <CalendarDays className="h-3 w-3" /> {formatQuizSchedule(quiz)}
+                </p>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span className="inline-flex items-center gap-1">
                     <ClipboardList className="h-3 w-3" /> {quiz.questions.length} items
                   </span>
                   <span className="inline-flex items-center gap-1">
-                    <Timer className="h-3 w-3" /> {quiz.timeLimit} min
+                    <Timer className="h-3 w-3" /> {ATTEMPT_MINUTES.quiz} min
                   </span>
                   <span className="inline-flex items-center gap-1">
                     <Award className="h-3 w-3" /> {quiz.passing}%
@@ -411,14 +472,21 @@ export function CourseDetail() {
                 </div>
                 {best && (
                   <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-600">
-                    Best: <strong>{best.score}/{best.total}</strong> ({best.percentage}%)
+                    Best: <strong>{best.score}/{best.total}</strong> ({best.percentage}%) · {quizAttempts.length} attempt
+                    {quizAttempts.length > 1 ? 's' : ''}
                   </p>
                 )}
-                <Link to={`/trainee/courses/${programId}/quiz/${quiz.id}`} className="mt-4 block">
-                  <Button size="sm" className="w-full" variant={best ? 'secondary' : 'primary'}>
-                    {best ? 'Retake Quiz' : 'Start Quiz'}
+                {access.window.scheduled || access.canStart || access.canResume || access.pendingRequest || access.canRequestLate || access.canRequestRetake ? (
+                  <Link to={`/trainee/courses/${programId}/quiz/${quiz.id}`} className="mt-4 block">
+                    <Button size="sm" className="w-full" variant={access.canStart ? 'primary' : 'secondary'}>
+                      {actionLabel}
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button size="sm" className="mt-4 w-full" variant="secondary" disabled>
+                    Not scheduled
                   </Button>
-                </Link>
+                )}
               </Card>
             )
           })}
@@ -429,6 +497,8 @@ export function CourseDetail() {
         <div className="space-y-4">
           {program.exams.map((exam) => {
             const attempt = exams.find((e) => e.examId === exam.id)
+            const window = quizWindow(exam)
+            const open = window.scheduled && !window.beforeStart && !window.afterDeadline
             return (
               <Card key={exam.id} className="p-5">
                 <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
@@ -441,10 +511,10 @@ export function CourseDetail() {
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                         <span>{exam.competency}</span>
                         <span>{exam.questionCount} items</span>
-                        <span>{exam.timeLimit} min</span>
+                        <span>{ATTEMPT_MINUTES.exam} min</span>
                         <span>{exam.passing}% to pass</span>
                         <span className="inline-flex items-center gap-1">
-                          <CalendarDays className="h-3 w-3" /> {formatDate(exam.date)}
+                          <CalendarDays className="h-3 w-3" /> {formatQuizSchedule(exam)}
                         </span>
                       </div>
                     </div>
@@ -462,7 +532,7 @@ export function CourseDetail() {
                         </div>
                         <StatusBadge status={attempt.passed ? 'Passed' : 'Failed'} />
                       </>
-                    ) : (
+                    ) : open ? (
                       <>
                         <StatusBadge status={exam.status} />
                         <Link to={`/trainee/courses/${programId}/exam/${exam.id}`}>
@@ -471,6 +541,10 @@ export function CourseDetail() {
                           </Button>
                         </Link>
                       </>
+                    ) : (
+                      <Badge tone={!window.scheduled ? 'neutral' : window.beforeStart ? 'info' : 'danger'}>
+                        {!window.scheduled ? 'Not scheduled' : window.beforeStart ? 'Not yet available' : 'Closed'}
+                      </Badge>
                     )}
                   </div>
                 </div>

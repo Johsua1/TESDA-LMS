@@ -459,6 +459,7 @@ export function buildSeed() {
   const enrollments = buildEnrollments()
   const attendance = buildAttendance(schedules, enrollments)
   const quizAttempts = buildQuizAttempts(enrollments)
+  const quizSessions = []
   const examAttempts = buildExamAttempts(enrollments)
   const typingTests = buildTypingTests()
   const evaluations = buildEvaluations(enrollments)
@@ -472,6 +473,8 @@ export function buildSeed() {
     enrollments,
     attendance,
     quizAttempts,
+    quizSessions,
+    quizRequests: [],
     examAttempts,
     typingTests,
     evaluations,

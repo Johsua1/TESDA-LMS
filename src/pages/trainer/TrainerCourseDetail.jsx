@@ -22,6 +22,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 import { formatDate, average, cn } from '../../lib/utils'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 
 export function TrainerCourseDetail() {
   const { programId } = useParams()
@@ -283,7 +284,7 @@ export function TrainerCourseDetail() {
                 <h4 className="mt-3 text-sm font-semibold text-slate-800">{quiz.title}</h4>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span>{quiz.questions.length} items</span>
-                  <span>{quiz.timeLimit} min</span>
+                  <span>{ATTEMPT_MINUTES.quiz} min</span>
                   <span>{quiz.passing}% to pass</span>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-3">
@@ -327,7 +328,7 @@ export function TrainerCourseDetail() {
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                         <span>{exam.competency}</span>
                         <span>{exam.questionCount} items</span>
-                        <span>{exam.timeLimit} min</span>
+                        <span>{ATTEMPT_MINUTES.exam} min</span>
                         <span>{exam.passing}% to pass</span>
                         <span>{formatDate(exam.date)}</span>
                       </div>

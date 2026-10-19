@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import { buildSeed } from '../data/seed'
 import { setLivePrograms } from '../data/programs'
 import { uid, slugify } from '../lib/utils'
+import { getQuizAccess, quizWindow, quizBlockedMessage } from '../lib/quizAccess'
 import { isSupabaseConfigured, supabase, initialUrlAuthType } from '../lib/supabase'
 import * as backend from '../lib/backend'
 
@@ -27,6 +28,8 @@ const EMPTY_DB = {
   enrollments: [],
   attendance: [],
   quizAttempts: [],
+  quizRequests: [],
+  quizSessions: [],
   examAttempts: [],
   typingTests: [],
   evaluations: [],
@@ -653,6 +656,8 @@ export function AppProvider({ children }) {
         enrollments: d.enrollments.filter((e) => e.traineeId !== id),
         attendance: d.attendance.filter((a) => a.traineeId !== id),
         quizAttempts: d.quizAttempts.filter((a) => a.traineeId !== id),
+        quizRequests: (d.quizRequests || []).filter((r) => r.traineeId !== id),
+        quizSessions: (d.quizSessions || []).filter((s) => s.traineeId !== id),
         examAttempts: d.examAttempts.filter((a) => a.traineeId !== id),
         typingTests: d.typingTests.filter((t) => t.traineeId !== id && t.trainerId !== id),
         evaluations: d.evaluations.filter((e) => e.traineeId !== id && e.trainerId !== id),
@@ -864,6 +869,8 @@ export function AppProvider({ children }) {
       commit((d) => ({
         ...d,
         programs: d.programs.map((p) => (p.id === programId ? { ...p, quizzes: p.quizzes.filter((q) => q.id !== quizId) } : p)),
+        quizRequests: (d.quizRequests || []).filter((r) => r.quizId !== quizId),
+        quizSessions: (d.quizSessions || []).filter((s) => s.quizId !== quizId),
       }))
       toast('Quiz deleted.', 'info')
     },
@@ -1003,17 +1010,195 @@ export function AppProvider({ children }) {
     [commit],
   )
 
+  // ------------------- Quiz scheduling / access requests --------------------
+  // A trainee asks for either a retake (already attempted) or late access (the
+  // deadline passed before their first attempt). Pending requests grant nothing;
+  // only a trainer approval unlocks one more attempt.
+  const requestQuizAccess = useCallback(
+    ({ programId, quizId, type }) => {
+      if (!user) return { ok: false, error: 'Sign in to request quiz access.' }
+      const d = dbRef.current
+      const program = d.programs.find((p) => p.id === programId)
+      const quiz = program?.quizzes?.find((q) => q.id === quizId)
+      if (!quiz) return { ok: false, error: 'Quiz not found.' }
+
+      const attempts = d.quizAttempts.filter((a) => a.traineeId === user.id && a.quizId === quizId)
+      const requests = (d.quizRequests || []).filter((r) => r.traineeId === user.id && r.quizId === quizId)
+      if (requests.some((r) => r.status === 'pending')) {
+        return { ok: false, error: 'You already have a pending request for this quiz.' }
+      }
+
+      const access = getQuizAccess({ quiz, attempts, requests })
+      if (type === 'late' && !access.canRequestLate) {
+        return { ok: false, error: 'Late access cannot be requested for this quiz right now.' }
+      }
+      if (type === 'retake' && !access.canRequestRetake) {
+        return { ok: false, error: 'A retake cannot be requested for this quiz right now.' }
+      }
+
+      const request = {
+        id: uid('qr'),
+        traineeId: user.id,
+        traineeName: user.name,
+        programId,
+        quizId,
+        quizTitle: quiz.title,
+        type,
+        status: 'pending',
+        requestedAt: new Date().toISOString(),
+        decidedAt: null,
+        decidedBy: null,
+        decidedByName: null,
+        note: '',
+        attemptsGranted: 0,
+        attemptsUsed: 0,
+      }
+      commit((prev) => ({ ...prev, quizRequests: [...(prev.quizRequests || []), request] }))
+      toast(
+        type === 'late' ? 'Late access request sent to your trainer.' : 'Retake request sent to your trainer.',
+        'success',
+      )
+      return { ok: true, request }
+    },
+    [commit, toast, user],
+  )
+
+  // Trainer (or Super Admin) decision. Approving grants exactly one attempt.
+  const decideQuizRequest = useCallback(
+    (requestId, decision, note = '') => {
+      if (!user) return { ok: false, error: 'Not signed in.' }
+      const d = dbRef.current
+      const request = (d.quizRequests || []).find((r) => r.id === requestId)
+      if (!request) return { ok: false, error: 'Request not found.' }
+      if (request.status !== 'pending') return { ok: false, error: 'This request has already been decided.' }
+
+      const program = d.programs.find((p) => p.id === request.programId)
+      const assigned = (d.trainerPrograms || []).some(
+        (tp) => tp.trainerId === user.id && tp.programId === request.programId && tp.status !== 'revoked',
+      )
+      if (user.role !== 'admin' && program?.trainerId !== user.id && !assigned) {
+        return { ok: false, error: 'You can only decide requests for your own programs.' }
+      }
+
+      const approved = decision === 'approved'
+      commit((prev) => ({
+        ...prev,
+        quizRequests: (prev.quizRequests || []).map((r) =>
+          r.id === requestId
+            ? {
+                ...r,
+                status: approved ? 'approved' : 'rejected',
+                decidedAt: new Date().toISOString(),
+                decidedBy: user.id,
+                decidedByName: user.name,
+                note: note || '',
+                attemptsGranted: approved ? 1 : 0,
+                attemptsUsed: 0,
+              }
+            : r,
+        ),
+      }))
+      toast(approved ? 'Request approved — the trainee can now take the quiz.' : 'Request rejected.', approved ? 'success' : 'info')
+      return { ok: true }
+    },
+    [commit, toast, user],
+  )
+
+  // Starts (or resumes) an attempt. The start time is persisted as a
+  // `quizSessions` row, so leaving the quiz and coming back continues the same
+  // 30-minute clock instead of restarting it.
+  const startQuizAttempt = useCallback(
+    ({ programId, quizId }) => {
+      if (!user) return { ok: false, error: 'Sign in to start the quiz.' }
+      const d = dbRef.current
+      const program = d.programs.find((p) => p.id === programId)
+      const quiz = program?.quizzes?.find((q) => q.id === quizId)
+      if (!quiz) return { ok: false, error: 'Quiz not found.' }
+
+      const attempts = d.quizAttempts.filter((a) => a.traineeId === user.id && a.quizId === quizId)
+      const requests = (d.quizRequests || []).filter((r) => r.traineeId === user.id && r.quizId === quizId)
+      const sessions = (d.quizSessions || []).filter((s) => s.traineeId === user.id && s.quizId === quizId)
+      const access = getQuizAccess({ quiz, attempts, requests, sessions })
+
+      if (access.session && access.canResume) return { ok: true, session: access.session, resumed: true }
+      if (!access.canStart) {
+        return { ok: false, error: quizBlockedMessage(access) || 'This quiz is not available.' }
+      }
+
+      const session = {
+        id: uid('qs'),
+        traineeId: user.id,
+        programId,
+        quizId,
+        startedAt: new Date().toISOString(),
+      }
+      // The approval is consumed when the attempt is submitted, together with
+      // the database trigger that guards the quiz_attempts insert.
+      commit((prev) => ({
+        ...prev,
+        quizSessions: [...(prev.quizSessions || []), session],
+      }))
+      return { ok: true, session, resumed: false }
+    },
+    [commit, user],
+  )
+
   // ----------------------------- Quiz attempts ------------------------------
+  // Guarded write: the same access rules the UI uses are re-checked here, so a
+  // tampered client cannot record an unauthorized attempt.
   const recordQuizAttempt = useCallback(
-    (attempt) => {
-      commit((d) => ({ ...d, quizAttempts: [...d.quizAttempts, { ...attempt, id: uid('qa') }] }))
+    (attempt, sessionId = null) => {
+      const d = dbRef.current
+      const program = d.programs.find((p) => p.id === attempt.programId)
+      const quiz = program?.quizzes?.find((q) => q.id === attempt.quizId)
+      if (!quiz) return { ok: false, error: 'Quiz not found.' }
+
+      const attempts = d.quizAttempts.filter((a) => a.traineeId === attempt.traineeId && a.quizId === attempt.quizId)
+      const requests = (d.quizRequests || []).filter(
+        (r) => r.traineeId === attempt.traineeId && r.quizId === attempt.quizId,
+      )
+      const sessions = (d.quizSessions || []).filter(
+        (s) => s.traineeId === attempt.traineeId && s.quizId === attempt.quizId,
+      )
+      const session = sessionId ? sessions.find((s) => s.id === sessionId) : null
+      // Evaluate at the moment the trainee started, so a quiz that runs past the
+      // deadline still counts as authorized.
+      const access = getQuizAccess({ quiz, attempts, requests, sessions, now: new Date(attempt.startedAt || Date.now()) })
+      // A started session is already authorized (it may be past its clock now).
+      if (!session && !access.canStart) return { ok: false, error: 'This quiz attempt is not authorized.' }
+
+      const grantedId = access.approvedRequest?.id || null
+      commit((prev) => ({
+        ...prev,
+        quizAttempts: [...prev.quizAttempts, { ...attempt, id: attempt.id || uid('qa') }],
+        quizSessions: sessionId ? (prev.quizSessions || []).filter((s) => s.id !== sessionId) : prev.quizSessions || [],
+        quizRequests: grantedId
+          ? (prev.quizRequests || []).map((r) =>
+              r.id === grantedId ? { ...r, attemptsUsed: Number(r.attemptsUsed || 0) + 1 } : r,
+            )
+          : prev.quizRequests || [],
+      }))
+      return { ok: true }
     },
     [commit],
   )
 
+  // Exam attempts are also schedule-guarded. Exams keep their existing retake
+  // behaviour, but nothing can be submitted outside the trainer's window.
   const recordExamAttempt = useCallback(
     (attempt) => {
-      commit((d) => ({ ...d, examAttempts: [...d.examAttempts, { ...attempt, id: uid('ea') }] }))
+      const d = dbRef.current
+      const program = d.programs.find((p) => p.id === attempt.programId)
+      const exam = program?.exams?.find((e) => e.id === attempt.examId)
+      if (!exam) return { ok: false, error: 'Exam not found.' }
+
+      const window = quizWindow(exam, new Date(attempt.startedAt || Date.now()))
+      if (!window.scheduled) return { ok: false, error: 'Your trainer has not scheduled this exam yet.' }
+      if (window.beforeStart) return { ok: false, error: 'This exam is not open yet.' }
+      if (window.afterDeadline) return { ok: false, error: 'The exam deadline has passed.' }
+
+      commit((prev) => ({ ...prev, examAttempts: [...prev.examAttempts, { ...attempt, id: uid('ea') }] }))
+      return { ok: true }
     },
     [commit],
   )
@@ -1230,6 +1415,9 @@ export function AppProvider({ children }) {
       toggleLessonComplete,
       // assessments
       recordQuizAttempt,
+      startQuizAttempt,
+      requestQuizAccess,
+      decideQuizRequest,
       recordExamAttempt,
       recordTypingTest,
       // attendance
@@ -1286,6 +1474,9 @@ export function AppProvider({ children }) {
       recordPayment,
       toggleLessonComplete,
       recordQuizAttempt,
+      startQuizAttempt,
+      requestQuizAccess,
+      decideQuizRequest,
       recordExamAttempt,
       recordTypingTest,
       saveAttendance,

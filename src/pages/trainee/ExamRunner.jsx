@@ -12,12 +12,16 @@ import {
   ListChecks,
   Trophy,
   FileCheck2,
+  CalendarDays,
+  Lock,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { enrollmentOf, programById, traineeExamAttempts, hasCourseAccess } from '../../store/selectors'
 import { Card, CardBody, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { cn, formatDate } from '../../lib/utils'
+import { quizWindow, formatQuizSchedule } from '../../lib/quizAccess'
+import { attemptSeconds, formatCountdown } from '../../lib/quizTimer'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
@@ -50,9 +54,10 @@ export function ExamRunner() {
   const [phase, setPhase] = useState('intro')
   const [answers, setAnswers] = useState({})
   const [current, setCurrent] = useState(0)
-  const [secondsLeft, setSecondsLeft] = useState((exam?.timeLimit || 30) * 60)
+  const [secondsLeft, setSecondsLeft] = useState(attemptSeconds('exam'))
   const [result, setResult] = useState(null)
   const submittedRef = useRef(false)
+  const startedAtRef = useRef(null)
 
   const history = traineeExamAttempts(db, user.id, programId).filter((a) => a.examId === examId)
 
@@ -69,6 +74,10 @@ export function ExamRunner() {
 
   if (!program || !enrollment || !exam) return <Navigate to="/trainee/courses" replace />
   if (!hasCourseAccess(enrollment)) return <Navigate to={`/trainee/courses/${programId}`} replace />
+
+  const examWindow = quizWindow(exam)
+  // An exam needs a trainer schedule before it can be taken.
+  const isOpen = examWindow.scheduled && !examWindow.beforeStart && !examWindow.afterDeadline
 
   const total = questions.length
   const answeredCount = Object.values(answers).filter((v) => v !== undefined && v !== '').length
@@ -94,24 +103,41 @@ export function ExamRunner() {
       percentage,
       passed,
       date: new Date().toISOString().slice(0, 10),
+      startedAt: startedAtRef.current || new Date().toISOString(),
       answers: graded,
     }
-    recordExamAttempt(attempt)
+    const res = recordExamAttempt(attempt)
+    if (!res.ok) {
+      submittedRef.current = false
+      toast(res.error || 'This exam attempt is not authorized.', 'error')
+      setPhase('intro')
+      return
+    }
     setResult(attempt)
     setPhase('result')
     toast(auto ? 'Time is up — exam submitted automatically.' : 'Exam submitted successfully.', auto ? 'warning' : 'success')
   }
 
   const start = () => {
+    if (!isOpen) {
+      toast(
+        !examWindow.scheduled
+          ? 'Your trainer has not scheduled this exam yet.'
+          : examWindow.beforeStart
+            ? 'This exam is not open yet.'
+            : 'The exam deadline has passed.',
+        'warning',
+      )
+      return
+    }
+    startedAtRef.current = new Date().toISOString()
     setAnswers({})
     setCurrent(0)
-    setSecondsLeft(exam.timeLimit * 60)
+    setSecondsLeft(attemptSeconds('exam'))
     setResult(null)
     submittedRef.current = false
     setPhase('taking')
   }
-
-  const mmss = (s) => `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`
 
   if (phase === 'intro') {
     return (
@@ -131,7 +157,7 @@ export function ExamRunner() {
             <div className="mt-5 grid grid-cols-3 gap-3">
               {[
                 { label: 'Questions', value: total },
-                { label: 'Time limit', value: `${exam.timeLimit} min` },
+                { label: 'Time limit', value: '60 min' },
                 { label: 'Passing score', value: `${exam.passing}%` },
               ].map((s) => (
                 <div key={s.label} className="rounded-lg bg-white/10 p-3 text-center">
@@ -148,17 +174,51 @@ export function ExamRunner() {
               </p>
               <ul className="mt-2 space-y-1 text-amber-700">
                 <li>• This is a supervised competency assessment exam.</li>
-                <li>• You have {exam.timeLimit} minutes — the exam auto-submits when time expires.</li>
+                <li>• You have 60 minutes — the exam auto-submits when time expires.</li>
                 <li>• A minimum of {exam.passing}% is required to pass.</li>
               </ul>
             </div>
+            <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
+              <span className="inline-flex items-center gap-1.5">
+                <CalendarDays className="h-4 w-4 text-slate-400" /> {formatQuizSchedule(exam)}
+              </span>
+              <Badge
+                tone={
+                  !examWindow.scheduled
+                    ? 'neutral'
+                    : examWindow.beforeStart
+                      ? 'info'
+                      : examWindow.afterDeadline
+                        ? 'danger'
+                        : 'success'
+                }
+              >
+                {!examWindow.scheduled
+                  ? 'Not scheduled'
+                  : examWindow.beforeStart
+                    ? 'Scheduled'
+                    : examWindow.afterDeadline
+                      ? 'Closed'
+                      : 'Open'}
+              </Badge>
+            </div>
             <div className="flex items-center justify-between text-sm text-slate-600">
-              <span>Exam date: {formatDate(exam.date)}</span>
+              <span>Exam status</span>
               <StatusBadge status={exam.status} />
             </div>
-            <Button className="w-full" size="lg" onClick={start} icon={FileCheck2}>
-              {history.length ? 'Retake Exam' : 'Start Exam'}
-            </Button>
+            {isOpen ? (
+              <Button className="w-full" size="lg" onClick={start} icon={FileCheck2}>
+                {history.length ? 'Retake Exam' : 'Start Exam'}
+              </Button>
+            ) : (
+              <Button className="w-full" size="lg" variant="secondary" icon={Lock} disabled>
+                {!examWindow.scheduled
+                  ? 'Not scheduled yet'
+                  : examWindow.beforeStart
+                    ? 'Exam not yet available'
+                    : 'Exam closed'}
+              </Button>
+            )}
           </CardBody>
         </Card>
       </div>
@@ -184,7 +244,7 @@ export function ExamRunner() {
             )}
           >
             <Clock className="h-4 w-4" />
-            {mmss(secondsLeft)}
+            {formatCountdown(secondsLeft)}
           </div>
         </div>
         <ProgressBar value={((current + 1) / total) * 100} />

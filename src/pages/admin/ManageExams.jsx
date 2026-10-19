@@ -5,6 +5,7 @@ import { PageHeader, Card, CardHeader, Badge, StatCard, Select, Modal, Button, E
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { average, formatDate } from '../../lib/utils'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 export function ManageExams() {
@@ -37,7 +38,7 @@ export function ManageExams() {
     },
     { key: 'competency', header: 'Competency', render: (r) => <Badge tone="purple">{r.competency}</Badge> },
     { key: 'questionCount', header: 'Items', sortable: true },
-    { key: 'timeLimit', header: 'Time', render: (r) => `${r.timeLimit} min` },
+    { key: 'timeLimit', header: 'Time', render: () => `${ATTEMPT_MINUTES.exam} min` },
     { key: 'passing', header: 'Passing', render: (r) => `${r.passing}%` },
     { key: 'date', header: 'Exam Date', sortable: true, render: (r) => formatDate(r.date) },
     {
@@ -107,7 +108,7 @@ export function ManageExams() {
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
                 { label: 'Questions', value: selected.questionCount },
-                { label: 'Time Limit', value: `${selected.timeLimit} min` },
+                { label: 'Time Limit', value: `${ATTEMPT_MINUTES.exam} min` },
                 { label: 'Passing', value: `${selected.passing}%` },
                 { label: 'Exam Date', value: formatDate(selected.date) },
               ].map((s) => (

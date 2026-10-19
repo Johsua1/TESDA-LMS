@@ -27,6 +27,14 @@ const COLLECTIONS = {
     onConflict: 'trainee_id,schedule_id',
   },
   quizAttempts: { table: 'quiz_attempts', scalars: { traineeId: 'trainee_id', programId: 'program_id' } },
+  quizRequests: {
+    table: 'quiz_requests',
+    scalars: { traineeId: 'trainee_id', programId: 'program_id', quizId: 'quiz_id', status: 'status' },
+  },
+  quizSessions: {
+    table: 'quiz_sessions',
+    scalars: { traineeId: 'trainee_id', programId: 'program_id', quizId: 'quiz_id' },
+  },
   examAttempts: { table: 'exam_attempts', scalars: { traineeId: 'trainee_id', programId: 'program_id' } },
   typingTests: {
     table: 'typing_tests',
@@ -198,6 +206,28 @@ export async function upsertRows(collection, objs) {
   if (error) throw error
 }
 
+// quiz_requests are created by trainees and decided by trainers, so a blanket
+// upsert breaks RLS: `insert ... on conflict do update` still evaluates the
+// INSERT policy (trainee_id = me AND status = 'pending'), which a trainer's
+// approval can never satisfy. Update existing rows with PATCH and only INSERT
+// the rows that do not exist yet.
+async function writeQuizRequests(objs) {
+  for (const obj of objs) {
+    // `objs` are app objects, not rows — map them the same way the bulk writer
+    // does so nested fields land in `data` instead of being sent as columns.
+    const row = toRow('quizRequests', obj)
+    const { data, error } = await supabase
+      .from('quiz_requests')
+      .update(row)
+      .eq('id', row.id)
+      .select('id')
+    if (error) throw error
+    if (data?.length) continue
+    const { error: insertError } = await supabase.from('quiz_requests').insert(row)
+    if (insertError) throw insertError
+  }
+}
+
 export async function deleteRow(collection, id) {
   if (!id) return
   const { error } = await supabase.from(COLLECTIONS[collection].table).delete().eq('id', id)
@@ -238,12 +268,22 @@ export function diffRows(prevArr = [], nextArr = []) {
 // auth links and must go through the admin RPCs / self-service paths).
 export async function syncCollections(prev, next) {
   const tasks = []
+  const deferred = []
   for (const name of COLLECTION_NAMES) {
     const { upserts, deletes } = diffRows(prev?.[name], next?.[name])
+    // Quiz attempts must land before quiz-request counter updates: the
+    // quiz_attempts trigger consumes the approval, and a concurrent write of
+    // the already-incremented counter would make the grant look used.
+    if (name === 'quizRequests') {
+      if (upserts.length) deferred.push(writeQuizRequests(upserts))
+      for (const id of deletes) deferred.push(deleteRow(name, id))
+      continue
+    }
     if (upserts.length) tasks.push(upsertRows(name, upserts))
     for (const id of deletes) tasks.push(deleteRow(name, id))
   }
   await Promise.all(tasks)
+  await Promise.all(deferred)
 }
 
 // ---------------------------------- auth ------------------------------------

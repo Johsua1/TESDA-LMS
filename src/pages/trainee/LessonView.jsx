@@ -18,6 +18,7 @@ import { programLessons } from '../../data/programs'
 import { Card, CardBody, CardHeader, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { cn, videoEmbed } from '../../lib/utils'
+import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 
 const fileIcon = { pdf: '📄', doc: '📝', xls: '📊', zip: '🗜️' }
 
@@ -254,7 +255,7 @@ export function LessonView() {
                 <p className="text-sm font-medium text-slate-700">{quiz.title}</p>
                 <div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                   <span>{quiz.questions.length} items</span>
-                  <span>{quiz.timeLimit} min</span>
+                  <span>{ATTEMPT_MINUTES.quiz} min</span>
                   <span>{quiz.passing}% to pass</span>
                 </div>
                 <div className="mt-3 flex items-center justify-between">
