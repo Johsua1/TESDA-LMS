@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useLocation } from 'react-router-dom'
-import { CalendarCheck, Save, Users, CheckCircle2, Clock, UserX, FileCheck2 } from 'lucide-react'
+import { CalendarCheck, CalendarDays, Save, Users, CheckCircle2, Clock, UserX, FileCheck2 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerPrograms, trainerEnrollments, programById } from '../../store/selectors'
 import { PageHeader, Card, CardBody, CardHeader, Button, Select, Badge, EmptyState, StatCard, Avatar } from '../../components/ui'
@@ -199,6 +199,10 @@ export function TrainerAttendance() {
                       <div>
                         <p className="text-sm font-medium text-slate-700">{r.trainee.name}</p>
                         <p className="text-xs text-slate-400">{r.trainee.email}</p>
+                        <p className="mt-1 inline-flex items-center gap-1 text-[11px] font-medium text-slate-500">
+                          <CalendarDays className="h-3 w-3 text-slate-400" />
+                          Attendance date: {formatDate(r.existing?.date || schedule.date, { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
                       </div>
                     </div>
 

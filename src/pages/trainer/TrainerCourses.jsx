@@ -5,7 +5,7 @@ import { trainerPrograms, trainerEnrollments, courseProgress } from '../../store
 import { programLessonCount, programQuizCount } from '../../data/programs'
 import { PageHeader, Card, CardBody, ProgressBar, Button, Badge, EmptyState } from '../../components/ui'
 import { CourseIcon } from '../../components/courses/CourseIcon'
-import { average, cn, formatDate } from '../../lib/utils'
+import { average, cn } from '../../lib/utils'
 
 export function TrainerCourses() {
   const { db, user } = useApp()
@@ -79,7 +79,6 @@ export function TrainerCourses() {
 
                   <div className="flex items-center justify-between border-t border-slate-100 pt-3 text-xs text-slate-500">
                     <span>{completed} completed · {enrs.length} total enrolled</span>
-                    <span>Exam: {formatDate(p.exams[0]?.date)}</span>
                   </div>
 
                   <Link to={`/trainer/courses/${p.id}`}>
