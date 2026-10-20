@@ -81,7 +81,7 @@ export const users = [
     password: 'trainer123',
     avatarColor: 'from-indigo-500 to-violet-600',
     position: 'Virtual Assistant Trainer',
-    specialization: 'Virtual Assistant (Special Program)',
+    specialization: 'Virtual Assistant NC II',
     programs: ['virtual-assistant'],
     phone: '+63 917 100 0005',
     address: 'Taguig City',

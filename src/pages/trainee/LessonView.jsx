@@ -17,6 +17,7 @@ import { enrollmentOf, programById, traineeQuizAttempts, hasCourseAccess } from 
 import { programLessons } from '../../data/programs'
 import { Card, CardBody, CardHeader, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
+import { CourseBackdrop } from '../../components/courses/CourseBackdrop'
 import { cn, videoEmbed } from '../../lib/utils'
 import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 
@@ -49,7 +50,8 @@ export function LessonView() {
   }
 
   return (
-    <div className="space-y-5">
+    <div className="relative isolate space-y-5">
+      <CourseBackdrop program={program} />
       <div className="flex flex-wrap items-center justify-between gap-3">
         <Link
           to={`/trainee/courses/${programId}`}

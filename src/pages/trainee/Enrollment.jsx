@@ -41,9 +41,6 @@ const VOUCHER_OPTIONS = [
   'PESO Skills Training Voucher',
 ]
 
-// Programs whose self-enrollment is temporarily disabled — shown as "Coming Soon".
-const COMING_SOON_PROGRAM_IDS = ['virtual-assistant']
-
 export function Enrollment() {
   const { db, user, createEnrollment, toast } = useApp()
   const myEnrollments = enrollmentsOf(db, user.id)
@@ -228,17 +225,6 @@ export function Enrollment() {
                     <Button className="mt-4" size="sm" variant="secondary" disabled>
                       Already applied
                     </Button>
-                  ) : COMING_SOON_PROGRAM_IDS.includes(p.id) ? (
-                    <>
-                      <div className="mt-4">
-                        <Badge tone="warning" dot>
-                          Coming Soon
-                        </Badge>
-                      </div>
-                      <Button className="mt-2" size="sm" disabled>
-                        Enroll Now
-                      </Button>
-                    </>
                   ) : p.enrollable ? (
                     <>
                       <div className="mt-4">

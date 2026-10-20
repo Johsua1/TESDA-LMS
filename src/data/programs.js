@@ -1,7 +1,7 @@
 // ---------------------------------------------------------------------------
 // TESDA LMS - Training Program / Course mock data
-// 5 programs: Housekeeping, Barista, Hilot/Massage, Event Management,
-// Virtual Assistant (special/bonus program)
+// 6 programs: Housekeeping, Barista, Hilot/Massage, Event Management,
+// Virtual Assistant (special/bonus program), Bookkeeping
 // ---------------------------------------------------------------------------
 
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
@@ -574,6 +574,142 @@ const coreCompetencies = {
       ],
     },
   ],
+  bookkeeping: [
+    {
+      title: 'Accounting Fundamentals',
+      description: 'Understand the purpose of bookkeeping and the principles behind every recorded transaction.',
+      lessons: [
+        {
+          title: 'Introduction to Bookkeeping & Accounting',
+          description: 'Distinguish bookkeeping from accounting and identify the duties of a bookkeeper.',
+          duration: 45,
+          content:
+            'Bookkeeping is the systematic recording of business transactions. This lesson covers the duties of a bookkeeper, the stages of the accounting cycle, the users of financial information, and the business records that must be kept.',
+          materials: [{ name: 'Bookkeeping Overview.pdf', type: 'pdf' }],
+        },
+        {
+          title: 'The Accounting Equation & Double-Entry System',
+          description: 'Apply the accounting equation and the rules of debit and credit.',
+          duration: 55,
+          content:
+            'Every transaction keeps the accounting equation (Assets = Liabilities + Equity) in balance. Learn the rules of debit and credit for assets, liabilities, equity, revenue and expenses, and analyze transactions using the double-entry system.',
+          materials: [
+            { name: 'Accounting Equation Worksheet.xlsx', type: 'xls' },
+            { name: 'Debit and Credit Rules.pdf', type: 'pdf' },
+          ],
+        },
+        {
+          title: 'Accounting Concepts & the Accounting Cycle',
+          description: 'Identify the assumptions, principles and steps that guide financial recording.',
+          duration: 50,
+          content:
+            'Study the fundamental concepts — accrual, going concern, matching, consistency and materiality — and walk through the full accounting cycle from source documents to the closing entries.',
+          materials: [{ name: 'Accounting Cycle Diagram.pdf', type: 'pdf' }],
+        },
+      ],
+    },
+    {
+      title: 'Recording Business Transactions',
+      description: 'Analyze source documents and record transactions in the books of accounts.',
+      lessons: [
+        {
+          title: 'Source Documents & the Chart of Accounts',
+          description: 'Verify business documents and classify accounts correctly.',
+          duration: 50,
+          content:
+            'Learn to check invoices, receipts, vouchers and statements for completeness and accuracy, then assign each transaction to the proper account using a well-designed chart of accounts.',
+          materials: [{ name: 'Sample Source Documents.pdf', type: 'pdf' }],
+        },
+        {
+          title: 'Journalizing in the General Journal',
+          description: 'Record transactions chronologically with correct debits and credits.',
+          duration: 60,
+          content:
+            'Practice recording entries in the general journal: date, account titles, debit and credit amounts, and a short explanation. Covers compound entries and correcting entries.',
+          materials: [{ name: 'General Journal Template.xlsx', type: 'xls' }],
+        },
+        {
+          title: 'Special Journals & Subsidiary Ledgers',
+          description: 'Use special journals and subsidiary records for high-volume transactions.',
+          duration: 55,
+          content:
+            'Learn how the sales, purchases, cash receipts and cash payments journals simplify recording, and how subsidiary ledgers track individual customers and suppliers.',
+          materials: [{ name: 'Special Journals Guide.pdf', type: 'pdf' }],
+        },
+      ],
+    },
+    {
+      title: 'Posting & the Trial Balance',
+      description: 'Transfer journal entries to the ledger and prove the accuracy of the records.',
+      lessons: [
+        {
+          title: 'Posting to the General Ledger',
+          description: 'Post journal entries to the correct ledger accounts.',
+          duration: 55,
+          content:
+            'Follow the posting procedure: locate the account, enter the date, amount and journal reference, then update the running balance for each account.',
+          materials: [{ name: 'Ledger Posting Practice.xlsx', type: 'xls' }],
+        },
+        {
+          title: 'Preparing the Trial Balance',
+          description: 'Prepare a trial balance and locate errors when it does not balance.',
+          duration: 45,
+          content:
+            'Prepare an unadjusted trial balance listing every account and its balance, then apply techniques such as recomputing, checking postings and tracing entries to find errors.',
+          materials: [{ name: 'Trial Balance Worksheet.xlsx', type: 'xls' }],
+        },
+        {
+          title: 'Adjusting Entries & the Worksheet',
+          description: 'Record accruals, deferrals, depreciation and other period-end adjustments.',
+          duration: 60,
+          content:
+            'Adjust the records at period end for accrued revenues and expenses, prepayments, unearned income, depreciation and inventory, and complete a worksheet to produce the adjusted trial balance.',
+          materials: [{ name: 'Adjusting Entries Guide.pdf', type: 'pdf' }],
+        },
+      ],
+    },
+    {
+      title: 'Financial Reports & Compliance',
+      description: 'Prepare financial statements and keep records compliant with reporting requirements.',
+      lessons: [
+        {
+          title: 'Preparing the Income Statement',
+          description: 'Compute gross profit, operating income and net income.',
+          duration: 55,
+          content:
+            'Prepare a single-step and multi-step income statement, classify revenues and expenses, and compute gross profit, operating income and net income for the period.',
+          materials: [{ name: 'Income Statement Template.xlsx', type: 'xls' }],
+        },
+        {
+          title: 'Preparing the Statement of Financial Position',
+          description: 'Classify and present assets, liabilities and equity.',
+          duration: 55,
+          content:
+            'Prepare the statement of financial position using the classified format, distinguishing current from non-current items and presenting equity for sole proprietorships, partnerships and corporations.',
+          materials: [{ name: 'Statement of Financial Position Template.xlsx', type: 'xls' }],
+        },
+        {
+          title: 'Bank Reconciliation & Internal Control',
+          description: 'Reconcile the cash book with the bank statement and apply basic controls.',
+          duration: 50,
+          content:
+            'Prepare a bank reconciliation by adjusting for deposits in transit, outstanding checks, bank charges and errors. Discuss segregation of duties, authorization and documentation as basic internal controls.',
+          materials: [{ name: 'Bank Reconciliation Form.xlsx', type: 'xls' }],
+        },
+        {
+          title: 'Payroll, Taxes & Record Keeping',
+          description: 'Maintain payroll records and keep books compliant and audit-ready.',
+          duration: 45,
+          content:
+            'Compute gross and net pay with statutory deductions, record payroll entries, and learn the retention, safekeeping and reporting requirements for business books and records.',
+          materials: [
+            { name: 'Payroll Register Template.xlsx', type: 'xls' },
+            { name: 'Record Keeping Checklist.pdf', type: 'pdf' },
+          ],
+        },
+      ],
+    },
+  ],
 }
 
 // Quiz bank per program (attached to specific lessons)
@@ -759,6 +895,42 @@ const quizBank = {
       ],
     },
   ],
+  bookkeeping: [
+    {
+      title: 'Accounting Fundamentals Quiz',
+      passing: 75,
+      timeLimit: 30,
+      questions: [
+        { type: 'mcq', q: 'Which accounting equation is correct?', options: ['Assets = Liabilities + Equity', 'Assets = Liabilities - Equity', 'Equity = Assets + Liabilities', 'Liabilities = Assets + Equity'], answer: 'Assets = Liabilities + Equity' },
+        { type: 'tf', q: 'In double-entry bookkeeping, every transaction affects at least two accounts.', answer: true },
+        { type: 'id', q: 'The left side of a T-account is called the ______ side.', answer: 'debit' },
+        { type: 'mcq', q: 'Which document is the source document for a sale on account?', options: ['Sales invoice', 'Payroll register', 'Bank statement', 'Petty cash voucher'], answer: 'Sales invoice' },
+        { type: 'tf', q: 'Bookkeeping and accounting mean exactly the same thing.', answer: false },
+      ],
+    },
+    {
+      title: 'Journalizing & Ledger Quiz',
+      passing: 75,
+      timeLimit: 30,
+      questions: [
+        { type: 'mcq', q: 'Which journal is used to record sales on credit?', options: ['Sales journal', 'Cash receipts journal', 'General journal', 'Petty cash journal'], answer: 'Sales journal' },
+        { type: 'tf', q: 'Posting transfers entries from the journal to the ledger.', answer: true },
+        { type: 'id', q: 'A ______ is a list of all the accounts used by a business.', answer: 'chart of accounts' },
+        { type: 'mcq', q: 'A trial balance is prepared to:', options: ['Check that total debits equal total credits', 'Compute net income', 'Record adjusting entries', 'Close the books'], answer: 'Check that total debits equal total credits' },
+      ],
+    },
+    {
+      title: 'Financial Statements Quiz',
+      passing: 75,
+      timeLimit: 30,
+      questions: [
+        { type: 'mcq', q: 'Which statement reports revenues and expenses for a period?', options: ['Income statement', 'Statement of financial position', 'Trial balance', 'General journal'], answer: 'Income statement' },
+        { type: 'tf', q: 'Accumulated depreciation is a contra-asset account.', answer: true },
+        { type: 'id', q: 'Assets minus liabilities equals ______.', answer: 'equity' },
+        { type: 'mcq', q: 'Which account appears in the statement of financial position?', options: ['Accounts payable', 'Service revenue', 'Rent expense', 'Sales discount'], answer: 'Accounts payable' },
+      ],
+    },
+  ],
 }
 
 // Build the final program objects
@@ -867,6 +1039,9 @@ function buildProgram(meta) {
     fee: meta.fee,
     color: meta.color,
     image: meta.image,
+    // Renders the cover as a soft backdrop on the course pages (see
+    // components/courses/CourseBackdrop.jsx).
+    coverBackground: !!meta.coverBackground,
     requirements: meta.requirements,
     trainerId: meta.trainerId,
     competencies: [basic, common, core],
@@ -1005,15 +1180,13 @@ export const programs = [
   buildProgram({
     id: 'virtual-assistant',
     code: 'VA-510',
-    title: 'Virtual Assistant (Special Program)',
+    title: 'Virtual Assistant NC II',
     category: 'Information Technology',
-    level: 'Special',
-    special: true,
-    enrollable: true,
+    level: 'NC II',
     description:
       'Become a professional virtual assistant: admin support, communication, social media management and tool proficiency.',
     overview:
-      'The Virtual Assistant special program prepares trainees for remote work as a VA. It covers the VA profession, remote work setup, administrative support, client communication, customer support, social media management, and tool proficiency — including a proctored typing test evaluation.',
+      'The Virtual Assistant NC II program prepares trainees for remote work as a VA. It covers the VA profession, remote work setup, administrative support, client communication, customer support, social media management, and tool proficiency — including a proctored typing test evaluation.',
     duration: '8 Weeks',
     hours: 100,
     fee: 5000,
@@ -1030,6 +1203,35 @@ export const programs = [
       'Stable internet connection (min. 5 Mbps)',
       'Birth certificate (PSA)',
       '2 pcs. 2x2 ID picture',
+    ],
+  }),
+  buildProgram({
+    id: 'bookkeeping',
+    code: 'BK-612',
+    title: 'Bookkeeping NC III',
+    category: 'Business & Finance',
+    level: 'NC III',
+    description:
+      'Record business transactions, maintain ledgers, prepare trial balances and produce financial statements for small and medium enterprises.',
+    overview:
+      'The Bookkeeping NC III program prepares trainees to keep complete and accurate books of accounts. It covers accounting fundamentals, journalizing and posting, the trial balance and adjusting entries, and the preparation of financial statements, bank reconciliation and payroll records for a business enterprise.',
+    duration: '3 months',
+    hours: 180,
+    fee: 9000,
+    color: 'from-slate-700 to-slate-900',
+    image: '/courses/bookkeeping.jpg',
+    coverBackground: true,
+    trainerId: null,
+    examDate: '2026-12-10',
+    coreDescription:
+      'Core competencies of Bookkeeping NC III: accounting fundamentals, recording business transactions, posting and the trial balance, and preparing financial reports.',
+    requirements: [
+      'At least 18 years old',
+      'High School graduate or ALS equivalent',
+      'Basic numeracy and computer skills',
+      'Birth certificate (PSA)',
+      '2 pcs. 2x2 ID picture',
+      'Barangay clearance',
     ],
   }),
 ]

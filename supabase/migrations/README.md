@@ -1,7 +1,7 @@
 # Supabase migrations
 
 Run these **in numeric order**, after the baseline `supabase/schema.sql`
-(the baseline creates the core LMS tables and seeds the 5-program catalog).
+(the baseline creates the core LMS tables and seeds the 6-program catalog).
 
 ```
 001_extensions.sql          pgcrypto (+citext when available)

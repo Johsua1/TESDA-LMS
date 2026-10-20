@@ -33,6 +33,7 @@ const ICON_BY_ID = {
   hilot: HandHeart,
   'event-management': PartyPopper,
   'virtual-assistant': Laptop,
+  bookkeeping: Briefcase,
 }
 
 // Fallback: match the category/title against common TVET program keywords.

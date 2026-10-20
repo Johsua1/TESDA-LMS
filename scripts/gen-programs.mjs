@@ -8,7 +8,7 @@ import { programs } from '../src/data/programs.js'
 const q = (v) => (v == null ? 'null' : `'${String(v).replace(/'/g, "''")}'`)
 
 let sql = '\n-- =======================  SEED: PROGRAM CATALOG  =======================\n'
-sql += '-- The 5 training programs with their lessons, quizzes and exams.\n'
+sql += '-- The 6 training programs with their lessons, quizzes and exams.\n'
 sql += '-- Safe to re-run (upsert by id).\n\n'
 
 for (const p of programs) {
