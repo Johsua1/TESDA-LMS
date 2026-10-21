@@ -176,6 +176,10 @@ export function CourseDetail() {
   const progress = useMemo(() => courseProgress(enrollment, programId), [enrollment, programId])
   const attempts = traineeQuizAttempts(db, user.id, programId)
   const exams = traineeExamAttempts(db, user.id, programId)
+  // Which assessments the trainee has already answered, used by the Quizzes and
+  // Exams tabs so a taken quiz is never indistinguishable from a new one.
+  const takenQuizIds = new Set(attempts.map((a) => a.quizId))
+  const takenExamIds = new Set(exams.map((e) => e.examId))
 
   if (!program) return <Navigate to="/trainee/courses" replace />
 
@@ -389,30 +393,44 @@ export function CourseDetail() {
       )}
 
       {tab === 'quizzes' && (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {program.quizzes.map((quiz) => {
+        <div className="space-y-4">
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-4 py-3">
+            <p className="text-sm font-semibold text-slate-700">Quizzes</p>
+            <p className="text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">
+                {program.quizzes.filter((q) => takenQuizIds.has(q.id)).length}
+              </span>{' '}
+              of {program.quizzes.length} taken
+            </p>
+          </div>
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {program.quizzes.map((quiz, index) => {
             const quizAttempts = attempts.filter((a) => a.quizId === quiz.id)
             const best = quizAttempts.sort((a, b) => b.percentage - a.percentage)[0]
             const quizRequests = (db.quizRequests || []).filter((r) => r.traineeId === user.id && r.quizId === quiz.id)
             const quizSessions = (db.quizSessions || []).filter((s) => s.traineeId === user.id && s.quizId === quiz.id)
             const access = getQuizAccess({ quiz, attempts: quizAttempts, requests: quizRequests, sessions: quizSessions })
+            // Already submitted once — the card reports "Done" instead of
+            // falling through to the schedule state ("Not scheduled"), which
+            // is what a finished quiz used to show.
+            const taken = quizAttempts.length > 0
             const stateLabel = access.pendingRequest
               ? 'Pending approval'
               : access.approvedRequest
                 ? 'Approved'
                 : access.canResume
                   ? 'In progress'
-                  : !access.window.scheduled
-                  ? 'Not scheduled'
-                  : access.window.beforeStart
-                  ? 'Scheduled'
-                  : access.window.afterDeadline
-                    ? quizAttempts.length
-                      ? 'Closed'
-                      : 'Late access needed'
-                    : quizAttempts.length
-                      ? 'Completed'
-                      : 'Open'
+                  : taken
+                    ? 'Done'
+                    : access.expiredSession
+                      ? 'Time expired'
+                      : !access.window.scheduled
+                        ? 'Not scheduled'
+                        : access.window.beforeStart
+                          ? 'Scheduled'
+                          : access.window.afterDeadline
+                            ? 'Late access needed'
+                            : 'Open'
             const actionLabel = access.canStart
               ? access.approvedRequest
                 ? 'Start Approved Attempt'
@@ -423,13 +441,15 @@ export function CourseDetail() {
                 ? 'View request status'
                 : access.canResume
                   ? 'Resume Quiz'
-                  : !access.window.scheduled
-                  ? 'Not scheduled'
-                  : access.canRequestLate
-                    ? 'Request Late Access'
-                    : access.canRequestRetake
-                      ? 'Request Retake'
-                      : 'View quiz'
+                  : taken
+                    ? 'Done'
+                    : access.canRequestLate
+                      ? 'Request Late Access'
+                      : access.canRequestRetake
+                        ? 'Request Retake'
+                        : !access.window.scheduled
+                          ? 'Not scheduled'
+                          : 'View quiz'
             return (
               <Card key={quiz.id} className="flex flex-col p-4" hover>
                 <div className="flex items-start justify-between">
@@ -446,18 +466,25 @@ export function CourseDetail() {
                             ? 'warning'
                             : access.canResume
                               ? 'info'
-                              : access.window.beforeStart
-                              ? 'info'
-                              : access.window.afterDeadline
-                                ? 'danger'
-                                : 'neutral'
+                              : taken
+                                ? 'success'
+                                : access.expiredSession
+                                  ? 'danger'
+                                  : access.window.beforeStart
+                                    ? 'info'
+                                    : access.window.afterDeadline
+                                      ? 'danger'
+                                      : 'neutral'
                       }
                     >
                       {stateLabel}
                     </Badge>
                   </div>
                 </div>
-                <h4 className="mt-3 text-sm font-semibold text-slate-800">{quiz.title}</h4>
+                <h4 className="mt-3 text-sm font-semibold text-slate-800">
+                  <span className="font-medium text-slate-400">Quiz {index + 1} · </span>
+                  {quiz.title}
+                </h4>
                 <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
                   <CalendarDays className="h-3 w-3" /> {formatQuizSchedule(quiz)}
                 </p>
@@ -480,24 +507,39 @@ export function CourseDetail() {
                 )}
                 {access.window.scheduled || access.canStart || access.canResume || access.pendingRequest || access.canRequestLate || access.canRequestRetake ? (
                   <Link to={`/trainee/courses/${programId}/quiz/${quiz.id}`} className="mt-4 block">
-                    <Button size="sm" className="w-full" variant={access.canStart ? 'primary' : 'secondary'}>
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      variant={access.canStart ? 'primary' : 'secondary'}
+                      icon={taken && !access.canStart ? CheckCircle2 : undefined}
+                    >
                       {actionLabel}
                     </Button>
                   </Link>
                 ) : (
-                  <Button size="sm" className="mt-4 w-full" variant="secondary" disabled>
-                    Not scheduled
+                  <Button size="sm" className="mt-4 w-full" variant="secondary" icon={taken ? CheckCircle2 : undefined} disabled>
+                    {taken ? 'Done' : 'Not scheduled'}
                   </Button>
                 )}
               </Card>
             )
           })}
+          </div>
         </div>
       )}
 
       {tab === 'exams' && (
         <div className="space-y-4">
-          {program.exams.map((exam) => {
+          <div className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-100 bg-white px-4 py-3">
+            <p className="text-sm font-semibold text-slate-700">Exams</p>
+            <p className="text-xs text-slate-500">
+              <span className="font-semibold text-slate-700">
+                {program.exams.filter((e) => takenExamIds.has(e.id)).length}
+              </span>{' '}
+              of {program.exams.length} taken
+            </p>
+          </div>
+          {program.exams.map((exam, index) => {
             const attempt = exams.find((e) => e.examId === exam.id)
             const window = quizWindow(exam)
             const open = window.scheduled && !window.beforeStart && !window.afterDeadline
@@ -509,7 +551,10 @@ export function CourseDetail() {
                       <Award className="h-5 w-5" />
                     </span>
                     <div>
-                      <h4 className="text-sm font-semibold text-slate-800">{exam.title}</h4>
+                      <h4 className="text-sm font-semibold text-slate-800">
+                        <span className="font-medium text-slate-400">Exam {index + 1} · </span>
+                        {exam.title}
+                      </h4>
                       <div className="mt-1 flex flex-wrap gap-x-4 gap-y-1 text-xs text-slate-500">
                         <span>{exam.competency}</span>
                         <span>{exam.questionCount} items</span>
@@ -536,6 +581,7 @@ export function CourseDetail() {
                       </>
                     ) : open ? (
                       <>
+                        <Badge tone="neutral">Not taken</Badge>
                         <StatusBadge status={exam.status} />
                         <Link to={`/trainee/courses/${programId}/exam/${exam.id}`}>
                           <Button size="sm" icon={Video}>

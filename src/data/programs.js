@@ -4,6 +4,8 @@
 // Virtual Assistant (special/bonus program), Bookkeeping
 // ---------------------------------------------------------------------------
 
+import { lessonQuizQuestions, lessonQuizTimeLimit } from './lessonQuizzes.js'
+
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
 
 // Normalize lesson metadata: add order, publish flag, video URL and material ids
@@ -712,227 +714,6 @@ const coreCompetencies = {
   ],
 }
 
-// Quiz bank per program (attached to specific lessons)
-const quizBank = {
-  housekeeping: [
-    {
-      title: 'Housekeeping Safety & Sanitation Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'Which chemical is best for disinfecting bathroom surfaces?', options: ['Bleach solution', 'Cooking oil', 'Shampoo', 'Fabric softener'], answer: 'Bleach solution' },
-        { type: 'tf', q: 'Cleaning chemicals should always be stored in unlabeled containers.', answer: false },
-        { type: 'id', q: 'The process of removing dirt and germs from surfaces is called ______.', answer: 'sanitizing' },
-        { type: 'mcq', q: 'What is the correct order when cleaning a guest room?', options: ['Bathroom first, then bedroom', 'Dust top to bottom', 'Clean floor first', 'Make bed last only'], answer: 'Dust top to bottom' },
-        { type: 'tf', q: 'Wet floor signs should be placed after mopping to prevent accidents.', answer: true },
-      ],
-    },
-    {
-      title: 'Room Cleaning Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'How many flat sheets are typically used in triple sheeting?', options: ['One', 'Two', 'Three', 'Four'], answer: 'Three' },
-        { type: 'tf', q: 'You should knock and announce yourself before entering an occupied guest room.', answer: true },
-        { type: 'id', q: 'A _____ is used to collect dirty linen and trash from guest rooms.', answer: 'caddie' },
-        { type: 'mcq', q: 'Which area should be cleaned first in a bathroom?', options: ['Floor', 'Mirror and sink', 'Toilet', 'Shower'], answer: 'Mirror and sink' },
-        { type: 'tf', q: 'A guest room should be inspected before being released for occupancy.', answer: true },
-      ],
-    },
-    {
-      title: 'Bed Making & Linen Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'What is the first step in bed making?', options: ['Stripping the bed', 'Placing the duvet', 'Fluffing pillows', 'Vacuuming'], answer: 'Stripping the bed' },
-        { type: 'tf', q: 'Soiled linen should be sorted by color and fabric type.', answer: true },
-        { type: 'id', q: 'The minimum stock of linen kept on hand is called the _____ level.', answer: 'par' },
-        { type: 'mcq', q: 'Where should dirty linen never be placed?', options: ['On the floor', 'In a linen bag', 'In a cart', 'In a hamper'], answer: 'On the floor' },
-      ],
-    },
-  ],
-  barista: [
-    {
-      title: 'Coffee Fundamentals Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'Which coffee species is generally considered higher quality?', options: ['Arabica', 'Robusta', 'Liberica', 'Excelsa'], answer: 'Arabica' },
-        { type: 'tf', q: 'Finer grind is used for espresso than for French press.', answer: true },
-        { type: 'id', q: 'The process of heating milk with steam to create foam is called ______.', answer: 'steaming' },
-        { type: 'mcq', q: 'A darker roast generally produces what flavor?', options: ['Smoky and bitter', 'Fruity and bright', 'Floral and light', 'Sour'], answer: 'Smoky and bitter' },
-        { type: 'tf', q: 'Coffee beans should be stored in an airtight container away from light.', answer: true },
-      ],
-    },
-    {
-      title: 'Espresso Preparation Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'A standard single espresso shot is approximately how many ounces?', options: ['1 oz', '3 oz', '5 oz', '8 oz'], answer: '1 oz' },
-        { type: 'tf', q: 'Under-extracted espresso tastes sour and thin.', answer: true },
-        { type: 'id', q: 'The tool used to level and press coffee grounds is called a ______.', answer: 'tamper' },
-        { type: 'mcq', q: 'What is the ideal espresso extraction time for a double shot?', options: ['20-30 seconds', '5 seconds', '60 seconds', '2 minutes'], answer: '20-30 seconds' },
-      ],
-    },
-    {
-      title: 'Milk Steaming & Latte Art Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'The ideal microfoam texture is best described as:', options: ['Glossy wet paint', 'Dry and stiff', 'Large bubbles', 'Watery'], answer: 'Glossy wet paint' },
-        { type: 'tf', q: 'Milk should be steamed to about 60-65°C for best taste.', answer: true },
-        { type: 'id', q: 'The free-pour pattern that looks like a leaf is called a ______.', answer: 'rosetta' },
-        { type: 'mcq', q: 'Over-steaming milk results in:', options: ['Burnt, flat taste', 'Sweet flavor', 'Better foam', 'Colder milk'], answer: 'Burnt, flat taste' },
-      ],
-    },
-  ],
-  hilot: [
-    {
-      title: 'Anatomy & Physiology Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'Which system carries blood throughout the body?', options: ['Circulatory', 'Skeletal', 'Nervous', 'Digestive'], answer: 'Circulatory' },
-        { type: 'tf', q: 'Massage strokes generally follow the direction of blood flow toward the heart.', answer: true },
-        { type: 'id', q: 'The _____ system includes lymph nodes and vessels.', answer: 'lymphatic' },
-        { type: 'mcq', q: 'The largest muscle group in the body is found in the:', options: ['Back and legs', 'Fingers', 'Ears', 'Neck'], answer: 'Back and legs' },
-        { type: 'tf', q: 'Understanding anatomy helps a therapist avoid injury to clients.', answer: true },
-      ],
-    },
-    {
-      title: 'Hilot Techniques Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'A long, gliding stroke is called:', options: ['Effleurage', 'Tapotement', 'Petrissage', 'Friction'], answer: 'Effleurage' },
-        { type: 'tf', q: 'Hilot is a traditional Filipino healing art.', answer: true },
-        { type: 'id', q: 'Kneading and squeezing techniques are called ______.', answer: 'petrissage' },
-        { type: 'mcq', q: 'Which stroke uses rhythmic tapping?', options: ['Tapotement', 'Effleurage', 'Friction', 'Petrissage'], answer: 'Tapotement' },
-      ],
-    },
-    {
-      title: 'Client Care & Safety Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'A condition where massage should be avoided is called a:', options: ['Contraindication', 'Prescription', 'Indication', 'Diagnosis'], answer: 'Contraindication' },
-        { type: 'tf', q: 'Informed consent should be obtained before any massage session.', answer: true },
-        { type: 'id', q: 'A ______ should always be completed before treatment begins.', answer: 'consultation' },
-        { type: 'mcq', q: 'Massage should NOT be performed over:', options: ['Open wounds', 'Muscles', 'Relaxed areas', 'Clean skin'], answer: 'Open wounds' },
-      ],
-    },
-  ],
-  'event-management': [
-    {
-      title: 'Event Planning Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'MICE stands for Meetings, Incentives, Conferences and:', options: ['Exhibitions', 'Events', 'Entertainment', 'Excursions'], answer: 'Exhibitions' },
-        { type: 'tf', q: 'A theme should align with the client’s objectives.', answer: true },
-        { type: 'id', q: 'A ______ is used to present the visual direction of an event.', answer: 'moodboard' },
-        { type: 'mcq', q: 'The first stage of event planning is:', options: ['Conceptualization', 'Execution', 'Evaluation', 'Billing'], answer: 'Conceptualization' },
-        { type: 'tf', q: 'Event planning should always start with a clear objective.', answer: true },
-      ],
-    },
-    {
-      title: 'Budgeting & Logistics Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'A contingency fund in an event budget covers:', options: ['Unexpected costs', 'Staff salaries only', 'Decorations', 'Invitations'], answer: 'Unexpected costs' },
-        { type: 'tf', q: 'Venue capacity should match the expected number of guests.', answer: true },
-        { type: 'id', q: 'The person responsible for the overall event is the event ______.', answer: 'planner' },
-        { type: 'mcq', q: 'Which document lists every expense of an event?', options: ['Budget', 'Guest list', 'Menu', 'Floor plan'], answer: 'Budget' },
-      ],
-    },
-    {
-      title: 'Event Execution Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'A minute-by-minute schedule of an event is called:', options: ['Run sheet', 'Menu', 'Contract', 'Invoice'], answer: 'Run sheet' },
-        { type: 'tf', q: 'Backstage coordination is handled by stage management.', answer: true },
-        { type: 'id', q: 'Managing guest arrival and check-in is called ______.', answer: 'registration' },
-        { type: 'mcq', q: 'A post-event report typically includes:', options: ['Attendance and financials', 'Only photos', 'Guest complaints only', 'The menu'], answer: 'Attendance and financials' },
-      ],
-    },
-  ],
-  'virtual-assistant': [
-    {
-      title: 'Virtual Assistant Fundamentals Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'A VA who manages social media accounts is in which niche?', options: ['Social media management', 'Bookkeeping', 'Web development', 'Legal'], answer: 'Social media management' },
-        { type: 'tf', q: 'Time zone awareness is important for virtual assistants.', answer: true },
-        { type: 'id', q: 'Working from home is also called working ______.', answer: 'remotely' },
-        { type: 'mcq', q: 'Which tool is commonly used for team chat?', options: ['Slack', 'Photoshop', 'Excel only', 'Notepad'], answer: 'Slack' },
-        { type: 'tf', q: 'A reliable internet connection is essential for a VA.', answer: true },
-      ],
-    },
-    {
-      title: 'Administrative Support Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'Inbox zero is a technique for:', options: ['Email management', 'Calendar design', 'Data entry', 'Graphic design'], answer: 'Email management' },
-        { type: 'tf', q: 'Shared calendars help teams avoid scheduling conflicts.', answer: true },
-        { type: 'id', q: 'A pre-written email response is called a ______ response.', answer: 'canned' },
-        { type: 'mcq', q: 'Which is a cloud storage service?', options: ['Google Drive', 'Notepad', 'Calculator', 'Paint'], answer: 'Google Drive' },
-      ],
-    },
-    {
-      title: 'Communication & Support Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'A professional email should always include:', options: ['A clear subject line', 'Emojis only', 'No greeting', 'Slang'], answer: 'A clear subject line' },
-        { type: 'tf', q: 'Ticketing systems help track customer support requests.', answer: true },
-        { type: 'id', q: 'Passing a support issue to a higher level is called ______.', answer: 'escalation' },
-        { type: 'mcq', q: 'CSAT measures:', options: ['Customer satisfaction', 'Internet speed', 'Typing speed', 'Battery life'], answer: 'Customer satisfaction' },
-      ],
-    },
-  ],
-  bookkeeping: [
-    {
-      title: 'Accounting Fundamentals Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'Which accounting equation is correct?', options: ['Assets = Liabilities + Equity', 'Assets = Liabilities - Equity', 'Equity = Assets + Liabilities', 'Liabilities = Assets + Equity'], answer: 'Assets = Liabilities + Equity' },
-        { type: 'tf', q: 'In double-entry bookkeeping, every transaction affects at least two accounts.', answer: true },
-        { type: 'id', q: 'The left side of a T-account is called the ______ side.', answer: 'debit' },
-        { type: 'mcq', q: 'Which document is the source document for a sale on account?', options: ['Sales invoice', 'Payroll register', 'Bank statement', 'Petty cash voucher'], answer: 'Sales invoice' },
-        { type: 'tf', q: 'Bookkeeping and accounting mean exactly the same thing.', answer: false },
-      ],
-    },
-    {
-      title: 'Journalizing & Ledger Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'Which journal is used to record sales on credit?', options: ['Sales journal', 'Cash receipts journal', 'General journal', 'Petty cash journal'], answer: 'Sales journal' },
-        { type: 'tf', q: 'Posting transfers entries from the journal to the ledger.', answer: true },
-        { type: 'id', q: 'A ______ is a list of all the accounts used by a business.', answer: 'chart of accounts' },
-        { type: 'mcq', q: 'A trial balance is prepared to:', options: ['Check that total debits equal total credits', 'Compute net income', 'Record adjusting entries', 'Close the books'], answer: 'Check that total debits equal total credits' },
-      ],
-    },
-    {
-      title: 'Financial Statements Quiz',
-      passing: 75,
-      timeLimit: 30,
-      questions: [
-        { type: 'mcq', q: 'Which statement reports revenues and expenses for a period?', options: ['Income statement', 'Statement of financial position', 'Trial balance', 'General journal'], answer: 'Income statement' },
-        { type: 'tf', q: 'Accumulated depreciation is a contra-asset account.', answer: true },
-        { type: 'id', q: 'Assets minus liabilities equals ______.', answer: 'equity' },
-        { type: 'mcq', q: 'Which account appears in the statement of financial position?', options: ['Accounts payable', 'Service revenue', 'Rent expense', 'Sales discount'], answer: 'Accounts payable' },
-      ],
-    },
-  ],
-}
-
 // Build the final program objects
 function buildProgram(meta) {
   const id = meta.id
@@ -979,49 +760,47 @@ function buildProgram(meta) {
     }
   })
 
-  // Quiz templates drawn from the program's bank. Each is cloned once per
-  // lesson below — never shared — so a trainee's attempt on one lesson can
-  // never be attributed to a different lesson.
-  const quizTemplates = (quizBank[id] || []).map((q, i) => ({
-    id: `${id}-quiz-${i + 1}`,
-    programId: id,
-    title: q.title,
-    passing: q.passing,
-    timeLimit: q.timeLimit,
-    published: true,
-    questions: q.questions.map((qq, qi) => ({ id: `${id}-quiz-${i + 1}-q${qi + 1}`, ...qq })),
-  }))
-
-  // Seed each exam with its own question bank (drawn from the quiz pool)
-  const examQuestions = quizTemplates
-    .flatMap((q) => q.questions)
-    .slice(0, 10)
-    .map((qq, qi) => ({ ...qq, id: `${id}-exam-1-q${qi + 1}` }))
-
-  // Give every lesson (basic, common and core) its own quiz with a unique id
-  // and unique question ids. Sharing a quizId across lessons made one attempt
-  // show as "Failed" on every lesson that reused the same quiz.
+  // Every lesson (basic, common and core) gets its own quiz built from that
+  // lesson's own question set. The old version cycled through the program's
+  // quiz bank, so a lesson like "Basic Digital Literacy" could ask barista
+  // questions — and one attempt could be attributed to several lessons.
   const allLessons = [basic, common, core].flatMap((comp) =>
     comp.units ? comp.units.flatMap((u) => u.lessons) : comp.lessons,
   )
   const quizzes = allLessons
-    .map((lesson, i) => {
-      if (!quizTemplates.length) {
+    .map((lesson) => {
+      const set = lessonQuizQuestions(id, lesson.id)
+      if (!set || !set.length) {
         lesson.quizId = null
         return null
       }
-      const template = quizTemplates[i % quizTemplates.length]
       const quizId = `${lesson.id}-quiz`
       lesson.quizId = quizId
       return {
-        ...template,
         id: quizId,
+        programId: id,
         lessonId: lesson.id,
         title: `${lesson.title} Quiz`,
-        questions: template.questions.map((qq, qi) => ({ ...qq, id: `${quizId}-q${qi + 1}` })),
+        passing: 75,
+        timeLimit: lessonQuizTimeLimit,
+        published: true,
+        questions: set.map((qq, qi) => ({ id: `${quizId}-q${qi + 1}`, ...qq })),
       }
     })
     .filter(Boolean)
+
+  // Exam questions are spread across the whole program — one question from
+  // evenly spaced lessons — so the exam covers basic, common and core topics
+  // instead of repeating a single lesson's quiz.
+  const examQuestions = (() => {
+    if (!quizzes.length) return []
+    const count = Math.min(10, quizzes.length)
+    const step = quizzes.length / count
+    return Array.from({ length: count }, (_, i) => {
+      const quiz = quizzes[Math.floor(i * step)]
+      return quiz.questions[i % quiz.questions.length]
+    }).map((qq, qi) => ({ ...qq, id: `${id}-exam-1-q${qi + 1}` }))
+  })()
 
   return {
     id,

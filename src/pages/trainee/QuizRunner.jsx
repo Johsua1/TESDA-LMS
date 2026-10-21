@@ -25,12 +25,14 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { cn, formatDate } from '../../lib/utils'
 import { getQuizAccess, formatQuizSchedule, quizBlockedMessage } from '../../lib/quizAccess'
 import { attemptSeconds, remainingSeconds, formatCountdown } from '../../lib/quizTimer'
+import { getQuizSessionState, getServerQuizAttempt } from '../../lib/assessments'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
 export function QuizRunner() {
   const { programId, quizId } = useParams()
-  const { db, user, recordQuizAttempt, startQuizAttempt, requestQuizAccess, toast } = useApp()
+  const { db, user, recordQuizAttempt, startQuizAttempt, requestQuizAccess, flushSync, retrySaveRow, toast } =
+    useApp()
 
   const program = programById(programId)
   const enrollment = enrollmentOf(db, user.id, programId)
@@ -41,7 +43,18 @@ export function QuizRunner() {
   const [current, setCurrent] = useState(0)
   const [secondsLeft, setSecondsLeft] = useState(attemptSeconds('quiz'))
   const [result, setResult] = useState(null)
+  // Saving is a separate step from grading: the result is only announced once
+  // Supabase has accepted the row (otherwise the trainee sees "submitted" and
+  // an error toast at the same time).
+  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
+  const [saveError, setSaveError] = useState('')
+  const savedAttemptRef = useRef(null)
   const submittedRef = useRef(false)
+  // Server-issued clock. When present the countdown follows the database
+  // deadline instead of the browser's idea of how much time has passed.
+  const serverDeadlineRef = useRef(null)
+  const serverOffsetRef = useRef(0)
+  const [serverResult, setServerResult] = useState(null)
   // Captured when the trainee presses Start; the store checks access against
   // this instant so a quiz that runs past the deadline still submits.
   const startedAtRef = useRef(null)
@@ -65,15 +78,48 @@ export function QuizRunner() {
     setAnswers({})
     setCurrent(0)
     setResult(null)
+    setServerResult(null)
+    serverDeadlineRef.current = null
     submittedRef.current = false
     setPhase('taking')
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [access.canResume])
 
+  // Ask the database for the clock it issued for this session. The response
+  // carries both deadline_at and server_time, so we can correct for a browser
+  // clock that is wrong or has been moved back.
+  useEffect(() => {
+    if (phase !== 'taking') return undefined
+    let cancelled = false
+    getQuizSessionState(programId, quizId)
+      .then((state) => {
+        if (cancelled || !state?.exists || !state.deadline_at) return
+        serverDeadlineRef.current = new Date(state.deadline_at).getTime()
+        serverOffsetRef.current = new Date(state.server_time).getTime() - Date.now()
+        if (typeof state.remaining_seconds === 'number') {
+          setSecondsLeft(Math.max(0, state.remaining_seconds))
+        }
+      })
+      .catch(() => {
+        // Offline or not configured: keep the local countdown.
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [phase, programId, quizId])
+
   // countdown timer
   useEffect(() => {
     if (phase !== 'taking') return undefined
     const t = setInterval(() => {
+      if (serverDeadlineRef.current) {
+        const left = Math.max(
+          0,
+          Math.floor((serverDeadlineRef.current - (Date.now() + serverOffsetRef.current)) / 1000),
+        )
+        setSecondsLeft(left)
+        return
+      }
       setSecondsLeft((s) => {
         if (s <= 1) {
           clearInterval(t)
@@ -142,7 +188,46 @@ export function QuizRunner() {
     }
     setResult(attempt)
     setPhase('result')
-    toast(auto ? 'Time is up — quiz submitted automatically.' : 'Quiz submitted successfully.', auto ? 'warning' : 'success')
+    persist(res.attempt || attempt, auto)
+  }
+
+  // Push the attempt to Supabase and only then report success. A rejected
+  // submission (deadline/approval race, network drop) keeps the result on
+  // screen with a retry, instead of claiming it was saved.
+  function persist(stored, auto = false) {
+    savedAttemptRef.current = stored
+    setSaveState('saving')
+    setSaveError('')
+    flushSync()
+      .then(() => {
+        setSaveState('saved')
+        toast(auto ? 'Time is up — quiz submitted automatically.' : 'Quiz submitted successfully.', auto ? 'warning' : 'success')
+        // The row is now in the database and the trigger has re-graded it with
+        // the server's answer key. Show what the server recorded.
+        return getServerQuizAttempt(stored.id).then((state) => {
+          if (state && state.status !== 'in_progress') setServerResult(state)
+        })
+      })
+      .catch((e) => {
+        setSaveState('error')
+        setSaveError(e?.message || String(e))
+      })
+  }
+
+  function retrySave() {
+    const stored = savedAttemptRef.current
+    if (!stored) return
+    setSaveState('saving')
+    setSaveError('')
+    retrySaveRow('quizAttempts', stored)
+      .then(() => {
+        setSaveState('saved')
+        toast('Quiz result saved.')
+      })
+      .catch((e) => {
+        setSaveState('error')
+        setSaveError(e?.message || String(e))
+      })
   }
 
   const start = () => {
@@ -161,6 +246,9 @@ export function QuizRunner() {
         : attemptSeconds('quiz'),
     )
     setResult(null)
+    setServerResult(null)
+    serverDeadlineRef.current = null
+    serverOffsetRef.current = 0
     submittedRef.current = false
     setPhase('taking')
   }
@@ -173,30 +261,30 @@ export function QuizRunner() {
         ? 'Pending approval'
         : access.blockedReason === 'attempt_expired'
           ? 'Time expired'
-          : !access.window.scheduled
-          ? 'Not scheduled'
-          : access.window.beforeStart
-            ? 'Scheduled'
-            : access.window.afterDeadline
-              ? 'Closed'
-              : access.attemptCount
-                ? 'Completed'
-                : 'Open'
+          : access.attemptCount
+            ? 'Done'
+            : !access.window.scheduled
+              ? 'Not scheduled'
+              : access.window.beforeStart
+                ? 'Scheduled'
+                : access.window.afterDeadline
+                  ? 'Closed'
+                  : 'Open'
     const availabilityTone = access.approvedRequest
       ? 'success'
       : access.pendingRequest
         ? 'warning'
         : access.blockedReason === 'attempt_expired'
           ? 'danger'
-          : !access.window.scheduled
-          ? 'neutral'
-          : access.window.beforeStart
-            ? 'info'
-            : access.window.afterDeadline
-              ? 'danger'
-              : access.attemptCount
-                ? 'neutral'
-                : 'success'
+          : access.attemptCount
+            ? 'success'
+            : !access.window.scheduled
+              ? 'neutral'
+              : access.window.beforeStart
+                ? 'info'
+                : access.window.afterDeadline
+                  ? 'danger'
+                  : 'neutral'
 
     return (
       <div className="mx-auto max-w-3xl space-y-5">
@@ -334,14 +422,26 @@ export function QuizRunner() {
               Question {current + 1} of {total} · {answeredCount} answered
             </p>
           </div>
-          <div
-            className={cn(
-              'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold',
-              low ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-700',
-            )}
-          >
-            <Clock className="h-4 w-4" />
-            {formatCountdown(secondsLeft)}
+          <div className="text-right">
+            <div
+              className={cn(
+                'inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold',
+                low ? 'bg-red-50 text-red-600' : 'bg-slate-100 text-slate-700',
+              )}
+            >
+              <Clock className="h-4 w-4" />
+              {formatCountdown(secondsLeft)}
+            </div>
+            {serverDeadlineRef.current ? (
+              <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
+                <Lock className="h-3 w-3" />
+                Server deadline{' '}
+                {new Date(serverDeadlineRef.current).toLocaleTimeString([], {
+                  hour: '2-digit',
+                  minute: '2-digit',
+                })}
+              </p>
+            ) : null}
           </div>
         </div>
 
@@ -511,6 +611,37 @@ export function QuizRunner() {
         </div>
 
         <CardBody className="space-y-5">
+          {saveState === 'saving' && (
+            <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+              Saving your result…
+            </div>
+          )}
+          {saveState === 'error' && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              <p className="font-semibold">This result has not been saved yet.</p>
+              <p className="mt-1">{saveError}</p>
+              <Button size="sm" variant="secondary" className="mt-2" icon={RotateCcw} onClick={retrySave}>
+                Retry save
+              </Button>
+            </div>
+          )}
+          {serverResult ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+              <p className="flex items-center gap-1.5 font-semibold">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Verified by the server
+              </p>
+              <p className="mt-1">
+                {serverResult.correct_answers ?? serverResult.score}/{serverResult.total_questions} correct ·{' '}
+                {Number(serverResult.percentage ?? 0).toFixed(2)}% · {serverResult.incorrect_answers ?? 0} incorrect ·{' '}
+                {serverResult.unanswered_questions ?? 0} unanswered
+                {serverResult.auto_submitted ? ' · auto-submitted at the deadline' : ''}
+              </p>
+              <p className="mt-1 text-emerald-700/80">
+                The server re-graded the saved answers with its own answer key. This is the score of record.
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <Award className="h-4 w-4 text-slate-400" />

@@ -8,7 +8,8 @@
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "test:backend": "node --experimental-strip-types scripts/test-backend.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.117.3",

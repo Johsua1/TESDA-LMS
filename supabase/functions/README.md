@@ -8,6 +8,7 @@ the `service_role` key from the function environment only.
 |----------|---------|
 | `create-trainer` | Create a Trainer auth account + profile (pending_activation) + program assignments + invitation, and send the activation email. |
 | `resend-trainer-invitation` | Revoke the previous invitation and issue a fresh expiring activation link/email. |
+| `export-trainer-feedback` | Super Admin (AAL2) CSV export of qualitative trainer feedback with filters, formula-injection protection and an audit row. |
 
 ## Shared helpers (`_shared/`)
 
@@ -24,6 +25,7 @@ the `service_role` key from the function environment only.
 ```bash
 supabase functions deploy create-trainer
 supabase functions deploy resend-trainer-invitation
+supabase functions deploy export-trainer-feedback
 ```
 
 ## Required function secrets

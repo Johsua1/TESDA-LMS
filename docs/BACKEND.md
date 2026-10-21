@@ -88,8 +88,28 @@ supabase/migrations/
   021_audit_logs.sql
   022_super_admin_mfa.sql
   023_trainer_rpcs.sql
-  README.md            (maps spec 003–016 to the existing baseline schema)
+  024_mfa_settings.sql
+  ...
+  041_per_lesson_quizzes.sql
+  042_trainer_feedback.sql
+  043_timed_assessment_fields.sql
+  044_trainer_feedback_functions.sql
+  045_feedback_rls_policies.sql
+  046_timed_assessment_functions.sql
+  047_assessment_rls_updates.sql
+  048_expired_attempt_processing.sql
+  049_security_hardening_grants.sql
+  050_auto_complete_enrollments.sql
+  051_feedback_visibility.sql
+  052_trainer_ratings_visibility.sql
+  053_ratings_quantitative_only.sql
+  054_single_feedback_submission.sql
+  055_ratings_write_lock.sql
+  README.md            (complete list + spec 003–016 mapping)
 ```
+
+Trainer feedback and timed-assessment internals are documented in
+[`docs/FEEDBACK_AND_TIMERS.md`](FEEDBACK_AND_TIMERS.md).
 
 `supabase/schema.sql` now contains the baseline **plus** all of the above
 appended in order, so the existing "paste schema.sql into the SQL Editor" flow
@@ -193,7 +213,9 @@ Enabled on every protected table.
 | `specializations` | authenticated | Super Admin only |
 | `trainer_invitations` | Super Admin, or trainer's own rows | none (definer functions only) |
 | `audit_logs` | Super Admin only | none (definer functions only) |
-| `enrollments`, `quiz_attempts`, `exam_attempts`, `typing_tests`, `announcements`, `settings` | unchanged (broad) | unchanged |
+| `enrollments`, `typing_tests`, `announcements`, `settings` | unchanged (broad) | unchanged |
+| `quiz_attempts` / `exam_attempts` | own rows; trainers: assigned programs; admin: all | trainee INSERT own + no-op UPDATE (trigger restores scores/timestamps); DELETE admin only |
+| `trainer_feedback` | trainee own; admin all at AAL2 (trainers never see it) | none — definer RPCs only |
 
 A trainer can therefore never touch another trainer, another program, their own
 role/status, or assign themselves — enforced by RLS, not just the UI.

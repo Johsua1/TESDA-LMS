@@ -18,8 +18,8 @@ import {
   LineChart,
   Keyboard,
   Award,
-  Star,
   UserCircle,
+  MessageSquareQuote,
 } from 'lucide-react'
 
 export const roleMeta = {
@@ -76,6 +76,7 @@ export const navConfig = {
       group: 'Administration',
       items: [
         { to: '/admin/reports', label: 'Reports', icon: BarChart3 },
+        { to: '/admin/feedback', label: 'Trainer Feedback', icon: MessageSquareQuote },
         { to: '/admin/announcements', label: 'Announcements', icon: Megaphone },
         { to: '/admin/settings', label: 'System Settings', icon: Settings },
       ],
@@ -118,7 +119,7 @@ export const navConfig = {
         { to: '/trainee/attendance', label: 'Attendance', icon: CalendarCheck },
         { to: '/trainee/grades', label: 'Grades & Scores', icon: Award },
         { to: '/trainee/typing-test', label: 'Typing Test', icon: Keyboard },
-        { to: '/trainee/ratings', label: 'Rate Trainer', icon: Star },
+        { to: '/trainee/feedback', label: 'Trainer Feedback', icon: MessageSquareQuote },
       ],
     },
     {

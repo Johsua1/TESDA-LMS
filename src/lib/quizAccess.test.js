@@ -313,6 +313,44 @@ describe('getQuizAccess with a running session', () => {
     expect(access.canStart).toBe(false)
     expect(access.session.id).toBe('qs1')
   })
+
+  it('lets a trainer approval restart after the session timed out', () => {
+    const startedAt = new Date(2026, 9, 18, 9, 26, 0).toISOString()
+    const access = getQuizAccess({
+      quiz: schedule(),
+      sessions: [{ id: 'qs1', startedAt }],
+      requests: [{ id: 'qr1', status: 'approved', attemptsGranted: 1, attemptsUsed: 0 }],
+      now: NOW,
+    })
+    expect(access.expiredSession).toBe(true)
+    expect(access.canResume).toBe(false)
+    expect(access.canStart).toBe(true)
+    expect(access.blockedReason).toBeNull()
+  })
+
+  it('asks for a retake after a timed-out session with no approval', () => {
+    const startedAt = new Date(2026, 9, 18, 9, 26, 0).toISOString()
+    const access = getQuizAccess({ quiz: schedule(), sessions: [{ id: 'qs1', startedAt }], now: NOW })
+    expect(access.canStart).toBe(false)
+    expect(access.canRequestRetake).toBe(true)
+    expect(access.blockedReason).toBe('attempt_expired')
+  })
+
+  it('resumes the newest session when an older row is left behind', () => {
+    const stale = new Date(2026, 9, 19, 8, 0, 0).toISOString()
+    const fresh = new Date(2026, 9, 19, 11, 50, 0).toISOString()
+    const access = getQuizAccess({
+      quiz: openQuiz,
+      sessions: [
+        { id: 'old', startedAt: stale },
+        { id: 'new', startedAt: fresh },
+      ],
+      now: NOW,
+    })
+    expect(access.session.id).toBe('new')
+    expect(access.canResume).toBe(true)
+    expect(access.resumeSeconds).toBe(20 * 60)
+  })
 })
 
 describe('exam schedules (shared validator)', () => {

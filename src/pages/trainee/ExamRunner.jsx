@@ -10,6 +10,7 @@ import {
   Award,
   AlertTriangle,
   ListChecks,
+  RotateCcw,
   Trophy,
   FileCheck2,
   CalendarDays,
@@ -22,6 +23,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { cn, formatDate } from '../../lib/utils'
 import { quizWindow, formatQuizSchedule } from '../../lib/quizAccess'
 import { attemptSeconds, formatCountdown } from '../../lib/quizTimer'
+import { getServerExamAttempt } from '../../lib/assessments'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
@@ -43,7 +45,7 @@ function buildExamQuestions(program, exam) {
 
 export function ExamRunner() {
   const { programId, examId } = useParams()
-  const { db, user, recordExamAttempt, toast } = useApp()
+  const { db, user, recordExamAttempt, flushSync, retrySaveRow, toast } = useApp()
 
   const program = programById(programId)
   const enrollment = enrollmentOf(db, user.id, programId)
@@ -56,6 +58,11 @@ export function ExamRunner() {
   const [current, setCurrent] = useState(0)
   const [secondsLeft, setSecondsLeft] = useState(attemptSeconds('exam'))
   const [result, setResult] = useState(null)
+  // The result is only announced as saved once Supabase accepted the row.
+  const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
+  const [serverResult, setServerResult] = useState(null)
+  const [saveError, setSaveError] = useState('')
+  const savedAttemptRef = useRef(null)
   const submittedRef = useRef(false)
   const startedAtRef = useRef(null)
 
@@ -115,7 +122,45 @@ export function ExamRunner() {
     }
     setResult(attempt)
     setPhase('result')
-    toast(auto ? 'Time is up — exam submitted automatically.' : 'Exam submitted successfully.', auto ? 'warning' : 'success')
+    persist(res.attempt || attempt, auto)
+  }
+
+  // Push the attempt to Supabase and only then report success; a rejected save
+  // keeps the result on screen with a retry instead of claiming it was stored.
+  function persist(stored, auto = false) {
+    savedAttemptRef.current = stored
+    setSaveState('saving')
+    setSaveError('')
+    flushSync()
+      .then(() => {
+        setSaveState('saved')
+        toast(auto ? 'Time is up — exam submitted automatically.' : 'Exam submitted successfully.', auto ? 'warning' : 'success')
+        // Read back what the server graded so the result screen shows the score
+        // of record rather than the browser's calculation.
+        return getServerExamAttempt(stored.id).then((state) => {
+          if (state && state.status !== 'in_progress') setServerResult(state)
+        })
+      })
+      .catch((e) => {
+        setSaveState('error')
+        setSaveError(e?.message || String(e))
+      })
+  }
+
+  function retrySave() {
+    const stored = savedAttemptRef.current
+    if (!stored) return
+    setSaveState('saving')
+    setSaveError('')
+    retrySaveRow('examAttempts', stored)
+      .then(() => {
+        setSaveState('saved')
+        toast('Exam result saved.')
+      })
+      .catch((e) => {
+        setSaveState('error')
+        setSaveError(e?.message || String(e))
+      })
   }
 
   const start = () => {
@@ -135,6 +180,7 @@ export function ExamRunner() {
     setCurrent(0)
     setSecondsLeft(attemptSeconds('exam'))
     setResult(null)
+    setServerResult(null)
     submittedRef.current = false
     setPhase('taking')
   }
@@ -184,22 +230,26 @@ export function ExamRunner() {
               </span>
               <Badge
                 tone={
-                  !examWindow.scheduled
-                    ? 'neutral'
-                    : examWindow.beforeStart
-                      ? 'info'
-                      : examWindow.afterDeadline
-                        ? 'danger'
-                        : 'success'
+                  history.length
+                    ? 'success'
+                    : !examWindow.scheduled
+                      ? 'neutral'
+                      : examWindow.beforeStart
+                        ? 'info'
+                        : examWindow.afterDeadline
+                          ? 'danger'
+                          : 'success'
                 }
               >
-                {!examWindow.scheduled
-                  ? 'Not scheduled'
-                  : examWindow.beforeStart
-                    ? 'Scheduled'
-                    : examWindow.afterDeadline
-                      ? 'Closed'
-                      : 'Open'}
+                {history.length
+                  ? 'Done'
+                  : !examWindow.scheduled
+                    ? 'Not scheduled'
+                    : examWindow.beforeStart
+                      ? 'Scheduled'
+                      : examWindow.afterDeadline
+                        ? 'Closed'
+                        : 'Open'}
               </Badge>
             </div>
             <div className="flex items-center justify-between text-sm text-slate-600">
@@ -211,12 +261,20 @@ export function ExamRunner() {
                 {history.length ? 'Retake Exam' : 'Start Exam'}
               </Button>
             ) : (
-              <Button className="w-full" size="lg" variant="secondary" icon={Lock} disabled>
-                {!examWindow.scheduled
-                  ? 'Not scheduled yet'
-                  : examWindow.beforeStart
-                    ? 'Exam not yet available'
-                    : 'Exam closed'}
+              <Button
+                className="w-full"
+                size="lg"
+                variant="secondary"
+                icon={history.length ? CheckCircle2 : Lock}
+                disabled
+              >
+                {history.length
+                  ? 'Done'
+                  : !examWindow.scheduled
+                    ? 'Not scheduled yet'
+                    : examWindow.beforeStart
+                      ? 'Exam not yet available'
+                      : 'Exam closed'}
               </Button>
             )}
           </CardBody>
@@ -395,6 +453,37 @@ export function ExamRunner() {
           </div>
         </div>
         <CardBody className="space-y-5">
+          {saveState === 'saving' && (
+            <div className="flex items-center gap-2 rounded-lg bg-slate-50 px-3 py-2 text-xs font-medium text-slate-600">
+              <span className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-slate-300 border-t-slate-600" />
+              Saving your result…
+            </div>
+          )}
+          {saveState === 'error' && (
+            <div className="rounded-lg border border-red-200 bg-red-50 p-3 text-xs text-red-700">
+              <p className="font-semibold">This result has not been saved yet.</p>
+              <p className="mt-1">{saveError}</p>
+              <Button size="sm" variant="secondary" className="mt-2" icon={RotateCcw} onClick={retrySave}>
+                Retry save
+              </Button>
+            </div>
+          )}
+          {serverResult ? (
+            <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-3 text-xs text-emerald-800">
+              <p className="flex items-center gap-1.5 font-semibold">
+                <CheckCircle2 className="h-3.5 w-3.5" /> Verified by the server
+              </p>
+              <p className="mt-1">
+                {serverResult.correct_answers ?? serverResult.score}/{serverResult.total_questions} correct ·{' '}
+                {Number(serverResult.percentage ?? 0).toFixed(2)}% · {serverResult.incorrect_answers ?? 0} incorrect ·{' '}
+                {serverResult.unanswered_questions ?? 0} unanswered
+                {serverResult.auto_submitted ? ' · auto-submitted at the deadline' : ''}
+              </p>
+              <p className="mt-1 text-emerald-700/80">
+                The server re-graded the saved answers with its own answer key. This is the score of record.
+              </p>
+            </div>
+          ) : null}
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <Award className="h-4 w-4 text-slate-400" /> Completed {formatDate(r.date)}

@@ -26,7 +26,7 @@ import { Grades } from './pages/trainee/Grades'
 import { Enrollment } from './pages/trainee/Enrollment'
 import { Payments } from './pages/trainee/Payments'
 import { TypingTest } from './pages/trainee/TypingTest'
-import { RateTrainer } from './pages/trainee/RateTrainer'
+import { TrainerFeedback } from './pages/trainee/TrainerFeedback'
 
 // Trainer
 import { TrainerDashboard } from './pages/trainer/TrainerDashboard'
@@ -57,6 +57,7 @@ import { ManageAttendance } from './pages/admin/ManageAttendance'
 import { Accounting } from './pages/admin/Accounting'
 import { Reports } from './pages/admin/Reports'
 import { Settings } from './pages/admin/Settings'
+import { ManageFeedback } from './pages/admin/ManageFeedback'
 
 // Shared
 import { AnnouncementsPage } from './pages/shared/AnnouncementsPage'
@@ -105,7 +106,7 @@ export default function App() {
           <Route path="/trainee/enrollment" element={<Enrollment />} />
           <Route path="/trainee/payments" element={<Payments />} />
           <Route path="/trainee/typing-test" element={<TypingTest />} />
-          <Route path="/trainee/ratings" element={<RateTrainer />} />
+          <Route path="/trainee/feedback" element={<TrainerFeedback />} />
           <Route path="/trainee/announcements" element={<AnnouncementsPage />} />
           <Route path="/trainee/profile" element={<ProfilePage />} />
         </Route>
@@ -155,6 +156,7 @@ export default function App() {
           <Route path="/admin/attendance" element={<ManageAttendance />} />
           <Route path="/admin/accounting" element={<Accounting />} />
           <Route path="/admin/reports" element={<Reports />} />
+          <Route path="/admin/feedback" element={<ManageFeedback />} />
           <Route path="/admin/announcements" element={<AnnouncementsPage canManage />} />
           <Route path="/admin/settings" element={<Settings />} />
           <Route path="/admin/profile" element={<ProfilePage />} />

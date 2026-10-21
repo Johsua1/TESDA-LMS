@@ -113,19 +113,30 @@ export const getQuizAccess = ({ quiz, attempts = [], requests = [], sessions = [
 
   // An open session is an attempt that was already started. The clock keeps
   // running from its `startedAt`, so coming back to the quiz resumes the
-  // remaining time instead of handing out a fresh 30 minutes.
-  const session = sessions[0] || null
+  // remaining time instead of handing out a fresh 30 minutes. The newest row
+  // wins: only one session per trainee/quiz is stored (unique index), but a
+  // leftover row from an earlier attempt must never shadow the current one.
+  const session =
+    [...sessions].sort((a, b) => new Date(b.startedAt || 0) - new Date(a.startedAt || 0))[0] || null
   const resumeSeconds = session ? remainingSeconds(session.startedAt, attemptSeconds('quiz'), now) : 0
   const canResume = Boolean(session) && resumeSeconds > 0
+  // A session whose clock ran out was never submitted: it is a forfeited
+  // attempt, not an open one. It must not block a trainer-approved attempt,
+  // which is what left an approved trainee stuck on "Request Retake".
+  const activeSession = canResume ? session : null
+  const expiredSession = Boolean(session) && !canResume
 
   // A quiz with no schedule at all cannot be taken: the trainer must set a
   // start/deadline first. An explicit trainer approval still unlocks it.
+  // A session that ran out of time counts as a used attempt, so the window
+  // alone no longer unlocks a fresh try — only a trainer approval does.
+  const attemptUsed = attemptCount > 0 || expiredSession
   const canStart =
-    !session && (Boolean(approvedRequest) || (window.scheduled && windowOpen && attemptCount === 0))
+    !activeSession && (Boolean(approvedRequest) || (window.scheduled && windowOpen && !attemptUsed))
 
   let blockedReason = null
   if (!canStart && !canResume) {
-    if (session) blockedReason = 'attempt_expired'
+    if (expiredSession) blockedReason = 'attempt_expired'
     else if (pendingRequest) blockedReason = 'pending'
     else if (!window.scheduled) blockedReason = 'no_schedule'
     else if (window.beforeStart) blockedReason = 'before_start'
@@ -134,15 +145,13 @@ export const getQuizAccess = ({ quiz, attempts = [], requests = [], sessions = [
     else blockedReason = 'closed'
   }
 
-  // A session that ran out of time also counts as a used attempt.
-  const expiredSession = Boolean(session) && !canResume
   const canRequestRetake =
-    (attemptCount > 0 || expiredSession) &&
+    attemptUsed &&
     !pendingRequest &&
     (!approvedRequest || expiredSession) &&
     !canResume
   const canRequestLate =
-    attemptCount === 0 && window.afterDeadline && !pendingRequest && !approvedRequest && !session
+    attemptCount === 0 && window.afterDeadline && !pendingRequest && !approvedRequest && !activeSession
 
   return {
     window,
@@ -154,6 +163,8 @@ export const getQuizAccess = ({ quiz, attempts = [], requests = [], sessions = [
     latestRequest,
     latestRejected,
     session,
+    activeSession,
+    expiredSession,
     canResume,
     resumeSeconds,
     canStart,

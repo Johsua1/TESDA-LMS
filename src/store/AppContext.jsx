@@ -145,6 +145,9 @@ export function AppProvider({ children }) {
   // Bumped on every local change; lets a background refresh detect that a save
   // landed while it was fetching and discard its now-stale snapshot.
   const localVersionRef = useRef(0)
+  // Every write is pushed to Supabase in order. Pages that must not claim
+  // success before the row lands (quiz/exam submission) await this chain.
+  const syncChainRef = useRef(Promise.resolve())
 
   // Keep the pure program/lesson helpers in data/programs.js in sync with the
   // persisted store so trainer/admin content edits are visible everywhere.
@@ -171,20 +174,37 @@ export function AppProvider({ children }) {
       setDb(next)
       if (isSupabaseConfigured) {
         syncingRef.current = true
-        backend
-          .syncCollections(prev, next)
+        // Queued so two rapid commits cannot write out of order (or in
+        // parallel against the same rows).
+        const run = syncChainRef.current
+          .catch(() => {})
+          .then(() => backend.syncCollections(prev, next))
+        syncChainRef.current = run
+        run
           .catch((e) => {
             console.error('Failed to sync to Supabase', e)
             toast(`Failed to save to the server: ${e?.message || e}`, 'error')
           })
           .finally(() => {
-            syncingRef.current = false
+            // Only clear the flag when nothing newer is queued behind this run.
+            if (syncChainRef.current === run) syncingRef.current = false
           })
       }
       return next
     },
     [toast],
   )
+
+  // Resolves once every queued write has reached Supabase (rejects with the
+  // first failure). Callers use it to confirm a submission actually saved.
+  const flushSync = useCallback(() => syncChainRef.current, [])
+
+  // Re-push a single row that failed to save earlier (used by the "Retry save"
+  // button on a quiz/exam result page).
+  const retrySaveRow = useCallback((collection, obj) => {
+    if (!isSupabaseConfigured) return Promise.resolve()
+    return backend.upsertRow(collection, obj)
+  }, [])
 
   // Safety net: if db is replaced directly (initial load), keep the ref aligned.
   useEffect(() => {
@@ -1028,7 +1048,10 @@ export function AppProvider({ children }) {
         return { ok: false, error: 'You already have a pending request for this quiz.' }
       }
 
-      const access = getQuizAccess({ quiz, attempts, requests })
+      // Sessions are part of the rule: an attempt that timed out still counts
+      // as a used attempt when deciding what can be requested.
+      const sessions = (d.quizSessions || []).filter((s) => s.traineeId === user.id && s.quizId === quizId)
+      const access = getQuizAccess({ quiz, attempts, requests, sessions })
       if (type === 'late' && !access.canRequestLate) {
         return { ok: false, error: 'Late access cannot be requested for this quiz right now.' }
       }
@@ -1125,18 +1148,20 @@ export function AppProvider({ children }) {
         return { ok: false, error: quizBlockedMessage(access) || 'This quiz is not available.' }
       }
 
-      const session = {
-        id: uid('qs'),
-        traineeId: user.id,
-        programId,
-        quizId,
-        startedAt: new Date().toISOString(),
-      }
+      // Only one session row exists per trainee/quiz (unique index). When an
+      // earlier session already timed out it is restarted in place instead of
+      // creating a second row, which the database would reject.
+      const startedAt = new Date().toISOString()
+      const session = access.session
+        ? { ...access.session, startedAt }
+        : { id: uid('qs'), traineeId: user.id, programId, quizId, startedAt }
       // The approval is consumed when the attempt is submitted, together with
       // the database trigger that guards the quiz_attempts insert.
       commit((prev) => ({
         ...prev,
-        quizSessions: [...(prev.quizSessions || []), session],
+        quizSessions: access.session
+          ? (prev.quizSessions || []).map((s) => (s.id === session.id ? session : s))
+          : [...(prev.quizSessions || []), session],
       }))
       return { ok: true, session, resumed: false }
     },
@@ -1168,9 +1193,10 @@ export function AppProvider({ children }) {
       if (!session && !access.canStart) return { ok: false, error: 'This quiz attempt is not authorized.' }
 
       const grantedId = access.approvedRequest?.id || null
+      const stored = { ...attempt, id: attempt.id || uid('qa') }
       commit((prev) => ({
         ...prev,
-        quizAttempts: [...prev.quizAttempts, { ...attempt, id: attempt.id || uid('qa') }],
+        quizAttempts: [...prev.quizAttempts, stored],
         quizSessions: sessionId ? (prev.quizSessions || []).filter((s) => s.id !== sessionId) : prev.quizSessions || [],
         quizRequests: grantedId
           ? (prev.quizRequests || []).map((r) =>
@@ -1178,7 +1204,7 @@ export function AppProvider({ children }) {
             )
           : prev.quizRequests || [],
       }))
-      return { ok: true }
+      return { ok: true, attempt: stored }
     },
     [commit],
   )
@@ -1197,8 +1223,9 @@ export function AppProvider({ children }) {
       if (window.beforeStart) return { ok: false, error: 'This exam is not open yet.' }
       if (window.afterDeadline) return { ok: false, error: 'The exam deadline has passed.' }
 
-      commit((prev) => ({ ...prev, examAttempts: [...prev.examAttempts, { ...attempt, id: uid('ea') }] }))
-      return { ok: true }
+      const stored = { ...attempt, id: attempt.id || uid('ea') }
+      commit((prev) => ({ ...prev, examAttempts: [...prev.examAttempts, stored] }))
+      return { ok: true, attempt: stored }
     },
     [commit],
   )
@@ -1310,28 +1337,8 @@ export function AppProvider({ children }) {
     [commit, toast],
   )
 
-  // --------------------------- Trainer ratings ------------------------------
-  // A trainee rates their trainer (5 stars + optional comment). One row per
-  // (trainee, trainer) — re-rating updates the existing row.
-  const saveTrainerRating = useCallback(
-    (payload) => {
-      commit((d) => {
-        const list = d.trainerRatings || []
-        const existing = list.find(
-          (r) => r.traineeId === payload.traineeId && r.trainerId === payload.trainerId,
-        )
-        if (existing) {
-          return {
-            ...d,
-            trainerRatings: list.map((r) => (r.id === existing.id ? { ...r, ...payload, id: existing.id } : r)),
-          }
-        }
-        return { ...d, trainerRatings: [...list, { ...payload, id: uid('trr') }] }
-      })
-      toast('Thanks for rating your trainer.')
-    },
-    [commit, toast],
-  )
+  // Trainer ratings are written by the submit_trainer_feedback() RPC only
+  // (migration 054/055); the client has no direct write path.
 
   // ------------------------------- Settings ---------------------------------
   const updateSettings = useCallback(
@@ -1380,6 +1387,8 @@ export function AppProvider({ children }) {
       isSupabaseConfigured,
       toast,
       dismissToast,
+      flushSync,
+      retrySaveRow,
       // auth
       mfaPending,
       mustSetPassword,
@@ -1432,7 +1441,6 @@ export function AppProvider({ children }) {
       // evaluations
       saveEvaluation,
       // trainer ratings
-      saveTrainerRating,
       // settings
       updateSettings,
       resetData,
@@ -1445,6 +1453,8 @@ export function AppProvider({ children }) {
       ready,
       toast,
       dismissToast,
+      flushSync,
+      retrySaveRow,
       mfaPending,
       mustSetPassword,
       login,
@@ -1486,7 +1496,6 @@ export function AppProvider({ children }) {
       saveAnnouncement,
       deleteAnnouncement,
       saveEvaluation,
-      saveTrainerRating,
       updateSettings,
       resetData,
     ],

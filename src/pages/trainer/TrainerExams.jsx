@@ -1,5 +1,18 @@
 import { useState } from 'react'
-import { FileCheck2, CalendarDays, Users, TrendingUp, Eye, Plus, Pencil, Trash2, EyeOff, AlertTriangle } from 'lucide-react'
+import {
+  FileCheck2,
+  CalendarDays,
+  Users,
+  TrendingUp,
+  Eye,
+  Plus,
+  Pencil,
+  Trash2,
+  EyeOff,
+  AlertTriangle,
+  CheckCircle2,
+  UserX,
+} from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerPrograms } from '../../store/selectors'
 import {
@@ -63,6 +76,24 @@ export function TrainerExams() {
 
   const allAttempts = db.examAttempts.filter((a) => exams.some((e) => e.id === a.examId))
   const avgScore = allAttempts.length ? Math.round(average(allAttempts.map((a) => a.percentage))) : 0
+
+  // Everyone actively enrolled in a program — used for the "not taken" roster,
+  // the same way the quiz view lists who has and has not submitted.
+  const programTrainees = (programId) => {
+    const ids = [
+      ...new Set(
+        db.enrollments
+          .filter((e) => e.programId === programId && ['Enrolled', 'Approved', 'Completed'].includes(e.status))
+          .map((e) => e.traineeId),
+      ),
+    ]
+    return ids.map((id) => db.users.find((u) => u.id === id)).filter(Boolean)
+  }
+
+  const selectedTrainees = selected ? programTrainees(selected.programId) : []
+  const selectedTakenIds = new Set((selected?.attempts || []).map((a) => a.traineeId))
+  const selectedCompleted = selectedTrainees.filter((t) => selectedTakenIds.has(t.id))
+  const selectedNotTaken = selectedTrainees.filter((t) => !selectedTakenIds.has(t.id))
 
   const openCreate = () => {
     const p = programs.find((x) => x.id === (programFilter === 'all' ? programs[0]?.id : programFilter)) || programs[0]
@@ -261,6 +292,49 @@ export function TrainerExams() {
                 </div>
               ))}
             </div>
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Completed ({selectedCompleted.length})
+                </p>
+                <div className="space-y-1.5">
+                  {selectedCompleted.length ? (
+                    selectedCompleted.map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between rounded-lg border border-emerald-100 bg-emerald-50/50 px-3 py-1.5 text-sm"
+                      >
+                        <span className="truncate text-slate-700">{t.name}</span>
+                        <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400">No submissions yet.</p>
+                  )}
+                </div>
+              </div>
+              <div>
+                <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Not taken ({selectedNotTaken.length})
+                </p>
+                <div className="space-y-1.5">
+                  {selectedNotTaken.length ? (
+                    selectedNotTaken.map((t) => (
+                      <div
+                        key={t.id}
+                        className="flex items-center justify-between rounded-lg border border-slate-100 px-3 py-1.5 text-sm"
+                      >
+                        <span className="truncate text-slate-600">{t.name}</span>
+                        <UserX className="h-4 w-4 shrink-0 text-slate-400" />
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-xs text-slate-400">Everyone has taken this exam.</p>
+                  )}
+                </div>
+              </div>
+            </div>
+
             <div>
               <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500">Exam Results</p>
               {selected.attempts.length ? (

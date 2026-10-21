@@ -9,3 +9,6 @@ verify_jwt = true
 
 [functions.resend-trainer-invitation]
 verify_jwt = true
+
+[functions.export-trainer-feedback]
+verify_jwt = true
