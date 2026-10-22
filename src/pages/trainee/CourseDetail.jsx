@@ -30,18 +30,23 @@ import {
   hasCourseAccess,
   enrollmentTrainerId,
 } from '../../store/selectors'
-import { programLessonCount, programQuizCount } from '../../data/programs'
+import { publishedLessonCount, programQuizCount, isLessonPublished } from '../../data/programs'
 import { Card, CardBody, CardHeader, Badge, Button, ProgressBar, Tabs, EmptyState } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 import { CourseBackdrop } from '../../components/courses/CourseBackdrop'
 import { cn, formatDate, formatTime, relativeDay } from '../../lib/utils'
+import { PAYABLE_STATUSES, canPayEnrollment } from '../../lib/enrollmentRequirements'
 import { getQuizAccess, quizWindow, formatQuizSchedule } from '../../lib/quizAccess'
 import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 
 function CompetencyAccordion({ competency, programId, progress, quizzes, attempts, open, onToggle }) {
   const isCore = competency.type === 'Core'
-  const units = competency.units || [{ id: competency.id, title: competency.title, description: competency.description, lessons: competency.lessons }]
+  // Trainees never see an unpublished lesson, and a unit left with no visible
+  // lesson disappears with it.
+  const units = (competency.units || [{ id: competency.id, title: competency.title, description: competency.description, lessons: competency.lessons }])
+    .map((u) => ({ ...u, lessons: (u.lessons || []).filter(isLessonPublished) }))
+    .filter((u) => u.lessons.length > 0)
   const allLessons = units.flatMap((u) => u.lessons)
   const done = allLessons.filter((l) => progress[l.id]).length
   const percent = allLessons.length ? Math.round((done / allLessons.length) * 100) : 0
@@ -180,6 +185,9 @@ export function CourseDetail() {
   // Exams tabs so a taken quiz is never indistinguishable from a new one.
   const takenQuizIds = new Set(attempts.map((a) => a.quizId))
   const takenExamIds = new Set(exams.map((e) => e.examId))
+  // An unpublished quiz or exam is not part of the trainee's course.
+  const visibleQuizzes = (program?.quizzes || []).filter((q) => q.published !== false)
+  const visibleExams = (program?.exams || []).filter((e) => e.published !== false)
 
   if (!program) return <Navigate to="/trainee/courses" replace />
 
@@ -235,8 +243,8 @@ export function CourseDetail() {
   const tabs = [
     { key: 'overview', label: 'Overview' },
     { key: 'competencies', label: 'Competencies' },
-    { key: 'quizzes', label: 'Quizzes', badge: program.quizzes.length },
-    { key: 'exams', label: 'Exams', badge: program.exams.length },
+    { key: 'quizzes', label: 'Quizzes', badge: visibleQuizzes.length },
+    { key: 'exams', label: 'Exams', badge: visibleExams.length },
   ]
 
   return (
@@ -280,7 +288,7 @@ export function CourseDetail() {
                 <Clock className="h-3.5 w-3.5" /> {program.duration} · {program.hours} hrs
               </span>
               <span className="inline-flex items-center gap-1.5">
-                <BookOpen className="h-3.5 w-3.5" /> {programLessonCount(programId)} lessons
+                <BookOpen className="h-3.5 w-3.5" /> {publishedLessonCount(programId)} lessons
               </span>
               <span className="inline-flex items-center gap-1.5">
                 <ClipboardList className="h-3.5 w-3.5" /> {programQuizCount(programId)} quizzes
@@ -363,6 +371,15 @@ export function CourseDetail() {
                     <span>Balance</span>
                     <span className="font-semibold">₱{enrollment.payment.balance.toLocaleString()}</span>
                   </div>
+                  {!canPayEnrollment(enrollment) && (
+                    <p className="mt-2 text-[11px] text-slate-400">
+                      {['Rejected', 'Cancelled'].includes(enrollment.status)
+                        ? 'Payment is closed for this application.'
+                        : !PAYABLE_STATUSES.includes(enrollment.status)
+                          ? 'Payment unlocks after the admin approves your enrollment.'
+                          : 'Payment unlocks after the admin verifies your requirements.'}
+                    </p>
+                  )}
                 </div>
               )}
               <Link to="/trainee/grades" className="block">
@@ -383,7 +400,7 @@ export function CourseDetail() {
               competency={comp}
               programId={programId}
               progress={enrollment.progress || {}}
-              quizzes={program.quizzes}
+              quizzes={visibleQuizzes}
               attempts={attempts}
               open={openComp === comp.type}
               onToggle={() => setOpenComp(openComp === comp.type ? null : comp.type)}
@@ -398,13 +415,13 @@ export function CourseDetail() {
             <p className="text-sm font-semibold text-slate-700">Quizzes</p>
             <p className="text-xs text-slate-500">
               <span className="font-semibold text-slate-700">
-                {program.quizzes.filter((q) => takenQuizIds.has(q.id)).length}
+                {visibleQuizzes.filter((q) => takenQuizIds.has(q.id)).length}
               </span>{' '}
-              of {program.quizzes.length} taken
+              of {visibleQuizzes.length} taken
             </p>
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {program.quizzes.map((quiz, index) => {
+          {visibleQuizzes.map((quiz, index) => {
             const quizAttempts = attempts.filter((a) => a.quizId === quiz.id)
             const best = quizAttempts.sort((a, b) => b.percentage - a.percentage)[0]
             const quizRequests = (db.quizRequests || []).filter((r) => r.traineeId === user.id && r.quizId === quiz.id)
@@ -534,12 +551,12 @@ export function CourseDetail() {
             <p className="text-sm font-semibold text-slate-700">Exams</p>
             <p className="text-xs text-slate-500">
               <span className="font-semibold text-slate-700">
-                {program.exams.filter((e) => takenExamIds.has(e.id)).length}
+                {visibleExams.filter((e) => takenExamIds.has(e.id)).length}
               </span>{' '}
-              of {program.exams.length} taken
+              of {visibleExams.length} taken
             </p>
           </div>
-          {program.exams.map((exam, index) => {
+          {visibleExams.map((exam, index) => {
             const attempt = exams.find((e) => e.examId === exam.id)
             const window = quizWindow(exam)
             const open = window.scheduled && !window.beforeStart && !window.afterDeadline

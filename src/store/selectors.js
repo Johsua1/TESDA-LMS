@@ -1,13 +1,25 @@
 // ---------------------------------------------------------------------------
 // Derived data selectors
 // ---------------------------------------------------------------------------
-import { programById, programLessons, programLessonCount, programQuizCount } from '../data/programs'
+import { programById, programLessons, programLessonCount, programQuizCount, publishedLessons } from '../data/programs'
 import { startOfDay, toISODate, average } from '../lib/utils'
+import { canPayEnrollment } from '../lib/enrollmentRequirements'
 
 export const enrollmentsOf = (db, traineeId) => db.enrollments.filter((e) => e.traineeId === traineeId)
 
+// A trainee may have more than one row for the same program after a rejection
+// and a fresh application. Prefer the live application over the archived one,
+// then the newest row, so course pages open the current enrollment.
+const ENROLLMENT_PRIORITY = ['Enrolled', 'Approved', 'Completed', 'Under Review', 'Pending', 'Rejected', 'Cancelled']
+
 export const enrollmentOf = (db, traineeId, programId) =>
-  db.enrollments.find((e) => e.traineeId === traineeId && e.programId === programId)
+  db.enrollments
+    .filter((e) => e.traineeId === traineeId && e.programId === programId)
+    .sort((a, b) => {
+      const diff = ENROLLMENT_PRIORITY.indexOf(a.status) - ENROLLMENT_PRIORITY.indexOf(b.status)
+      if (diff !== 0) return diff
+      return new Date(b.appliedDate) - new Date(a.appliedDate)
+    })[0]
 
 export const activeEnrollmentsOf = (db, traineeId) =>
   enrollmentsOf(db, traineeId).filter((e) => ['Enrolled', 'Approved', 'Completed'].includes(e.status))
@@ -17,8 +29,12 @@ export const hasCourseAccess = (enrollment) =>
   !!enrollment && ['Approved', 'Enrolled', 'Completed'].includes(enrollment.status)
 
 export const courseProgress = (enrollment, programId) => {
-  const total = programLessonCount(programId)
-  const completed = enrollment ? Object.keys(enrollment.progress || {}).length : 0
+  // Only published lessons count: an unpublished lesson cannot be opened, so
+  // including it would make 100% unreachable.
+  const ids = publishedLessons(programId).map((l) => l.id)
+  const progress = enrollment?.progress || {}
+  const completed = ids.filter((id) => progress[id]).length
+  const total = ids.length
   return { completed, total, percent: total ? Math.round((completed / total) * 100) : 0 }
 }
 
@@ -153,23 +169,57 @@ export const trainerRatingSummary = (db, trainerId) => {
 export const traineeTrainerRating = (db, traineeId, trainerId) =>
   (db.trainerRatings || []).find((r) => r.traineeId === traineeId && r.trainerId === trainerId)
 
+const ACTIVE_ENROLLMENT = ['Enrolled', 'Approved', 'Completed']
+
 export const announcementsFor = (db, user) => {
   if (!user) return []
+  const myEnrollments = db.enrollments
+    .filter((e) => e.traineeId === user.id && ACTIVE_ENROLLMENT.includes(e.status))
+    .map((e) => e.programId)
+  const myPrograms = user.role === 'trainer' ? trainerPrograms(db, user.id).map((p) => p.id) : []
+
   return db.announcements
     .filter((a) => {
-      if (a.audience === 'all') return true
-      if (a.audience === 'trainer') return user.role === 'trainer'
-      if (a.audience === 'trainee') {
+      if (user.role === 'admin') return true
+      // Your own posts stay visible to you (and only you, for trainers).
+      if (a.authorId === user.id) return true
+
+      const author = db.users.find((u) => u.id === a.authorId)
+
+      // Trainer notices are for that trainer's students. No other trainer —
+      // in the same program or another one — ever sees them.
+      if (author?.role === 'trainer') {
         if (user.role !== 'trainee') return false
-        if (!a.programId) return true
-        return (user.enrolledPrograms || []).includes(a.programId)
+        if (a.programId) return myEnrollments.includes(a.programId)
+        return trainerPrograms(db, author.id).some((p) => myEnrollments.includes(p.id))
       }
-      return true
+
+      // Admin notices addressed to hand-picked trainers.
+      if (a.audience === 'selected') return (a.audienceIds || []).includes(user.id)
+
+      if (user.role === 'trainer') {
+        if (!['all', 'trainer'].includes(a.audience)) return false
+        return !a.programId || myPrograms.includes(a.programId)
+      }
+      if (user.role === 'trainee') {
+        if (!['all', 'trainee'].includes(a.audience)) return false
+        return !a.programId || myEnrollments.includes(a.programId)
+      }
+      return false
     })
     .sort((a, b) => {
       if (a.pinned !== b.pinned) return a.pinned ? -1 : 1
       return new Date(b.date) - new Date(a.date)
     })
+}
+
+export const readAnnouncementIds = (db, userId) =>
+  new Set((db.announcementReads || []).filter((r) => r.userId === userId).map((r) => r.announcementId))
+
+export const unreadAnnouncements = (db, user) => {
+  if (!user) return []
+  const read = readAnnouncementIds(db, user.id)
+  return announcementsFor(db, user).filter((a) => !read.has(a.id))
 }
 
 export const overallProgress = (db, traineeId) => {
@@ -232,9 +282,11 @@ export const paymentTransactions = (enrollment) => {
 }
 
 // Self-pay enrollments with an outstanding balance the trainee can settle.
+// Only approved/enrolled self-pay applications can be paid. A pending
+// application is still being reviewed, and a rejected one is closed.
 export const outstandingPayments = (db, traineeId) =>
   enrollmentsOf(db, traineeId).filter(
-    (e) => e.type === 'self-pay' && (e.payment?.balance || 0) > 0 && !['Cancelled', 'Rejected'].includes(e.status),
+    (e) => e.type === 'self-pay' && (e.payment?.balance || 0) > 0 && canPayEnrollment(e),
   )
 
 export { programById, programLessons, programLessonCount, programQuizCount, toISODate }

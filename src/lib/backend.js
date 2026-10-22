@@ -40,6 +40,10 @@ const COLLECTIONS = {
     table: 'typing_tests',
     scalars: { traineeId: 'trainee_id', programId: 'program_id', trainerId: 'trainer_id' },
   },
+  typingRequests: {
+    table: 'typing_test_requests',
+    scalars: { traineeId: 'trainee_id', programId: 'program_id', trainerId: 'trainer_id', status: 'status' },
+  },
   evaluations: {
     table: 'evaluations',
     scalars: { traineeId: 'trainee_id', programId: 'program_id', trainerId: 'trainer_id' },
@@ -51,6 +55,12 @@ const COLLECTIONS = {
   announcements: {
     table: 'announcements',
     scalars: { authorId: 'author_id', programId: 'program_id', audience: 'audience', date: 'date' },
+  },
+  announcementReads: {
+    table: 'announcement_reads',
+    scalars: { announcementId: 'announcement_id', userId: 'user_id' },
+    // Unique on the pair, not on id: a re-read must not insert a second row.
+    onConflict: 'announcement_id,user_id',
   },
 }
 
@@ -206,24 +216,21 @@ export async function upsertRows(collection, objs) {
   if (error) throw error
 }
 
-// quiz_requests are created by trainees and decided by trainers, so a blanket
-// upsert breaks RLS: `insert ... on conflict do update` still evaluates the
-// INSERT policy (trainee_id = me AND status = 'pending'), which a trainer's
-// approval can never satisfy. Update existing rows with PATCH and only INSERT
-// the rows that do not exist yet.
-async function writeQuizRequests(objs) {
+// Request tables (quiz_requests, typing_test_requests) are created by trainees
+// and decided by trainers, so a blanket upsert breaks RLS: `insert ... on
+// conflict do update` still evaluates the INSERT policy (trainee_id = me AND
+// status = 'pending'), which a trainer's approval can never satisfy. Update
+// existing rows with PATCH and only INSERT the rows that do not exist yet.
+async function writeRequestRows(collection, objs) {
+  const cfg = COLLECTIONS[collection]
   for (const obj of objs) {
     // `objs` are app objects, not rows — map them the same way the bulk writer
     // does so nested fields land in `data` instead of being sent as columns.
-    const row = toRow('quizRequests', obj)
-    const { data, error } = await supabase
-      .from('quiz_requests')
-      .update(row)
-      .eq('id', row.id)
-      .select('id')
+    const row = toRow(collection, obj)
+    const { data, error } = await supabase.from(cfg.table).update(row).eq('id', row.id).select('id')
     if (error) throw error
     if (data?.length) continue
-    const { error: insertError } = await supabase.from('quiz_requests').insert(row)
+    const { error: insertError } = await supabase.from(cfg.table).insert(row)
     if (insertError) throw insertError
   }
 }
@@ -274,8 +281,8 @@ export async function syncCollections(prev, next) {
     // Quiz attempts must land before quiz-request counter updates: the
     // quiz_attempts trigger consumes the approval, and a concurrent write of
     // the already-incremented counter would make the grant look used.
-    if (name === 'quizRequests') {
-      if (upserts.length) deferred.push(writeQuizRequests(upserts))
+    if (name === 'quizRequests' || name === 'typingRequests') {
+      if (upserts.length) deferred.push(writeRequestRows(name, upserts))
       for (const id of deletes) deferred.push(deleteRow(name, id))
       continue
     }
@@ -431,6 +438,16 @@ export async function updatePassword(newPassword) {
     data: { must_set_password: false },
   })
   if (error) throw error
+}
+
+// Change the signed-in user's email through Supabase Auth. public.profiles.email
+// is a protected column, so it is never written by the client — the
+// on_auth_user_email_updated trigger (migration 060) mirrors the new address
+// into the profile row.
+export async function updateMyEmail(email) {
+  const { data, error } = await supabase.auth.updateUser({ email: String(email).trim().toLowerCase() })
+  if (error) throw error
+  return data?.user || null
 }
 
 // Change the password of a signed-in user, re-verifying the current password

@@ -42,7 +42,7 @@ const emptyForm = {
 }
 
 export function ManageTrainees() {
-  const { db, createTrainee, updateTrainee, deleteUser, toast } = useApp()
+  const { db, settings, createTrainee, updateTrainee, deleteUser, toast } = useApp()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)

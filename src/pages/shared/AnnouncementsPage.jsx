@@ -1,7 +1,7 @@
 import { useState } from 'react'
-import { Megaphone, Plus, Pencil, Trash2, Pin, Search } from 'lucide-react'
+import { Megaphone, Plus, Pencil, Trash2, Pin, Search, CheckCheck } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { announcementsFor, programById } from '../../store/selectors'
+import { announcementsFor, programById, readAnnouncementIds, trainerPrograms } from '../../store/selectors'
 import {
   PageHeader,
   Card,
@@ -21,11 +21,17 @@ import {
 } from '../../components/ui'
 import { formatDate, cn } from '../../lib/utils'
 
-const empty = { title: '', body: '', audience: 'all', programId: '', priority: 'normal', pinned: false }
+const empty = { title: '', body: '', audience: 'all', programId: '', audienceIds: [], priority: 'normal', pinned: false }
 
 export function AnnouncementsPage({ canManage = false }) {
-  const { db, user, saveAnnouncement, deleteAnnouncement, toast } = useApp()
+  const { db, user, saveAnnouncement, deleteAnnouncement, markAnnouncementRead, markAnnouncementsRead, toast } = useApp()
   const list = announcementsFor(db, user)
+  const readIds = readAnnouncementIds(db, user.id)
+  const unreadCount = list.filter((a) => !readIds.has(a.id)).length
+  const isAdmin = user.role === 'admin'
+  const myPrograms = user.role === 'trainer' ? trainerPrograms(db, user.id) : []
+  const formPrograms = isAdmin ? db.programs : myPrograms
+  const trainers = db.users.filter((u) => u.role === 'trainer')
   const [query, setQuery] = useState('')
   const [filter, setFilter] = useState('all')
   const [modalOpen, setModalOpen] = useState(false)
@@ -45,6 +51,14 @@ export function AnnouncementsPage({ canManage = false }) {
     setModalOpen(true)
   }
 
+  const toggleAudienceId = (id) =>
+    setForm((f) => ({
+      ...f,
+      audienceIds: (f.audienceIds || []).includes(id)
+        ? f.audienceIds.filter((x) => x !== id)
+        : [...(f.audienceIds || []), id],
+    }))
+
   const openEdit = (a) => {
     setEditing(a)
     setForm({ ...a })
@@ -56,9 +70,21 @@ export function AnnouncementsPage({ canManage = false }) {
       toast('Title and body are required.', 'warning')
       return
     }
+    if (!isAdmin && !myPrograms.length) {
+      toast('You have no assigned program to announce to.', 'warning')
+      return
+    }
+    if (isAdmin && form.audience === 'selected' && !(form.audienceIds || []).length) {
+      toast('Select at least one trainer.', 'warning')
+      return
+    }
     saveAnnouncement({
       ...form,
       id: editing?.id,
+      // A trainer's notice always goes to trainees and never leaves their own
+      // programs, whatever the stored form says.
+      audience: isAdmin ? form.audience : 'trainee',
+      audienceIds: isAdmin && form.audience === 'selected' ? form.audienceIds : [],
       programId: form.programId || null,
       authorId: editing?.authorId || user.id,
       date: editing?.date || new Date().toISOString().slice(0, 10),
@@ -89,8 +115,9 @@ export function AnnouncementsPage({ canManage = false }) {
           {filtered.map((a) => {
             const author = db.users.find((u) => u.id === a.authorId)
             const program = a.programId ? programById(a.programId) : null
+            const unread = !readIds.has(a.id)
             return (
-              <Card key={a.id} className={cn('p-5', a.pinned && 'ring-1 ring-amber-200')}>
+              <Card key={a.id} className={cn('p-5', a.pinned && 'ring-1 ring-amber-200', unread && 'bg-brand-50/40')}>
                 <div className="flex items-start gap-4">
                   <span
                     className={cn(
@@ -102,20 +129,38 @@ export function AnnouncementsPage({ canManage = false }) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-center gap-2">
+                      {unread && <Badge tone="brand">Unread</Badge>}
                       {a.pinned && <Badge tone="warning">📌 Pinned</Badge>}
                       <Badge tone={a.priority === 'high' ? 'danger' : a.priority === 'low' ? 'neutral' : 'info'}>
                         {a.priority === 'high' ? 'High priority' : a.priority === 'low' ? 'Low' : 'Normal'}
                       </Badge>
                       <Badge tone="neutral">
-                        {a.audience === 'all' ? 'Everyone' : a.audience === 'trainee' ? 'Trainees' : 'Trainers'}
+                        {a.audience === 'all'
+                          ? 'Everyone'
+                          : a.audience === 'trainee'
+                            ? 'Trainees'
+                            : a.audience === 'selected'
+                              ? `Selected trainers (${(a.audienceIds || []).length})`
+                              : 'Trainers'}
                       </Badge>
                       {program && <Badge tone="brand">{program.title}</Badge>}
                     </div>
                     <h3 className="mt-2 text-base font-semibold text-slate-800">{a.title}</h3>
                     <p className="mt-1 text-sm leading-relaxed text-slate-600">{a.body}</p>
-                    <p className="mt-3 text-xs text-slate-400">
-                      Posted by {author?.name || 'Administration'} · {formatDate(a.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
-                    </p>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <p className="text-xs text-slate-400">
+                        Posted by {author?.name || 'Administration'} · {formatDate(a.date, { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })}
+                      </p>
+                      {unread && (
+                        <button
+                          type="button"
+                          onClick={() => markAnnouncementRead(a.id)}
+                          className="text-xs font-semibold text-brand-600 hover:text-brand-700"
+                        >
+                          Mark as read
+                        </button>
+                      )}
+                    </div>
                   </div>
                   {canManage && (
                     <Dropdown
@@ -167,16 +212,20 @@ export function AnnouncementsPage({ canManage = false }) {
           </FormField>
           <FormRow cols={3}>
             <FormField label="Audience">
-              <Select value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })}>
-                <option value="all">Everyone</option>
-                <option value="trainee">Trainees</option>
-                <option value="trainer">Trainers</option>
-              </Select>
+              {isAdmin ? (
+                <Select value={form.audience} onChange={(e) => setForm({ ...form, audience: e.target.value })}>
+                  <option value="all">Everyone (trainers &amp; trainees)</option>
+                  <option value="trainee">All trainees</option>
+                  <option value="selected">Specific trainers</option>
+                </Select>
+              ) : (
+                <Input value="My trainees (own programs)" disabled />
+              )}
             </FormField>
-            <FormField label="Program (optional)">
+            <FormField label={isAdmin ? 'Program (optional)' : 'Program'}>
               <Select value={form.programId || ''} onChange={(e) => setForm({ ...form, programId: e.target.value })}>
-                <option value="">All programs</option>
-                {db.programs.map((p) => (
+                <option value="">{isAdmin ? 'All programs' : 'All my programs'}</option>
+                {formPrograms.map((p) => (
                   <option key={p.id} value={p.id}>
                     {p.title}
                   </option>
@@ -191,6 +240,22 @@ export function AnnouncementsPage({ canManage = false }) {
               </Select>
             </FormField>
           </FormRow>
+          {isAdmin && form.audience === 'selected' && (
+            <FormField label="Trainers" hint="Only the trainers you tick will see this announcement.">
+              <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-xl border border-slate-200 p-3">
+                {trainers.map((t) => (
+                  <Checkbox
+                    key={t.id}
+                    checked={(form.audienceIds || []).includes(t.id)}
+                    onChange={() => toggleAudienceId(t.id)}
+                    label={`${t.name}${t.position ? ' · ' + t.position : ''}`}
+                  />
+                ))}
+                {!trainers.length && <p className="text-sm text-slate-400">No trainers yet.</p>}
+              </div>
+            </FormField>
+          )}
+
           <Checkbox
             checked={!!form.pinned}
             onChange={(e) => setForm({ ...form, pinned: e.target.checked })}

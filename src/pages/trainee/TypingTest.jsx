@@ -3,7 +3,6 @@ import {
   Keyboard,
   Timer,
   Target,
-  CheckCircle2,
   XCircle,
   RotateCcw,
   Trophy,
@@ -11,16 +10,29 @@ import {
   AlertTriangle,
   Award,
   TrendingUp,
+  Send,
+  Hourglass,
+  Lock,
+  ClipboardCheck,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
-import { traineeTypingTests, programById } from '../../store/selectors'
+import { traineeTypingTests, enrollmentTrainerId } from '../../store/selectors'
+import { getTypingAccess, typingTestsOf, typingRequestsOf, TYPING_PROGRAM_ID } from '../../lib/typingAccess'
 import { Card, CardBody, CardHeader, Button, Badge, StatCard, ProgressBar, EmptyState } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, clamp, cn } from '../../lib/utils'
+import { formatDate, cn } from '../../lib/utils'
+import {
+  computeTypingStats,
+  typingScore,
+  formatDuration,
+  isPassageComplete,
+  TYPING_TARGET_WPM,
+} from '../../lib/typingMetrics'
 
-const PASSING = 40
-const TARGET_WPM = 40
+// Fallback only: the live value comes from System Settings
+// (typingPassingRate), read inside the component.
+const DEFAULT_PASSING = 40
 
 const PASSAGES = [
   'A virtual assistant helps business owners manage their daily tasks from a remote location. Strong communication skills and attention to detail are essential for success in this profession. You must be organized, reliable, and able to work independently while staying connected with your client through email, chat, and video calls.',
@@ -29,10 +41,30 @@ const PASSAGES = [
 ]
 
 export function TypingTest() {
-  const { db, user, recordTypingTest, toast, settings } = useApp()
+  const { db, user, settings, recordTypingTest, requestTypingRetake, toast } = useApp()
+  const PASSING = Number(settings?.typingPassingRate) || DEFAULT_PASSING
   const history = traineeTypingTests(db, user.id)
-  const vaProgram = programById('virtual-assistant')
+  // One attempt per trainee; any further attempt needs a trainer approval.
+  const access = getTypingAccess({
+    tests: typingTestsOf(db, user.id, TYPING_PROGRAM_ID),
+    requests: typingRequestsOf(db, user.id, TYPING_PROGRAM_ID),
+  })
   const enrolled = (user.enrolledPrograms || []).includes('virtual-assistant')
+  // The trainer who owns this result: the one the VA enrollment is assigned to.
+  // The program's legacy `trainerId` points at a seed id with no profile, so a
+  // result stored against it would never reach a trainer.
+  const vaEnrollment = db.enrollments.find(
+    (e) =>
+      e.traineeId === user.id &&
+      e.programId === 'virtual-assistant' &&
+      ['Enrolled', 'Approved', 'Completed'].includes(e.status),
+  )
+  const vaTrainer = db.users.find((u) => u.id === enrollmentTrainerId(db, vaEnrollment) && u.role === 'trainer')
+  const vaTrainerId = vaTrainer?.id || null
+  // Trainer who evaluated the latest result (for the remarks panel).
+  const evaluator = access.latest?.evaluatedBy
+    ? db.users.find((u) => u.id === access.latest.evaluatedBy)
+    : null
 
   const [phase, setPhase] = useState('intro') // intro | test | result
   const [passageIndex, setPassageIndex] = useState(0)
@@ -41,89 +73,120 @@ export function TypingTest() {
   const [elapsed, setElapsed] = useState(0)
   const [result, setResult] = useState(null)
   const inputRef = useRef(null)
+  // Wall-clock start of the attempt, so WPM stays accurate even when the last
+  // character lands between two timer ticks.
+  const startedAtRef = useRef(null)
+  // Guards the auto-submit effect so one attempt is never recorded twice.
+  const finishedRef = useRef(false)
 
   const passage = PASSAGES[passageIndex]
 
   useEffect(() => {
     if (!started || phase !== 'test') return undefined
-    const t = setInterval(() => setElapsed((e) => e + 1), 1000)
+    const t = setInterval(() => {
+      if (startedAtRef.current) setElapsed((Date.now() - startedAtRef.current) / 1000)
+    }, 200)
     return () => clearInterval(t)
   }, [started, phase])
 
-  const stats = useMemo(() => {
-    const target = passage
-    let correctChars = 0
-    let errors = 0
-    for (let i = 0; i < typed.length; i += 1) {
-      if (typed[i] === target[i]) correctChars += 1
-      else errors += 1
-    }
-    const minutes = Math.max(elapsed / 60, 1 / 60)
-    const wpm = elapsed > 0 ? Math.round(correctChars / 5 / minutes) : 0
-    const accuracy = typed.length ? Math.round((correctChars / typed.length) * 100) : 100
-    const targetWords = target.trim().split(/\s+/)
-    const typedWords = typed.trim().split(/\s+/).filter(Boolean)
-    let correctWords = 0
-    let incorrectWords = 0
-    typedWords.forEach((w, i) => {
-      if (w === targetWords[i]) correctWords += 1
-      else incorrectWords += 1
-    })
-    return {
-      correctChars,
-      errors,
-      wpm,
-      accuracy,
-      totalWords: targetWords.length,
-      correctWords,
-      incorrectWords,
-      typedWords: typedWords.length,
-    }
-  }, [typed, passage, elapsed])
-
-  const score = clamp(Math.round((stats.wpm / TARGET_WPM) * stats.accuracy), 0, 100)
-  const passed = score >= PASSING
+  const stats = useMemo(() => computeTypingStats(passage, typed, elapsed), [typed, passage, elapsed])
 
   const handleChange = (e) => {
     const value = e.target.value.slice(0, passage.length)
-    if (!started && value.length > 0) setStarted(true)
+    if (!started && value.length > 0) {
+      startedAtRef.current = Date.now()
+      setStarted(true)
+    }
     setTyped(value)
   }
 
-  const finish = () => {
-    if (!started) {
-      toast('Start typing to begin the test.', 'warning')
-      return
-    }
-    const res = {
-      traineeId: user.id,
-      programId: 'virtual-assistant',
-      trainerId: vaProgram?.trainerId,
-      wpm: stats.wpm,
-      accuracy: stats.accuracy,
-      errors: stats.errors,
-      totalWords: stats.totalWords,
-      correctWords: stats.correctWords,
-      incorrectWords: stats.incorrectWords,
-      duration: Math.max(1, Math.round(elapsed / 60)),
-      score,
-      passed,
-      date: new Date().toISOString().slice(0, 10),
-      remarks: passed ? 'Meets minimum typing requirement.' : 'Needs more practice. Retake required.',
-    }
-    recordTypingTest(res)
-    setResult(res)
-    setPhase('result')
-  }
-
-  const reset = () => {
-    setPhase('intro')
+  const resetAttempt = () => {
     setTyped('')
     setStarted(false)
     setElapsed(0)
     setResult(null)
-    setPassageIndex((i) => (i + 1) % PASSAGES.length)
+    startedAtRef.current = null
+    finishedRef.current = false
   }
+
+  // The first attempt and an approved retake both start here; nothing else can
+  // open the test phase.
+  const startTest = (retake = false) => {
+    if (!access.canStart) {
+      toast('You already took the typing test. Request a retake from your trainer.', 'error')
+      return
+    }
+    resetAttempt()
+    // A retake uses a fresh passage so the previous attempt cannot be reused.
+    if (retake) setPassageIndex((i) => (i + 1) % PASSAGES.length)
+    setPhase('test')
+  }
+
+  const cancelTest = () => {
+    resetAttempt()
+    setPhase('intro')
+  }
+
+  const requestRetake = () => {
+    const res = requestTypingRetake({ programId: TYPING_PROGRAM_ID })
+    if (!res.ok) toast(res.error, 'error')
+  }
+
+  // Ends the test. The auto-submit effect calls this the moment the last
+  // character is typed, so there is no Submit button to press.
+  const finish = () => {
+    if (finishedRef.current) return
+    if (!started) {
+      toast('Start typing to begin the test.', 'warning')
+      return
+    }
+    finishedRef.current = true
+
+    const seconds = startedAtRef.current ? Math.max(1, (Date.now() - startedAtRef.current) / 1000) : 0
+    const finalStats = computeTypingStats(passage, typed, seconds)
+    const finalScore = typingScore(finalStats.netWpm)
+    const finalPassed = finalScore >= PASSING
+
+    const res = {
+      traineeId: user.id,
+      programId: TYPING_PROGRAM_ID,
+      trainerId: vaTrainerId,
+      wpm: finalStats.netWpm,
+      rawWpm: finalStats.grossWpm,
+      accuracy: finalStats.accuracy,
+      errors: finalStats.errors,
+      totalWords: finalStats.totalWords,
+      correctWords: finalStats.correctWords,
+      incorrectWords: finalStats.incorrectWords,
+      durationSeconds: finalStats.seconds,
+      duration: Math.max(1, Math.round(seconds / 60)),
+      score: finalScore,
+      passed: finalPassed,
+      date: new Date().toISOString().slice(0, 10),
+      submittedAt: new Date().toISOString(),
+      remarks: finalPassed ? 'Meets minimum typing requirement.' : 'Needs more practice. Retake required.',
+    }
+    const saved = recordTypingTest(res)
+    if (saved?.ok === false) {
+      finishedRef.current = false
+      toast(saved.error, 'error')
+      setPhase('intro')
+      return
+    }
+    setResult(res)
+    setPhase('result')
+  }
+
+  // Auto-submit once the passage is fully typed. The final character must be
+  // the right one — otherwise a stray space where the closing period belongs
+  // would end the attempt before the trainee types it.
+  useEffect(() => {
+    if (phase !== 'test' || !started) return
+    if (!isPassageComplete(passage, typed)) return
+    finish()
+    // Reads the latest render; re-running on every finish identity is unwanted.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [typed, phase, started, passage.length])
 
   if (!enrolled) {
     return (
@@ -149,6 +212,26 @@ export function TypingTest() {
       render: (r) => <span className="font-semibold text-slate-700">{r.score}%</span>,
     },
     { key: 'passed', header: 'Result', render: (r) => <StatusBadge status={r.passed ? 'Passed' : 'Failed'} /> },
+    {
+      key: 'evaluated',
+      header: 'Evaluation',
+      render: (r) =>
+        r.evaluated === false ? (
+          <Badge tone="warning">Awaiting evaluation</Badge>
+        ) : (
+          <Badge tone="success">Evaluated</Badge>
+        ),
+    },
+    {
+      key: 'remarks',
+      header: 'Trainer Remarks',
+      render: (r) =>
+        r.evaluated === false ? (
+          <span className="text-slate-400">Awaiting evaluation</span>
+        ) : (
+          <span className="text-slate-600">{r.remarks || '—'}</span>
+        ),
+    },
   ]
 
   return (
@@ -168,7 +251,13 @@ export function TypingTest() {
           icon={Gauge}
           tone="brand"
         />
-        <StatCard label="Attempts" value={history.length} icon={Keyboard} tone="purple" />
+        <StatCard
+          label="Attempts"
+          value={access.attemptCount}
+          icon={Keyboard}
+          tone="purple"
+          hint={access.canStart ? 'One attempt allowed' : 'Attempt used'}
+        />
       </div>
 
       {/* INTRO */}
@@ -181,7 +270,9 @@ export function TypingTest() {
             <h1 className="mt-4 text-xl font-bold sm:text-2xl">Virtual Assistant Typing Test</h1>
             <p className="mt-1 max-w-2xl text-sm text-white/85">
               Type the passage as quickly and accurately as you can. Your words-per-minute, accuracy and errors are
-              measured automatically. You need a score of at least {PASSING}% to pass.
+              measured automatically. You need a score of at least {PASSING}% to pass. The test submits by itself once
+              you type the last character. You get one attempt — your trainer evaluates it, and you can request a retake
+              if you need another try.
             </p>
           </div>
           <CardBody className="space-y-5">
@@ -203,13 +294,64 @@ export function TypingTest() {
                 <AlertTriangle className="h-4 w-4" /> How scoring works
               </p>
               <p className="mt-1 text-indigo-700">
-                Score = (WPM ÷ {TARGET_WPM}) × Accuracy, capped at 100%. For example, 25 WPM at 88% accuracy gives a score
-                of 55% — a passing result.
+                Score = net WPM (correct characters only) ÷ {TYPING_TARGET_WPM} WPM × 100, capped at 100%. Wrong characters
+                never count toward your speed, so accuracy is already included. For example, 25 net WPM gives a score of
+                63% — a passing result.
               </p>
             </div>
-            <Button size="lg" className="w-full" icon={Keyboard} onClick={() => setPhase('test')}>
-              Start Typing Test
-            </Button>
+            {access.waitingForEvaluation && (
+              <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Your result is waiting for trainer evaluation. You can request a retake once it has been evaluated.
+              </p>
+            )}
+            {access.pendingRequest && (
+              <p className="rounded-lg bg-amber-50 px-4 py-3 text-sm font-medium text-amber-800">
+                Your retake request is waiting for trainer approval.
+              </p>
+            )}
+            {access.approvedRequest && (
+              <p className="rounded-lg bg-emerald-50 px-4 py-3 text-sm font-medium text-emerald-800">
+                Your trainer approved one more attempt. Start it below.
+              </p>
+            )}
+            {access.latestRejected && !access.pendingRequest && !access.approvedRequest && !access.waitingForEvaluation && (
+              <p className="rounded-lg bg-red-50 px-4 py-3 text-sm font-medium text-red-700">
+                Your retake request was rejected{access.latestRejected.note ? ': ' + access.latestRejected.note : '.'}
+              </p>
+            )}
+
+            {access.latest && access.evaluated && access.latest.remarks && (
+              <div className="rounded-lg border border-slate-100 bg-slate-50 p-4">
+                <p className="text-xs font-semibold uppercase tracking-wide text-slate-400">Trainer&apos;s Remarks</p>
+                <p className="mt-1 text-sm text-slate-700">{access.latest.remarks}</p>
+                <p className="mt-2 text-xs text-slate-400">
+                  {evaluator ? `Evaluated by ${evaluator.name}` : 'Evaluated'}
+                  {access.latest.evaluatedAt ? ` · ${formatDate(access.latest.evaluatedAt)}` : ''}
+                </p>
+              </div>
+            )}
+
+            {access.canStart ? (
+              <Button size="lg" className="w-full" icon={Keyboard} onClick={() => startTest(access.attemptCount > 0)}>
+                {access.attemptCount > 0 ? 'Start Approved Retake' : 'Start Typing Test'}
+              </Button>
+            ) : access.waitingForEvaluation ? (
+              <Button size="lg" variant="secondary" className="w-full" icon={Hourglass} disabled>
+                Waiting for trainer evaluation
+              </Button>
+            ) : access.pendingRequest ? (
+              <Button size="lg" variant="secondary" className="w-full" icon={Hourglass} disabled>
+                Retake request pending approval
+              </Button>
+            ) : access.canRequest ? (
+              <Button size="lg" className="w-full" icon={Send} onClick={requestRetake}>
+                Request Retake
+              </Button>
+            ) : (
+              <Button size="lg" variant="secondary" className="w-full" icon={Lock} disabled>
+                Attempt already used
+              </Button>
+            )}
           </CardBody>
         </Card>
       )}
@@ -219,7 +361,7 @@ export function TypingTest() {
         <div className="space-y-5">
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[
-              { label: 'Time', value: `${elapsed}s`, icon: Timer },
+              { label: 'Time', value: `${Math.floor(elapsed)}s`, icon: Timer },
               { label: 'WPM', value: stats.wpm, icon: Gauge },
               { label: 'Accuracy', value: `${stats.accuracy}%`, icon: Target },
               { label: 'Errors', value: stats.errors, icon: XCircle },
@@ -235,7 +377,11 @@ export function TypingTest() {
           <Card>
             <CardHeader
               title="Type the passage below"
-              subtitle={started ? 'Timer running — good luck!' : 'Start typing to begin the timer'}
+              subtitle={
+                started
+                  ? 'Timer running — the test ends automatically at the last character'
+                  : 'Start typing to begin the timer'
+              }
               icon={Keyboard}
               action={<Badge tone={started ? 'success' : 'neutral'}>{started ? 'In progress' : 'Ready'}</Badge>}
             />
@@ -256,24 +402,26 @@ export function TypingTest() {
                 ref={inputRef}
                 value={typed}
                 onChange={handleChange}
+                onPaste={(e) => e.preventDefault()}
                 placeholder="Click here and start typing…"
                 rows={5}
                 spellCheck={false}
+                autoComplete="off"
                 className="input-base font-mono"
               />
               <div className="flex flex-wrap items-center justify-between gap-3">
                 <span className="text-xs text-slate-400">
                   {typed.length}/{passage.length} characters · {stats.typedWords}/{stats.totalWords} words
                 </span>
-                <div className="flex gap-2">
-                  <Button variant="secondary" icon={RotateCcw} onClick={reset}>
-                    Cancel
-                  </Button>
-                  <Button variant="success" icon={CheckCircle2} onClick={finish}>
-                    Submit Test
-                  </Button>
-                </div>
+                <Button variant="secondary" icon={RotateCcw} onClick={cancelTest}>
+                  Cancel
+                </Button>
               </div>
+              {typed.length >= passage.length && !isPassageComplete(passage, typed) && (
+                <p className="text-xs font-medium text-red-600">
+                  The last character is not correct yet — fix it to finish the test.
+                </p>
+              )}
               <ProgressBar value={(typed.length / passage.length) * 100} showLabel />
             </CardBody>
           </Card>
@@ -296,9 +444,9 @@ export function TypingTest() {
             <p className="mt-1 text-sm text-white/85">Typing Test Score: {result.score}%</p>
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { label: 'WPM', value: result.wpm },
+                { label: 'WPM (net)', value: result.wpm },
+                { label: 'Raw WPM', value: result.rawWpm ?? result.wpm },
                 { label: 'Accuracy', value: `${result.accuracy}%` },
-                { label: 'Errors', value: result.errors },
                 { label: 'Score', value: `${result.score}%` },
               ].map((s) => (
                 <div key={s.label} className="rounded-xl bg-white/15 p-3">
@@ -311,10 +459,10 @@ export function TypingTest() {
           <CardBody className="space-y-5">
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
               {[
-                { label: 'Total Words', value: result.totalWords },
+                { label: 'Errors', value: result.errors },
                 { label: 'Correct Words', value: result.correctWords },
                 { label: 'Incorrect Words', value: result.incorrectWords },
-                { label: 'Duration', value: `${result.duration} min` },
+                { label: 'Duration', value: formatDuration(result.durationSeconds ?? result.duration * 60) },
               ].map((s) => (
                 <div key={s.label} className="rounded-lg bg-slate-50 p-3 text-center">
                   <p className="text-lg font-bold text-slate-800">{s.value}</p>
@@ -331,12 +479,26 @@ export function TypingTest() {
               <span className="text-sm font-medium">{result.remarks}</span>
               <StatusBadge status={result.passed ? 'Passed' : 'Failed'} />
             </div>
-            <div className="flex flex-wrap gap-3">
-              <Button icon={RotateCcw} onClick={reset}>
-                Take Another Test
-              </Button>
+            <div className="flex flex-wrap items-center gap-3">
+              {access.canStart ? (
+                <Button icon={Keyboard} onClick={() => startTest(true)}>
+                  Start Approved Retake
+                </Button>
+              ) : access.canRequest ? (
+                <Button icon={Send} onClick={requestRetake}>
+                  Request Retake
+                </Button>
+              ) : access.pendingRequest ? (
+                <Button variant="secondary" icon={Hourglass} disabled>
+                  Retake request pending
+                </Button>
+              ) : (
+                <Button variant="secondary" icon={ClipboardCheck} disabled>
+                  Submitted — awaiting trainer evaluation
+                </Button>
+              )}
               <span className="flex items-center gap-2 text-xs text-slate-400">
-                <TrendingUp className="h-3.5 w-3.5" /> Trainer will review your result.
+                <TrendingUp className="h-3.5 w-3.5" /> One attempt per test — your trainer reviews this result.
               </span>
             </div>
           </CardBody>

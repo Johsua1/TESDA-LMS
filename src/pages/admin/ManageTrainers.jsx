@@ -38,7 +38,7 @@ const emptyForm = {
 }
 
 export function ManageTrainers() {
-  const { db, createTrainer, updateTrainer, deleteUser, toast } = useApp()
+  const { db, settings, createTrainer, updateTrainer, deleteUser, toast } = useApp()
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState(null)
   const [form, setForm] = useState(emptyForm)
@@ -400,7 +400,9 @@ export function ManageTrainers() {
               <p className={cn('text-xs', created.emailed ? 'text-emerald-800' : 'text-amber-800')}>
                 {created.emailed
                   ? 'An activation email has been sent. The trainer will create their OWN password from the link, then land straight on their dashboard.'
-                  : 'Account created, but the activation email could not be sent. Check the email/SMTP settings, then resend it below.'}
+                  : settings.notifyEmail === false
+                    ? 'Account created. Email notifications are turned off in System Settings, so no email was sent — turn them on and resend below when you are ready.'
+                    : 'Account created, but the activation email could not be sent. Check the email/SMTP settings, then resend it below.'}
               </p>
             </div>
 

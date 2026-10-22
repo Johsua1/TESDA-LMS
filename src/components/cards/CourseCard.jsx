@@ -4,10 +4,10 @@ import { Card, ProgressBar, Badge } from '../ui'
 import { StatusBadge } from '../ui/StatusBadge'
 import { CourseIcon } from '../courses/CourseIcon'
 import { cn, formatDate, relativeDay, formatTime } from '../../lib/utils'
-import { programLessonCount, programQuizCount } from '../../data/programs'
+import { publishedLessonCount, programQuizCount } from '../../data/programs'
 
 export function CourseCard({ program, enrollment, trainer, nextSchedule, progress, basePath, className, locked = false }) {
-  const lessons = programLessonCount(program.id)
+  const lessons = publishedLessonCount(program.id)
   const quizzes = programQuizCount(program.id)
   const percent = progress ?? 0
   const link = !locked && basePath ? `${basePath}/${program.id}` : undefined

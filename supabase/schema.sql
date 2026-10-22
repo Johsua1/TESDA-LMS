@@ -6005,3 +6005,715 @@ grant select on public.trainer_ratings to authenticated;
 drop policy if exists trainer_ratings_insert on public.trainer_ratings;
 drop policy if exists trainer_ratings_update on public.trainer_ratings;
 drop policy if exists trainer_ratings_delete on public.trainer_ratings;
+
+
+-- ---------------------------------------------------------------------------
+-- 056 — exam grading: session clock read into scalars
+-- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- 056 — Fix exam submissions failing with
+--        'record "v_session" is not assigned yet'
+--
+-- grade_legacy_attempt() declared a single record variable, v_session, and
+-- only filled it on the quiz branch. The deadline expression still referenced
+-- v_session.deadline_at, and PL/pgSQL evaluates the whole CASE/AND condition
+-- before choosing a branch, so every exam insert raised
+--   55000  record "v_session" is not assigned yet
+-- The trainee saw "This result has not been saved yet", no exam_attempts row
+-- was written, and the trainer's exam results stayed empty.
+--
+-- The session clock is now read into two scalars, and the exam branch never
+-- touches session data at all.
+-- ---------------------------------------------------------------------------
+
+create or replace function public.grade_legacy_attempt()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_kind             text := tg_argv[0];
+  v_config           jsonb;
+  v_session_started  timestamptz;
+  v_session_deadline timestamptz;
+  v_started          timestamptz;
+  v_deadline         timestamptz;
+  v_limit            int;
+  v_grade            jsonb;
+  v_auto             boolean;
+  v_status           text;
+  v_key              text;
+begin
+  -- RPC-created attempts and server-authored forfeiture rows already carry a
+  -- server clock; never re-grade or deadline-check them here.
+  if coalesce(current_setting('app.assessment_rpc', true), '') = 'on' then
+    return new;
+  end if;
+
+  if new.status = 'in_progress' and new.deadline_at is not null then
+    return new;
+  end if;
+
+  v_key := case when v_kind = 'quiz' then 'quizId' else 'examId' end;
+  v_config := public.assessment_config(v_kind, new.program_id, new.data->>v_key);
+
+  if v_config is null then
+    -- Unknown/legacy assessment: keep the old behaviour, but stamp the row.
+    new.submitted_at := coalesce(new.submitted_at, now());
+    new.status := coalesce(nullif(new.status, ''), 'graded');
+    return new;
+  end if;
+
+  if v_kind = 'quiz' then
+    select qs.started_at, qs.deadline_at
+      into v_session_started, v_session_deadline
+    from public.quiz_sessions qs
+    where qs.trainee_id = new.trainee_id
+      and qs.quiz_id = new.data->>'quizId'
+    order by qs.created_at desc
+    limit 1;
+
+    v_started := coalesce(
+      v_session_started,
+      nullif(new.data->>'startedAt', '')::timestamptz,
+      now()
+    );
+  else
+    -- Exams have no session row: the browser's start stamp is the clock.
+    v_started := coalesce(
+      nullif(new.data->>'startedAt', '')::timestamptz,
+      now()
+    );
+  end if;
+
+  if v_started > now() then
+    v_started := now();
+  end if;
+
+  v_limit := public.assessment_time_limit(v_kind, v_config);
+
+  if v_kind = 'quiz' then
+    v_deadline := coalesce(v_session_deadline, v_started + make_interval(secs => v_limit));
+  else
+    v_deadline := v_started + make_interval(secs => v_limit);
+  end if;
+
+  -- 30 seconds of transport tolerance for a submission that left the browser
+  -- at 00:00. Anything later is refused; the attempt is not reopened.
+  if now() > v_deadline + interval '30 seconds' then
+    raise exception 'The assessment deadline has passed. This attempt cannot be accepted.'
+      using errcode = 'check_violation';
+  end if;
+
+  v_grade := public.grade_assessment(v_kind, v_config, new.data->'answers');
+  v_auto := now() >= v_deadline;
+  v_status := case when v_auto then 'auto_submitted' else 'submitted' end;
+
+  new.started_at := v_started;
+  new.deadline_at := v_deadline;
+  new.submitted_at := now();
+  new.time_limit_seconds := v_limit;
+  new.status := v_status;
+  new.auto_submitted := v_auto;
+  new.score := (v_grade->>'score')::int;
+  new.total_questions := (v_grade->>'total')::int;
+  new.answered_questions := (v_grade->>'answered')::int;
+  new.correct_answers := (v_grade->>'correct')::int;
+  new.incorrect_answers := (v_grade->>'incorrect')::int;
+  new.unanswered_questions := (v_grade->>'unanswered')::int;
+  new.percentage := (v_grade->>'percentage')::numeric;
+  new.updated_at := now();
+
+  new.data := coalesce(new.data, '{}'::jsonb) || jsonb_build_object(
+    'score', new.score,
+    'total', new.total_questions,
+    'percentage', new.percentage,
+    'passed', new.percentage >= coalesce(nullif(v_config->>'passing', '')::numeric, 75),
+    'answers', v_grade->'answers',
+    'status', v_status,
+    'startedAt', to_jsonb(v_started),
+    'deadlineAt', to_jsonb(v_deadline),
+    'submittedAt', to_jsonb(now()),
+    'autoSubmitted', v_auto
+  );
+
+  return new;
+end;
+$$;
+
+comment on function public.grade_legacy_attempt() is
+  'BEFORE INSERT grading for legacy single-shot quiz/exam submissions. Session clock read into scalars so the exam branch never touches an unassigned record.';
+
+
+-- ---------------------------------------------------------------------------
+-- 057 — announcement targeting, program isolation and read receipts
+-- ---------------------------------------------------------------------------
+-- ---------------------------------------------------------------------------
+-- 057 — announcement targeting, isolation and read receipts
+--
+-- * Admin: everyone / all trainees / specific trainers, all programs or one.
+-- * Trainer: only their own students, scoped to their programs. A trainer
+--   announcement is invisible to every other trainer.
+-- * Trainees only see notices for programs they are enrolled in.
+-- * announcement_reads tracks per-user read state for the bell badge.
+-- ---------------------------------------------------------------------------
+
+create table if not exists public.announcement_reads (
+  id              text primary key,
+  announcement_id text not null references public.announcements(id) on delete cascade,
+  user_id         text not null references public.profiles(id) on delete cascade,
+  data            jsonb not null default '{}'::jsonb,
+  created_at      timestamptz not null default now(),
+  unique (announcement_id, user_id)
+);
+
+create index if not exists announcement_reads_user_idx on public.announcement_reads (user_id);
+create index if not exists announcements_author_idx on public.announcements (author_id);
+create index if not exists announcements_program_idx on public.announcements (program_id);
+
+alter table public.announcement_reads enable row level security;
+
+drop policy if exists announcement_reads_select on public.announcement_reads;
+create policy announcement_reads_select on public.announcement_reads
+  for select to authenticated
+  using (user_id = public.current_profile_id() or public.is_super_admin());
+
+drop policy if exists announcement_reads_insert on public.announcement_reads;
+create policy announcement_reads_insert on public.announcement_reads
+  for insert to authenticated
+  with check (user_id = public.current_profile_id());
+
+drop policy if exists announcement_reads_delete on public.announcement_reads;
+create policy announcement_reads_delete on public.announcement_reads
+  for delete to authenticated
+  using (user_id = public.current_profile_id());
+
+revoke all on public.announcement_reads from anon;
+grant select, insert, delete on public.announcement_reads to authenticated;
+revoke truncate, references, trigger on public.announcement_reads from anon, authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Who may read one announcement row
+-- ---------------------------------------------------------------------------
+create or replace function public.announcement_visible(
+  p_author_id  text,
+  p_program_id text,
+  p_audience   text,
+  p_data       jsonb
+)
+returns boolean
+language plpgsql
+stable
+security definer
+set search_path = public
+as $$
+declare
+  v_me          text := public.current_profile_id();
+  v_role        text := public.current_role();
+  v_author_role text;
+begin
+  if v_me is null then
+    return false;
+  end if;
+  if v_role = 'admin' then
+    return true;
+  end if;
+  if p_author_id = v_me then
+    return true;
+  end if;
+
+  select role into v_author_role from public.profiles where id = p_author_id;
+
+  -- Trainer-authored: only that trainer's own students.
+  if v_author_role = 'trainer' then
+    if v_role <> 'trainee' then
+      return false;
+    end if;
+    if p_program_id is not null then
+      return exists (
+        select 1 from public.enrollments e
+        where e.trainee_id = v_me
+          and e.program_id = p_program_id
+          and e.status in ('Enrolled', 'Approved', 'Completed')
+      );
+    end if;
+    return exists (
+      select 1
+      from public.trainer_programs tp
+      join public.enrollments e on e.program_id = tp.program_id
+      where tp.trainer_id = p_author_id
+        and tp.status = 'active'
+        and e.trainee_id = v_me
+        and e.status in ('Enrolled', 'Approved', 'Completed')
+    );
+  end if;
+
+  -- Admin-authored, hand-picked trainers.
+  if p_audience = 'selected' then
+    return coalesce((p_data -> 'audienceIds') ? v_me, false);
+  end if;
+
+  if v_role = 'trainer' then
+    if p_audience not in ('all', 'trainer') then
+      return false;
+    end if;
+    if p_program_id is null then
+      return true;
+    end if;
+    return exists (
+      select 1 from public.trainer_programs tp
+      where tp.trainer_id = v_me
+        and tp.program_id = p_program_id
+        and tp.status = 'active'
+    );
+  end if;
+
+  if v_role = 'trainee' then
+    if p_audience not in ('all', 'trainee') then
+      return false;
+    end if;
+    if p_program_id is null then
+      return true;
+    end if;
+    return exists (
+      select 1 from public.enrollments e
+      where e.trainee_id = v_me
+        and e.program_id = p_program_id
+        and e.status in ('Enrolled', 'Approved', 'Completed')
+    );
+  end if;
+
+  return false;
+end $$;
+
+-- ---------------------------------------------------------------------------
+-- Announcement policies (replace the blanket admin+trainer write policy)
+-- ---------------------------------------------------------------------------
+drop policy if exists announcements_select on public.announcements;
+create policy announcements_select on public.announcements
+  for select to authenticated
+  using (public.announcement_visible(author_id, program_id, audience, data));
+
+drop policy if exists announcements_write on public.announcements;
+
+drop policy if exists announcements_insert on public.announcements;
+create policy announcements_insert on public.announcements
+  for insert to authenticated
+  with check (
+    author_id = public.current_profile_id()
+    and (
+      public.is_super_admin()
+      or (
+        public.current_role() = 'trainer'
+        and audience = 'trainee'
+        and (program_id is null or public.is_trainer_assigned_to_program(program_id))
+      )
+    )
+  );
+
+drop policy if exists announcements_update on public.announcements;
+create policy announcements_update on public.announcements
+  for update to authenticated
+  using (public.is_super_admin() or author_id = public.current_profile_id())
+  with check (public.is_super_admin() or author_id = public.current_profile_id());
+
+drop policy if exists announcements_delete on public.announcements;
+create policy announcements_delete on public.announcements
+  for delete to authenticated
+  using (public.is_super_admin() or author_id = public.current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- 058_trainer_evaluation_isolation.sql
+-- ---------------------------------------------------------------------------
+-- Evaluations and typing-test results become private to the trainer who owns
+-- them (plus the trainee they describe, and Super Admins).
+--
+-- Before this migration both tables used the baseline "read-all" policies and
+-- evaluations used a single write policy keyed on the program, so any trainer
+-- assigned to the same program could read *and overwrite* another trainer's
+-- evaluation. Typing tests were fully open as well.
+
+-- ---------------------------------------------------------------------------
+-- 1. Evaluations are keyed by id, not by trainee + program
+--    The old UNIQUE(trainee_id, program_id) made a second period (for example
+--    "Final Evaluation") overwrite the earlier "Mid-Term Evaluation" for the
+--    same trainee, and it also collided when two trainers shared a program.
+-- ---------------------------------------------------------------------------
+alter table public.evaluations
+  drop constraint if exists evaluations_trainee_id_program_id_key;
+
+-- ---------------------------------------------------------------------------
+-- 2. evaluations: author-scoped read/write
+-- ---------------------------------------------------------------------------
+drop policy if exists evaluations_select on public.evaluations;
+create policy evaluations_select on public.evaluations
+  for select to authenticated
+  using (
+    public.is_super_admin()
+    or trainer_id = public.current_profile_id()
+    or trainee_id = public.current_profile_id()
+  );
+
+drop policy if exists evaluations_write on public.evaluations;
+drop policy if exists evaluations_insert on public.evaluations;
+create policy evaluations_insert on public.evaluations
+  for insert to authenticated
+  with check (
+    public.is_super_admin()
+    or (
+      trainer_id = public.current_profile_id()
+      and public.is_trainer_assigned_to_program(program_id)
+    )
+  );
+
+drop policy if exists evaluations_update on public.evaluations;
+create policy evaluations_update on public.evaluations
+  for update to authenticated
+  using (public.is_super_admin() or trainer_id = public.current_profile_id())
+  with check (
+    public.is_super_admin()
+    or (
+      trainer_id = public.current_profile_id()
+      and public.is_trainer_assigned_to_program(program_id)
+    )
+  );
+
+drop policy if exists evaluations_delete on public.evaluations;
+create policy evaluations_delete on public.evaluations
+  for delete to authenticated
+  using (public.is_super_admin() or trainer_id = public.current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- 3. typing_tests: the trainee sees their own results, the trainer who owns the
+--    result sees and annotates it, nobody else does.
+-- ---------------------------------------------------------------------------
+drop policy if exists typing_tests_select on public.typing_tests;
+create policy typing_tests_select on public.typing_tests
+  for select to authenticated
+  using (
+    public.is_super_admin()
+    or trainer_id = public.current_profile_id()
+    or trainee_id = public.current_profile_id()
+  );
+
+drop policy if exists typing_tests_write on public.typing_tests;
+drop policy if exists typing_tests_insert on public.typing_tests;
+create policy typing_tests_insert on public.typing_tests
+  for insert to authenticated
+  with check (
+    public.is_super_admin()
+    or trainee_id = public.current_profile_id()
+    or (
+      trainer_id = public.current_profile_id()
+      and public.is_trainer_assigned_to_program(program_id)
+    )
+  );
+
+drop policy if exists typing_tests_update on public.typing_tests;
+create policy typing_tests_update on public.typing_tests
+  for update to authenticated
+  using (public.is_super_admin() or trainer_id = public.current_profile_id())
+  with check (public.is_super_admin() or trainer_id = public.current_profile_id());
+
+drop policy if exists typing_tests_delete on public.typing_tests;
+create policy typing_tests_delete on public.typing_tests
+  for delete to authenticated
+  using (public.is_super_admin() or trainer_id = public.current_profile_id());
+
+-- ---------------------------------------------------------------------------
+-- 4. Backfill results that were attributed to the program's legacy trainer id
+--    (e.g. 'tr-005'), which does not map to a profile — those rows would be
+--    invisible to every trainer under the policies above. Re-point them at the
+--    trainer the trainee's enrollment is assigned to.
+-- ---------------------------------------------------------------------------
+update public.typing_tests tt
+   set trainer_id = (
+     select e.data->>'trainerId'
+       from public.enrollments e
+      where e.trainee_id = tt.trainee_id
+        and e.program_id = tt.program_id
+        and e.data->>'trainerId' in (select p.id from public.profiles p where p.role = 'trainer')
+      limit 1
+   )
+ where tt.trainer_id is not null
+   and not exists (select 1 from public.profiles p where p.id = tt.trainer_id)
+   and exists (
+     select 1
+       from public.enrollments e2
+      where e2.trainee_id = tt.trainee_id
+        and e2.program_id = tt.program_id
+        and e2.data->>'trainerId' in (select p.id from public.profiles p where p.role = 'trainer')
+   );
+
+-- ============================================================================
+-- 059_typing_test_requests.sql
+-- One typing test attempt per VA trainee + trainer-approved retakes.
+--   * typing_test_requests: one row per trainee request, approved/rejected by
+--     the trainer who owns the result.
+--   * trigger on typing_tests: a second row is only accepted when the trainee
+--     holds an unused approved request, which the trigger consumes.
+-- Safe to re-run.
+-- ============================================================================
+
+set check_function_bodies = false;
+
+create table if not exists public.typing_test_requests (
+  id         text primary key,
+  trainee_id text not null,
+  program_id text not null,
+  trainer_id text,
+  status     text not null default 'pending',
+  data       jsonb not null default '{}'::jsonb,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists typing_test_requests_trainee_idx
+  on public.typing_test_requests (trainee_id, program_id);
+
+-- A trainee can only have one open request per program.
+create unique index if not exists typing_test_requests_one_pending
+  on public.typing_test_requests (trainee_id, program_id)
+  where status = 'pending';
+
+alter table public.typing_test_requests enable row level security;
+
+drop policy if exists typing_test_requests_select on public.typing_test_requests;
+create policy typing_test_requests_select on public.typing_test_requests
+  for select to authenticated
+  using (
+    trainee_id = public.current_profile_id()
+    or trainer_id = public.current_profile_id()
+    or public.is_super_admin()
+    or public.is_trainer_assigned_to_program(program_id)
+  );
+
+drop policy if exists typing_test_requests_insert on public.typing_test_requests;
+create policy typing_test_requests_insert on public.typing_test_requests
+  for insert to authenticated
+  with check (
+    trainee_id = public.current_profile_id()
+    and status = 'pending'
+  );
+
+drop policy if exists typing_test_requests_update on public.typing_test_requests;
+create policy typing_test_requests_update on public.typing_test_requests
+  for update to authenticated
+  using (
+    trainee_id = public.current_profile_id()
+    or trainer_id = public.current_profile_id()
+    or public.is_super_admin()
+    or public.is_trainer_assigned_to_program(program_id)
+  )
+  with check (
+    trainee_id = public.current_profile_id()
+    or trainer_id = public.current_profile_id()
+    or public.is_super_admin()
+    or public.is_trainer_assigned_to_program(program_id)
+  );
+
+-- A trainee may only mirror the attempt counter (attemptsUsed + consumedAt);
+-- the decision fields stay under the trainer's control.
+create or replace function public.protect_typing_request_decision()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if public.is_super_admin()
+     or old.trainer_id = public.current_profile_id()
+     or public.is_trainer_assigned_to_program(old.program_id) then
+    return new;
+  end if;
+
+  if new.trainee_id is distinct from old.trainee_id
+     or new.program_id is distinct from old.program_id
+     or new.trainer_id is distinct from old.trainer_id
+     or new.status is distinct from old.status
+     or (new.data - 'attemptsUsed' - 'consumedAt')
+        is distinct from (old.data - 'attemptsUsed' - 'consumedAt') then
+    raise exception 'Only the assigned trainer can decide a typing test request.'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists typing_test_requests_protect_decision on public.typing_test_requests;
+create trigger typing_test_requests_protect_decision
+  before update on public.typing_test_requests
+  for each row execute function public.protect_typing_request_decision();
+
+drop policy if exists typing_test_requests_delete on public.typing_test_requests;
+create policy typing_test_requests_delete on public.typing_test_requests
+  for delete to authenticated
+  using (
+    public.is_super_admin()
+    or trainee_id = public.current_profile_id()
+  );
+
+grant select, insert, update, delete on public.typing_test_requests to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- Single-attempt gate on typing_tests
+-- ---------------------------------------------------------------------------
+create table if not exists public.typing_tests (
+  id         text primary key,
+  trainee_id text,
+  program_id text,
+  trainer_id text,
+  data       jsonb not null default '{}'::jsonb
+);
+
+create or replace function public.enforce_typing_test_access()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_grant_id text;
+  v_attempts int;
+begin
+  -- Upserts of an existing row (the trainer saving remarks/evaluation) are
+  -- updates, not new attempts.
+  if exists (select 1 from public.typing_tests where id = new.id) then
+    return new;
+  end if;
+
+  -- 1) An approved request grants exactly one attempt; consume it atomically.
+  select r.id into v_grant_id
+  from public.typing_test_requests r
+  where r.trainee_id = new.trainee_id
+    and r.program_id = new.program_id
+    and r.status = 'approved'
+    and coalesce((r.data->>'attemptsUsed')::int, 0)
+        < coalesce((r.data->>'attemptsGranted')::int, 1)
+  order by r.created_at desc
+  limit 1;
+
+  if v_grant_id is not null then
+    update public.typing_test_requests
+       set data = jsonb_set(
+             data,
+             '{attemptsUsed}',
+             to_jsonb(coalesce((data->>'attemptsUsed')::int, 0) + 1)
+           )
+     where id = v_grant_id;
+    return new;
+  end if;
+
+  -- 2) Otherwise only the trainee's first attempt is valid.
+  select count(*) into v_attempts
+  from public.typing_tests
+  where trainee_id = new.trainee_id
+    and program_id = new.program_id;
+
+  if v_attempts > 0 then
+    raise exception 'Typing test already taken. Trainer approval is required for another attempt.'
+      using errcode = 'check_violation';
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists typing_tests_single_attempt on public.typing_tests;
+create trigger typing_tests_single_attempt
+  before insert on public.typing_tests
+  for each row execute function public.enforce_typing_test_access();
+
+-- ============================================================================
+-- 060_profile_email_sync.sql
+-- Keep public.profiles.email in step with the Supabase Auth email.
+--
+-- `email` is a protected profile column, so a client upsert that changes it
+-- raised 42501 (surfaced as "Failed to update your profile"). The Profile page
+-- now changes the address through supabase.auth.updateUser({ email }) and this
+-- trigger mirrors the new address into public.profiles.
+-- Safe to re-run.
+-- ============================================================================
+
+set check_function_bodies = false;
+
+-- Allow the auth-sync trigger below to write the email column. The flag is set
+-- transaction-locally right before that single UPDATE and reset afterwards, so
+-- direct client writes stay blocked.
+create or replace function public.protect_profile_privileged_columns()
+returns trigger
+language plpgsql
+security definer
+set search_path = public
+as $$
+begin
+  if current_setting('app.profile_email_sync', true) = 'on' then
+    return new;
+  end if;
+
+  -- service_role / definer context has no JWT -> allow (Edge Functions).
+  if auth.uid() is null or auth.role() = 'service_role' then
+    return new;
+  end if;
+
+  -- Super Admins may change anything.
+  if public.is_super_admin() then
+    return new;
+  end if;
+
+  -- A trainer may self-activate their own account (pending_activation -> active).
+  -- This is the ONLY protected change they are allowed to make to their own row.
+  if new.id = old.id
+     and old.auth_user_id = auth.uid()
+     and old.status = 'pending_activation'
+     and new.status = 'active'
+     and old.is_activated = false
+     and new.is_activated = true
+     and new.role = old.role
+     and new.mfa_enforced is not distinct from old.mfa_enforced
+     and new.email is not distinct from old.email
+     and new.specialization_id is not distinct from old.specialization_id then
+    return new;
+  end if;
+
+  if new.role            is distinct from old.role
+     or new.status            is distinct from old.status
+     or new.is_activated      is distinct from old.is_activated
+     or new.mfa_enforced      is distinct from old.mfa_enforced
+     or new.email             is distinct from old.email
+     or new.specialization_id is distinct from old.specialization_id then
+    raise exception 'You are not allowed to change protected profile fields (role, status, activation, email, specialization).'
+      using errcode = '42501';
+  end if;
+
+  return new;
+end;
+$$;
+
+create or replace function public.sync_profile_email()
+returns trigger
+language plpgsql
+security definer
+set search_path = public, auth
+as $$
+begin
+  if new.email is distinct from old.email then
+    perform set_config('app.profile_email_sync', 'on', true);
+
+    update public.profiles
+       set email = new.email,
+           updated_at = now()
+     where auth_user_id = new.id;
+
+    perform set_config('app.profile_email_sync', 'off', true);
+  end if;
+
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_email_updated on auth.users;
+create trigger on_auth_user_email_updated
+  after update of email on auth.users
+  for each row execute function public.sync_profile_email();

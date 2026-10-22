@@ -26,13 +26,24 @@ import { cn, formatDate } from '../../lib/utils'
 import { getQuizAccess, formatQuizSchedule, quizBlockedMessage } from '../../lib/quizAccess'
 import { attemptSeconds, remainingSeconds, formatCountdown } from '../../lib/quizTimer'
 import { getQuizSessionState, getServerQuizAttempt } from '../../lib/assessments'
+import { isAnswered, unansweredQuestions, firstUnansweredIndex } from '../../lib/quizAnswers'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
 export function QuizRunner() {
   const { programId, quizId } = useParams()
-  const { db, user, recordQuizAttempt, startQuizAttempt, requestQuizAccess, flushSync, retrySaveRow, toast } =
-    useApp()
+  const {
+    db,
+    user,
+    settings,
+    recordQuizAttempt,
+    markQuizGrantUsed,
+    startQuizAttempt,
+    requestQuizAccess,
+    flushSync,
+    retrySaveRow,
+    toast,
+  } = useApp()
 
   const program = programById(programId)
   const enrollment = enrollmentOf(db, user.id, programId)
@@ -48,6 +59,10 @@ export function QuizRunner() {
   // an error toast at the same time).
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [saveError, setSaveError] = useState('')
+  // Shown when the trainee tries to submit with questions left blank.
+  const [submitError, setSubmitError] = useState('')
+  // The approval this attempt spends, confirmed only once the row is saved.
+  const grantRef = useRef(null)
   const savedAttemptRef = useRef(null)
   const submittedRef = useRef(false)
   // Server-issued clock. When present the countdown follows the database
@@ -147,14 +162,31 @@ export function QuizRunner() {
   }
 
   const total = quiz.questions.length
-  const answeredCount = Object.values(answers).filter((v) => v !== undefined && v !== '').length
+  // Quizzes saved before the threshold existed fall back to the system default.
+  const passingScore = Number(quiz.passing ?? settings?.passingScore ?? 75)
+  const unanswered = unansweredQuestions(quiz.questions, answers)
+  const answeredCount = total - unanswered.length
 
-  const setAnswer = (qid, value) => setAnswers((a) => ({ ...a, [qid]: value }))
+  const setAnswer = (qid, value) => {
+    setSubmitError('')
+    setAnswers((a) => ({ ...a, [qid]: value }))
+  }
 
   const normalize = (v) => String(v ?? '').trim().toLowerCase()
 
   function submit(auto = false) {
     if (submittedRef.current) return
+    // Every question must be answered before a manual submit. An unanswered
+    // question scores zero, so submitting early silently loses marks — block it
+    // and jump to the first one that is still blank. The auto-submit at the
+    // deadline is exempt: the attempt has to close.
+    if (!auto && unanswered.length) {
+      setSubmitError(
+        `Answer all ${total} questions before submitting. ${unanswered.length} still blank.`,
+      )
+      setCurrent(firstUnansweredIndex(quiz.questions, answers))
+      return
+    }
     submittedRef.current = true
     const graded = quiz.questions.map((q) => {
       const given = answers[q.id]
@@ -163,7 +195,7 @@ export function QuizRunner() {
     })
     const score = graded.filter((g) => g.correct).length
     const percentage = Math.round((score / total) * 100)
-    const passed = percentage >= quiz.passing
+    const passed = percentage >= passingScore
     const attempt = {
       traineeId: user.id,
       programId,
@@ -186,6 +218,7 @@ export function QuizRunner() {
       setPhase('intro')
       return
     }
+    grantRef.current = res.grantId || null
     setResult(attempt)
     setPhase('result')
     persist(res.attempt || attempt, auto)
@@ -201,6 +234,8 @@ export function QuizRunner() {
     flushSync()
       .then(() => {
         setSaveState('saved')
+        // The row is stored, so the approval is genuinely spent.
+        markQuizGrantUsed(grantRef.current)
         toast(auto ? 'Time is up — quiz submitted automatically.' : 'Quiz submitted successfully.', auto ? 'warning' : 'success')
         // The row is now in the database and the trigger has re-graded it with
         // the server's answer key. Show what the server recorded.
@@ -222,6 +257,7 @@ export function QuizRunner() {
     retrySaveRow('quizAttempts', stored)
       .then(() => {
         setSaveState('saved')
+        markQuizGrantUsed(grantRef.current)
         toast('Quiz result saved.')
       })
       .catch((e) => {
@@ -247,6 +283,7 @@ export function QuizRunner() {
     )
     setResult(null)
     setServerResult(null)
+    setSubmitError('')
     serverDeadlineRef.current = null
     serverOffsetRef.current = 0
     submittedRef.current = false
@@ -303,7 +340,7 @@ export function QuizRunner() {
               {[
                 { label: 'Questions', value: total },
                 { label: 'Time limit', value: '30 min' },
-                { label: 'Passing score', value: `${quiz.passing}%` },
+                { label: 'Passing score', value: `${passingScore}%` },
               ].map((s) => (
                 <div key={s.label} className="rounded-lg bg-white/10 p-3 text-center">
                   <p className="text-lg font-bold">{s.value}</p>
@@ -323,7 +360,7 @@ export function QuizRunner() {
                   <span className="text-brand-500">•</span> You have 30 minutes. The quiz auto-submits when time runs out.
                 </li>
                 <li className="flex gap-2">
-                  <span className="text-brand-500">•</span> You need at least {quiz.passing}% to pass. Additional attempts require trainer approval.
+                  <span className="text-brand-500">•</span> You need at least {passingScore}% to pass. Additional attempts require trainer approval.
                 </li>
               </ul>
             </div>
@@ -527,7 +564,7 @@ export function QuizRunner() {
         {/* question navigator */}
         <div className="flex flex-wrap gap-2">
           {quiz.questions.map((qq, i) => {
-            const isAnswered = answers[qq.id] !== undefined && answers[qq.id] !== ''
+            const done = isAnswered(answers[qq.id])
             return (
               <button
                 key={qq.id}
@@ -536,7 +573,7 @@ export function QuizRunner() {
                   'h-9 w-9 rounded-lg text-xs font-semibold transition',
                   i === current
                     ? 'bg-brand-600 text-white'
-                    : isAnswered
+                    : done
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
                 )}
@@ -563,9 +600,18 @@ export function QuizRunner() {
         </div>
 
         {answeredCount < total && (
-          <p className="flex items-center justify-center gap-1.5 text-xs text-amber-600">
-            <AlertTriangle className="h-3.5 w-3.5" />
-            {total - answeredCount} question(s) unanswered
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+            <p className="flex items-center justify-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {total - answeredCount} question(s) still unanswered — answer them all before submitting.
+            </p>
+          </div>
+        )}
+
+        {submitError && (
+          <p role="alert" className="flex items-center justify-center gap-1.5 text-xs font-semibold text-red-600">
+            <XCircle className="h-3.5 w-3.5" />
+            {submitError}
           </p>
         )}
       </div>
@@ -645,7 +691,7 @@ export function QuizRunner() {
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-2 text-sm text-slate-600">
               <Award className="h-4 w-4 text-slate-400" />
-              Passing score: {quiz.passing}%
+              Passing score: {passingScore}%
             </div>
             <div className="flex flex-wrap gap-2">
               {access.pendingRequest ? (

@@ -868,7 +868,7 @@ export const programs = [
       'High School graduate or ALS equivalent',
       'Physically fit (medical certificate)',
       'Birth certificate (PSA)',
-      '2 pcs. 2x2 ID picture',
+      'Upload your resume / curriculum vitae',
       'Barangay clearance',
     ],
   }),
@@ -896,7 +896,7 @@ export const programs = [
       'High School graduate or ALS equivalent',
       'Physically fit (medical certificate)',
       'Birth certificate (PSA)',
-      '2 pcs. 2x2 ID picture',
+      'Upload your resume / curriculum vitae',
       'Barangay clearance',
     ],
   }),
@@ -925,7 +925,7 @@ export const programs = [
       'Physically fit (medical certificate)',
       'Negative skin test / health clearance',
       'Birth certificate (PSA)',
-      '2 pcs. 2x2 ID picture',
+      'Upload your resume / curriculum vitae',
     ],
   }),
   buildProgram({
@@ -952,7 +952,7 @@ export const programs = [
       'High School graduate or ALS equivalent',
       'Good communication skills',
       'Birth certificate (PSA)',
-      '2 pcs. 2x2 ID picture',
+      'Upload your resume / curriculum vitae',
       'Barangay clearance',
     ],
   }),
@@ -981,7 +981,7 @@ export const programs = [
       'Own laptop/computer with webcam',
       'Stable internet connection (min. 5 Mbps)',
       'Birth certificate (PSA)',
-      '2 pcs. 2x2 ID picture',
+      'Upload your resume / curriculum vitae',
     ],
   }),
   buildProgram({
@@ -1009,7 +1009,7 @@ export const programs = [
       'High School graduate or ALS equivalent',
       'Basic numeracy and computer skills',
       'Birth certificate (PSA)',
-      '2 pcs. 2x2 ID picture',
+      'Upload your resume / curriculum vitae',
       'Barangay clearance',
     ],
   }),
@@ -1051,6 +1051,15 @@ export const programLessons = (programId) => {
 }
 
 export const programLessonCount = (programId) => programLessons(programId).length
+
+// Trainee-facing visibility. A trainer can unpublish a lesson; until it is
+// published again it must not appear in the trainee's course, progress or
+// lesson navigation.
+export const isLessonPublished = (lesson) => lesson?.published !== false
+
+export const publishedLessons = (programId) => programLessons(programId).filter(isLessonPublished)
+
+export const publishedLessonCount = (programId) => publishedLessons(programId).length
 export const programQuizCount = (programId) => (programById(programId)?.quizzes || []).length
 
 export default programs

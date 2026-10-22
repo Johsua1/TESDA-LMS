@@ -35,15 +35,16 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { QuestionBuilder } from '../../components/content/QuestionBuilder'
 import { average, formatDate, cn } from '../../lib/utils'
 import { formatQuizSchedule, validateSchedule, combineDateTime } from '../../lib/quizAccess'
+import { validateExam } from '../../lib/assessmentValidation'
 import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
-const blankExam = () => ({
+const blankExam = (passing = 75) => ({
   id: '',
   title: '',
   competency: 'Core Competency',
   questions: [],
-  passing: 75,
+  passing,
   date: '',
   startDate: '',
   startTime: '',
@@ -61,13 +62,15 @@ const localTime = (d = new Date()) =>
   `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
 export function TrainerExams() {
-  const { db, user, saveExam, deleteExam, toast } = useApp()
+  const { db, user, settings, saveExam, deleteExam, toast } = useApp()
   const programs = trainerPrograms(db, user.id)
   const [programFilter, setProgramFilter] = useState('all')
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [scheduleError, setScheduleError] = useState(null)
+  // Shown inside the form: a toast can be missed while the modal covers it.
+  const [formError, setFormError] = useState('')
 
   const source = programFilter === 'all' ? programs : programs.filter((p) => p.id === programFilter)
   const exams = source.flatMap((p) =>
@@ -98,9 +101,11 @@ export function TrainerExams() {
   const openCreate = () => {
     const p = programs.find((x) => x.id === (programFilter === 'all' ? programs[0]?.id : programFilter)) || programs[0]
     if (!p) return
-    setForm({ programId: p.id, exam: blankExam() })
+    setFormError('')
+    setForm({ programId: p.id, exam: blankExam(settings.passingScore || 75) })
   }
   const openEdit = (e) => {
+    setFormError('')
     setForm({
       programId: e.programId,
       exam: {
@@ -121,7 +126,10 @@ export function TrainerExams() {
       },
     })
   }
-  const setExam = (patch) => setForm((f) => ({ ...f, exam: { ...f.exam, ...patch } }))
+  const setExam = (patch) => {
+    setFormError('')
+    setForm((f) => ({ ...f, exam: { ...f.exam, ...patch } }))
+  }
   const todayISO = localDate()
   const nowTime = localTime()
 
@@ -141,12 +149,10 @@ export function TrainerExams() {
     : { ok: true, error: '' }
 
   const save = () => {
-    if (!form.exam.title.trim()) {
-      toast('Exam title is required.', 'error')
-      return
-    }
-    if (!form.exam.questions.length) {
-      toast('Add at least one question.', 'error')
+    const check = validateExam(form.exam)
+    if (!check.ok) {
+      setFormError(check.error)
+      toast(check.error, 'error')
       return
     }
     if (!scheduleCheck.ok) {
@@ -382,6 +388,15 @@ export function TrainerExams() {
       >
         {form && (
           <div className="space-y-4">
+            {formError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{formError}</p>
+              </div>
+            )}
             <FormRow cols={2}>
               <FormField label="Program" required>
                 <Select value={form.programId} onChange={(e) => setForm((f) => ({ ...f, programId: e.target.value }))} disabled={!!form.exam.id}>
@@ -402,7 +417,7 @@ export function TrainerExams() {
             </FormField>
 
             <FormRow cols={3}>
-              <FormField label="Passing Score (%)">
+              <FormField label="Passing Score (%)" required>
                 <Input type="number" min="0" max="100" value={form.exam.passing} onChange={(e) => setExam({ passing: e.target.value })} />
               </FormField>
               <FormField label="Status">

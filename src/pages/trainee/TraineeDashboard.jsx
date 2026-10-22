@@ -26,7 +26,7 @@ import {
   nextScheduleFor,
   outstandingPayments,
 } from '../../store/selectors'
-import { programById, programLessonCount } from '../../data/programs'
+import { programById, publishedLessonCount, publishedLessons } from '../../data/programs'
 import {
   Card,
   CardBody,
@@ -71,7 +71,7 @@ export function TraineeDashboard() {
     const program = programById(enr.programId)
     const attempts = traineeQuizAttempts(db, user.id, enr.programId)
     const passedIds = new Set(attempts.filter((a) => a.passed).map((a) => a.quizId))
-    const candidate = program?.quizzes.find((q) => !passedIds.has(q.id))
+    const candidate = program?.quizzes.filter((q) => q.published !== false).find((q) => !passedIds.has(q.id))
     if (candidate) {
       nextQuiz = candidate
       nextQuizProgram = program
@@ -79,8 +79,13 @@ export function TraineeDashboard() {
     }
   }
 
-  const completedLessons = enrollments.reduce((sum, e) => sum + Object.keys(e.progress || {}).length, 0)
-  const totalLessons = enrollments.reduce((sum, e) => sum + programLessonCount(e.programId), 0)
+  // Unpublished lessons are invisible to the trainee, so they are excluded
+  // from both sides of the "x of y lessons" figure.
+  const completedLessons = enrollments.reduce((sum, e) => {
+    const visible = new Set(publishedLessons(e.programId).map((l) => l.id))
+    return sum + Object.keys(e.progress || {}).filter((id) => visible.has(id)).length
+  }, 0)
+  const totalLessons = enrollments.reduce((sum, e) => sum + publishedLessonCount(e.programId), 0)
 
   return (
     <div className="space-y-6">

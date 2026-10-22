@@ -32,6 +32,7 @@ Apply in order after the existing migrations (041):
 | `053_ratings_quantitative_only.sql` | strip legacy comments from `trainer_ratings.data` + trigger that keeps ratings stars-only |
 | `054_single_feedback_submission.sql` | stars required in the same submission, mirrored to `trainer_ratings`, rated only once |
 | `055_ratings_write_lock.sql` | clients get `SELECT` only on `trainer_ratings`; the RPC is the sole writer |
+| `056_exam_grading_record_fix.sql` | exam submissions no longer fail with `record "v_session" is not assigned yet`; session clock is read into scalars |
 
 All files are idempotent. They were applied to the project on 2026-10-21.
 

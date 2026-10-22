@@ -20,6 +20,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerPrograms } from '../../store/selectors'
+import { programLessons } from '../../data/programs'
 import {
   PageHeader,
   Card,
@@ -42,6 +43,7 @@ import { StatusBadge } from '../../components/ui/StatusBadge'
 import { QuestionBuilder } from '../../components/content/QuestionBuilder'
 import { average, formatDate, cn } from '../../lib/utils'
 import { formatQuizSchedule, validateSchedule, combineDateTime } from '../../lib/quizAccess'
+import { validateQuiz } from '../../lib/assessmentValidation'
 import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
@@ -53,10 +55,11 @@ const localDate = (d = new Date()) =>
 const localTime = (d = new Date()) =>
   `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
 
-const blankQuiz = () => ({
+const blankQuiz = (passing = 75) => ({
   id: '',
+  lessonId: '',
   title: '',
-  passing: 75,
+  passing,
   published: true,
   startDate: '',
   startTime: '',
@@ -66,13 +69,15 @@ const blankQuiz = () => ({
 })
 
 export function TrainerQuizzes() {
-  const { db, user, saveQuiz, deleteQuiz, decideQuizRequest, toast } = useApp()
+  const { db, user, settings, saveQuiz, deleteQuiz, decideQuizRequest, toast } = useApp()
   const programs = trainerPrograms(db, user.id)
   const [programFilter, setProgramFilter] = useState('all')
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [scheduleError, setScheduleError] = useState(null)
+  // Shown inside the form: a toast can be missed while the modal covers it.
+  const [formError, setFormError] = useState('')
 
   const source = programFilter === 'all' ? programs : programs.filter((p) => p.id === programFilter)
   const quizzes = source.flatMap((p) =>
@@ -118,13 +123,18 @@ export function TrainerQuizzes() {
   const openCreate = () => {
     const p = programs.find((x) => x.id === (programFilter === 'all' ? programs[0]?.id : programFilter)) || programs[0]
     if (!p) return
-    setForm({ programId: p.id, quiz: blankQuiz() })
+    setFormError('')
+    setForm({ programId: p.id, quiz: blankQuiz(settings.passingScore || 75) })
   }
   const openEdit = (q) => {
+    setFormError('')
     setForm({
       programId: q.programId,
       quiz: {
         id: q.id,
+        // Legacy quizzes only carry the link on the lesson side, so fall back
+        // to whichever lesson points at this quiz.
+        lessonId: q.lessonId || programLessons(q.programId).find((l) => l.quizId === q.id)?.id || '',
         title: q.title,
         passing: q.passing,
         published: q.published !== false,
@@ -138,7 +148,10 @@ export function TrainerQuizzes() {
       },
     })
   }
-  const setQuiz = (patch) => setForm((f) => ({ ...f, quiz: { ...f.quiz, ...patch } }))
+  const setQuiz = (patch) => {
+    setFormError('')
+    setForm((f) => ({ ...f, quiz: { ...f.quiz, ...patch } }))
+  }
   const todayISO = localDate()
   const nowTime = localTime()
 
@@ -160,12 +173,12 @@ export function TrainerQuizzes() {
     : { ok: true, error: '' }
 
   const save = () => {
-    if (!form.quiz.title.trim()) {
-      toast('Quiz title is required.', 'error')
-      return
-    }
-    if (!form.quiz.questions.length) {
-      toast('Add at least one question.', 'error')
+    // Same rules as exams: title, passing score, at least one question and
+    // every question answerable.
+    const check = validateQuiz(form.quiz)
+    if (!check.ok) {
+      setFormError(check.error)
+      toast(check.error, 'error')
       return
     }
     if (!scheduleCheck.ok) {
@@ -282,6 +295,7 @@ export function TrainerQuizzes() {
             const pendingCount = requests.filter((r) => r.quizId === q.id && r.status === 'pending').length
             const passRate = attempts.length ? Math.round((attempts.filter((a) => a.passed).length / attempts.length) * 100) : 0
             const avg = attempts.length ? Math.round(average(attempts.map((a) => a.percentage))) : 0
+            const linkedLesson = programLessons(q.programId).find((l) => l.id === q.lessonId || l.quizId === q.id)
             return (
               <Card key={q.id} hover className="flex flex-col p-4">
                 <div className="flex items-start justify-between">
@@ -301,6 +315,9 @@ export function TrainerQuizzes() {
                 </div>
                 <h4 className="mt-3 text-sm font-semibold text-slate-800">{q.title}</h4>
                 <p className="text-xs text-slate-400">{q.programTitle}</p>
+                <p className="text-[11px] text-slate-500">
+                  {linkedLesson ? `Lesson: ${linkedLesson.title}` : 'Standalone quiz — not shown on a lesson'}
+                </p>
                 <p className="mt-1 inline-flex items-center gap-1 text-[11px] text-slate-400">
                   <CalendarDays className="h-3 w-3" /> {formatQuizSchedule(q)}
                 </p>
@@ -549,9 +566,24 @@ export function TrainerQuizzes() {
       >
         {form && (
           <div className="space-y-4">
+            {formError && (
+              <div
+                role="alert"
+                className="flex items-start gap-2 rounded-xl border border-red-200 bg-red-50 p-3 text-sm text-red-700"
+              >
+                <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+                <p>{formError}</p>
+              </div>
+            )}
             <FormRow cols={3}>
               <FormField label="Program" required>
-                <Select value={form.programId} onChange={(e) => setForm((f) => ({ ...f, programId: e.target.value }))} disabled={!!form.quiz.id}>
+                <Select
+                  value={form.programId}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, programId: e.target.value, quiz: { ...f.quiz, lessonId: '' } }))
+                  }
+                  disabled={!!form.quiz.id}
+                >
                   {programs.map((p) => (
                     <option key={p.id} value={p.id}>
                       {p.title}
@@ -559,13 +591,28 @@ export function TrainerQuizzes() {
                   ))}
                 </Select>
               </FormField>
-              <FormField label="Passing Score (%)">
+              <FormField label="Passing Score (%)" required>
                 <Input type="number" min="0" max="100" value={form.quiz.passing} onChange={(e) => setQuiz({ passing: e.target.value })} />
               </FormField>
             </FormRow>
 
             <FormField label="Quiz Title" required>
               <Input value={form.quiz.title} onChange={(e) => setQuiz({ title: e.target.value })} placeholder="e.g. Module 1 Assessment" />
+            </FormField>
+
+            <FormField
+              label="Lesson"
+              hint="Attach the quiz to one of your lessons so trainees see it on that lesson. Leave it empty for a standalone quiz."
+            >
+              <Select value={form.quiz.lessonId} onChange={(e) => setQuiz({ lessonId: e.target.value })}>
+                <option value="">No lesson — standalone quiz</option>
+                {programLessons(form.programId).map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.competency} · {l.title}
+                    {l.published === false ? ' (unpublished)' : ''}
+                  </option>
+                ))}
+              </Select>
             </FormField>
 
             <div className="rounded-xl border border-slate-200 bg-slate-50/60 p-3">

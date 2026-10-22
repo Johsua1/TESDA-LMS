@@ -1,6 +1,7 @@
 import { Navigate, Route, Routes, useLocation } from 'react-router-dom'
 import { DashboardLayout } from './components/layout/DashboardLayout'
 import { ProtectedRoute } from './components/ProtectedRoute'
+import { MaintenanceGate } from './components/MaintenanceGate'
 import { MfaGate } from './components/MfaGate'
 import { DevtoolsGuard } from './components/DevtoolsGuard'
 import { ToastContainer } from './components/ui/Toasts'
@@ -90,7 +91,9 @@ export default function App() {
         <Route
           element={
             <ProtectedRoute allow={['trainee']}>
-              <DashboardLayout />
+              <MaintenanceGate>
+                <DashboardLayout />
+              </MaintenanceGate>
             </ProtectedRoute>
           }
         >
@@ -115,7 +118,9 @@ export default function App() {
         <Route
           element={
             <ProtectedRoute allow={['trainer']}>
-              <DashboardLayout />
+              <MaintenanceGate>
+                <DashboardLayout />
+              </MaintenanceGate>
             </ProtectedRoute>
           }
         >

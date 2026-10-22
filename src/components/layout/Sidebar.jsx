@@ -6,7 +6,9 @@ import { cn } from '../../lib/utils'
 import { Avatar } from '../ui'
 
 export function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
-  const { user, logout } = useApp()
+  const { user, settings, logout } = useApp()
+  // The institution name is editable in System Settings > Institution.
+  const institution = settings?.institution || 'HYT Global Institute'
   const navigate = useNavigate()
   const role = user?.role || 'trainee'
   const groups = navConfig[role] || []
@@ -45,7 +47,7 @@ export function Sidebar({ open, onClose, collapsed, onToggleCollapse }) {
           />
           {!collapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-bold text-white">HYT Global Institute</p>
+              <p className="truncate text-sm font-bold text-white">{institution}</p>
               <p className="truncate text-[11px] text-slate-400">{meta.label} Portal</p>
             </div>
           )}

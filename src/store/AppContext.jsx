@@ -3,6 +3,10 @@ import { buildSeed } from '../data/seed'
 import { setLivePrograms } from '../data/programs'
 import { uid, slugify } from '../lib/utils'
 import { getQuizAccess, quizWindow, quizBlockedMessage } from '../lib/quizAccess'
+import { getTypingAccess, typingTestsOf, typingRequestsOf, unusedTypingGrant } from '../lib/typingAccess'
+import { applyRequirementResubmission, canPayEnrollment, isEnrollmentLocked } from '../lib/enrollmentRequirements'
+import { validateCourse } from '../lib/courseValidation'
+import { enrollmentTrainerId } from './selectors'
 import { isSupabaseConfigured, supabase, initialUrlAuthType } from '../lib/supabase'
 import * as backend from '../lib/backend'
 
@@ -11,7 +15,7 @@ const SESSION_KEY = 'tesda-lms-session-v1'
 const SETTINGS_KEY = 'tesda-lms-settings-v1'
 
 const DEFAULT_SETTINGS = {
-  institution: 'TESDA Training Center',
+  institution: 'HYT Global Institute',
   academicYear: '2026 - 2027',
   passingScore: 75,
   typingPassingRate: 40,
@@ -32,10 +36,47 @@ const EMPTY_DB = {
   quizSessions: [],
   examAttempts: [],
   typingTests: [],
+  typingRequests: [],
   evaluations: [],
   trainerRatings: [],
   trainerPrograms: [],
   announcements: [],
+  announcementReads: [],
+}
+
+// ---------------------------------------------------------------------------
+// Lesson <-> quiz link
+// ---------------------------------------------------------------------------
+// The trainee's lesson row shows the quiz state ("Quiz not taken", "Passed",
+// "Take Quiz") only when lesson.quizId points at the quiz. A quiz may also be
+// standalone, in which case no lesson points at it.
+const withQuizLessonLink = (program, quiz) => {
+  const apply = (lessons = []) =>
+    lessons.map((l) => {
+      if (quiz.lessonId && l.id === quiz.lessonId) return { ...l, quizId: quiz.id }
+      if (l.quizId === quiz.id) return { ...l, quizId: null }
+      return l
+    })
+  return {
+    ...program,
+    competencies: (program.competencies || []).map((comp) =>
+      comp.units
+        ? { ...comp, units: comp.units.map((u) => ({ ...u, lessons: apply(u.lessons) })) }
+        : { ...comp, lessons: apply(comp.lessons) },
+    ),
+  }
+}
+
+const withoutQuizLessonLink = (program, quizId) => {
+  const apply = (lessons = []) => lessons.map((l) => (l.quizId === quizId ? { ...l, quizId: null } : l))
+  return {
+    ...program,
+    competencies: (program.competencies || []).map((comp) =>
+      comp.units
+        ? { ...comp, units: comp.units.map((u) => ({ ...u, lessons: apply(u.lessons) })) }
+        : { ...comp, lessons: apply(comp.lessons) },
+    ),
+  }
 }
 
 const AppContext = createContext(null)
@@ -166,7 +207,7 @@ export function AppProvider({ children }) {
   // commit() replaces every setDb() call: it computes the next db synchronously,
   // updates state, and (online) pushes the diff to Supabase.
   const commit = useCallback(
-    (updater) => {
+    (updater, opts = {}) => {
       const prev = dbRef.current
       const next = typeof updater === 'function' ? updater(prev) : updater
       dbRef.current = next
@@ -183,7 +224,9 @@ export function AppProvider({ children }) {
         run
           .catch((e) => {
             console.error('Failed to sync to Supabase', e)
-            toast(`Failed to save to the server: ${e?.message || e}`, 'error')
+            // Callers that show their own message pass silentSyncError so one
+            // failed write does not produce two competing error toasts.
+            if (!opts.silentSyncError) toast(`Failed to save to the server: ${e?.message || e}`, 'error')
           })
           .finally(() => {
             // Only clear the flag when nothing newer is queued behind this run.
@@ -436,17 +479,67 @@ export function AppProvider({ children }) {
   }, [])
 
   const updateProfile = useCallback(
-    (patch) => {
-      const nextUser = { ...user, ...patch }
-      commit((d) => ({ ...d, users: d.users.map((u) => (u.id === user.id ? { ...u, ...patch } : u)) }))
+    async (patch) => {
+      if (!user) return { ok: false, error: 'Not signed in.' }
+
+      const { email: rawEmail, ...profilePatch } = patch || {}
+      const nextEmail = String(rawEmail || '').trim()
+      const emailChanged =
+        Boolean(nextEmail) && nextEmail.toLowerCase() !== String(user.email || '').toLowerCase()
+
+      // `email` belongs to Supabase Auth and is a protected profile column, so
+      // it must never go through the profiles upsert. Everything else is saved
+      // directly; the address is changed with auth.updateUser below.
+      const nextUser = { ...user, ...profilePatch, email: user.email }
+      commit((d) => ({ ...d, users: d.users.map((u) => (u.id === user.id ? { ...u, ...profilePatch } : u)) }))
       setUser(nextUser)
+
       if (isSupabaseConfigured) {
-        backend.upsertProfile(nextUser).catch((e) => {
+        try {
+          await backend.upsertProfile(nextUser)
+        } catch (e) {
           console.error(e)
-          toast('Failed to update your profile.', 'error')
-        })
+          toast(`Failed to update your profile: ${e?.message || e}`, 'error')
+          return { ok: false, error: e?.message || 'Failed to update your profile.' }
+        }
       }
-      toast('Profile updated successfully.')
+
+      if (!emailChanged) {
+        toast('Profile updated successfully.')
+        return { ok: true }
+      }
+
+      if (!isSupabaseConfigured) {
+        setUser((u) => ({ ...u, email: nextEmail }))
+        commit((d) => ({
+          ...d,
+          users: d.users.map((u) => (u.id === user.id ? { ...u, email: nextEmail } : u)),
+        }))
+        toast('Profile updated successfully.')
+        return { ok: true }
+      }
+
+      try {
+        const authUser = await backend.updateMyEmail(nextEmail)
+        if (authUser?.new_email) {
+          // Email confirmations are enabled: the change lands once the link is
+          // opened, and the DB trigger syncs the profile at that moment.
+          toast(`Confirmation link sent to ${nextEmail}. Your email changes once confirmed.`, 'info')
+        } else {
+          const confirmedEmail = authUser?.email || nextEmail
+          setUser((u) => ({ ...u, email: confirmedEmail }))
+          commit((d) => ({
+            ...d,
+            users: d.users.map((u) => (u.id === user.id ? { ...u, email: confirmedEmail } : u)),
+          }))
+          toast('Email updated successfully.')
+        }
+        return { ok: true }
+      } catch (e) {
+        console.error(e)
+        toast(`Could not update your email: ${e?.message || e}`, 'error')
+        return { ok: false, error: e?.message || 'Could not update your email.' }
+      }
     },
     [user, commit, toast],
   )
@@ -544,12 +637,18 @@ export function AppProvider({ children }) {
           console.warn('Failed to assign trainer programs:', e)
         }
 
-        let emailed = true
-        try {
-          await backend.sendActivationEmail(email)
-        } catch (e) {
-          emailed = false
-          console.warn('Trainer activation email failed:', e)
+        // System Settings > Email notifications. When off, the account is
+        // created but nothing is emailed — the admin shares the activation
+        // link manually.
+        let emailed = false
+        if (settingsRef.current?.notifyEmail !== false) {
+          emailed = true
+          try {
+            await backend.sendActivationEmail(email)
+          } catch (e) {
+            emailed = false
+            console.warn('Trainer activation email failed:', e)
+          }
         }
 
         const users = await backend.fetchProfiles()
@@ -634,12 +733,16 @@ export function AppProvider({ children }) {
         await backend.adminCreateUser({ id, email, password: tempPassword, role: 'trainee', name, data })
         syncTraineeEnrollments(id, assigned, programTrainers)
 
-        let emailed = true
-        try {
-          await backend.sendActivationEmail(email)
-        } catch (e) {
-          emailed = false
-          console.warn('Trainee activation email failed:', e)
+        // Respect System Settings > Email notifications (see createTrainer).
+        let emailed = false
+        if (settingsRef.current?.notifyEmail !== false) {
+          emailed = true
+          try {
+            await backend.sendActivationEmail(email)
+          } catch (e) {
+            emailed = false
+            console.warn('Trainee activation email failed:', e)
+          }
         }
 
         const users = await backend.fetchProfiles()
@@ -680,6 +783,7 @@ export function AppProvider({ children }) {
         quizSessions: (d.quizSessions || []).filter((s) => s.traineeId !== id),
         examAttempts: d.examAttempts.filter((a) => a.traineeId !== id),
         typingTests: d.typingTests.filter((t) => t.traineeId !== id && t.trainerId !== id),
+        typingRequests: (d.typingRequests || []).filter((r) => r.traineeId !== id && r.trainerId !== id),
         evaluations: d.evaluations.filter((e) => e.traineeId !== id && e.trainerId !== id),
         trainerRatings: (d.trainerRatings || []).filter((r) => r.traineeId !== id && r.trainerId !== id),
         trainerPrograms: (d.trainerPrograms || []).filter((tp) => tp.trainerId !== id),
@@ -754,11 +858,14 @@ export function AppProvider({ children }) {
   // which trainers then populate (all helpers handle empty arrays).
   const addProgram = useCallback(
     (payload) => {
-      const title = String(payload.title || '').trim()
-      if (!title) {
-        toast('A course title is required.', 'error')
-        return { ok: false, error: 'Title required.' }
+      // Required fields + unique course code/title, enforced here as well as in
+      // the form so no other caller can slip a duplicate into the catalogue.
+      const check = validateCourse(payload, { programs: dbRef.current.programs })
+      if (!check.ok) {
+        toast(check.error, 'error')
+        return { ok: false, error: check.error, field: check.field }
       }
+      const title = String(payload.title || '').trim()
       const base = slugify(title) || 'course'
       let id = base
       let n = 1
@@ -855,6 +962,8 @@ export function AppProvider({ children }) {
           if (p.id !== programId) return p
           return {
             ...p,
+            // A quiz attached to the deleted lesson becomes standalone.
+            quizzes: (p.quizzes || []).map((q) => (q.lessonId === lessonId ? { ...q, lessonId: '' } : q)),
             competencies: p.competencies.map((comp) =>
               comp.units
                 ? { ...comp, units: comp.units.map((u) => ({ ...u, lessons: u.lessons.filter((l) => l.id !== lessonId) })) }
@@ -876,7 +985,7 @@ export function AppProvider({ children }) {
           if (p.id !== programId) return p
           const exists = p.quizzes.some((q) => q.id === quiz.id)
           const quizzes = exists ? p.quizzes.map((q) => (q.id === quiz.id ? { ...q, ...quiz } : q)) : [...p.quizzes, quiz]
-          return { ...p, quizzes }
+          return withQuizLessonLink({ ...p, quizzes }, quiz)
         }),
       }))
       toast('Quiz saved.')
@@ -888,7 +997,11 @@ export function AppProvider({ children }) {
     (programId, quizId) => {
       commit((d) => ({
         ...d,
-        programs: d.programs.map((p) => (p.id === programId ? { ...p, quizzes: p.quizzes.filter((q) => q.id !== quizId) } : p)),
+        programs: d.programs.map((p) =>
+          p.id === programId
+            ? withoutQuizLessonLink({ ...p, quizzes: p.quizzes.filter((q) => q.id !== quizId) }, quizId)
+            : p,
+        ),
         quizRequests: (d.quizRequests || []).filter((r) => r.quizId !== quizId),
         quizSessions: (d.quizSessions || []).filter((s) => s.quizId !== quizId),
       }))
@@ -926,33 +1039,191 @@ export function AppProvider({ children }) {
 
   // ---------------------------- Enrollments ---------------------------------
   const createEnrollment = useCallback(
-    (payload) => {
+    async (payload) => {
+      // The admin can close online enrollment from System Settings. Checked
+      // here as well as in the form so no other caller can bypass it.
+      if (user?.role === 'trainee' && settingsRef.current?.allowSelfEnroll === false) {
+        toast('Online enrollment is currently closed. Please contact the registrar.', 'warning')
+        return { ok: false, error: 'Self-enrollment is closed.' }
+      }
       const id = uid('enr')
-      commit((d) => ({ ...d, enrollments: [...d.enrollments, { ...payload, id, progress: payload.progress || {} }] }))
+      commit(
+        (d) => ({ ...d, enrollments: [...d.enrollments, { ...payload, id, progress: payload.progress || {} }] }),
+        { silentSyncError: true },
+      )
+      if (isSupabaseConfigured) {
+        // The in-memory settings copy can be a minute stale, so the server has
+        // the final word (migration 063). If it refuses the row, drop the
+        // optimistic copy — otherwise the trainee keeps an application that
+        // does not exist and it vanishes on the next refresh.
+        try {
+          await flushSync()
+        } catch (e) {
+          commit((d) => ({ ...d, enrollments: d.enrollments.filter((en) => en.id !== id) }))
+          // 23505 is the unique (trainee_id, program_id) index from migration
+          // 069 — a second tab or a double submit, not a closed window.
+          const duplicate = e?.code === '23505' || /duplicate key/i.test(e?.message || '')
+          toast(
+            duplicate
+              ? 'You already have an application for this course. Open My Enrollment to see its status.'
+              : 'Enrollment was not saved. Online enrollment may have been closed — please contact the registrar.',
+            duplicate ? 'warning' : 'error',
+          )
+          return { ok: false, error: e?.message || String(e) }
+        }
+      }
       toast('Enrollment submitted successfully.')
-      return id
+      return { ok: true, id }
     },
-    [commit, toast],
+    [commit, flushSync, toast, user],
   )
 
   const setEnrollmentStatus = useCallback(
-    (id, status) => {
+    (id, status, remarks = '') => {
+      const decided = ['Rejected', 'Cancelled'].includes(status)
       commit((d) => ({
         ...d,
         enrollments: d.enrollments.map((e) =>
-          e.id === id ? { ...e, status, certificateIssued: status === 'Completed' ? true : e.certificateIssued } : e,
+          e.id === id
+            ? {
+                ...e,
+                status,
+                certificateIssued: status === 'Completed' ? true : e.certificateIssued,
+                // Keep the registrar's reason with the record. It stays in the
+                // row even if the application is later reinstated, so there is
+                // an audit trail; the UI only shows it while closed.
+                ...(decided
+                  ? {
+                      decisionRemarks: String(remarks || '').trim(),
+                      decisionAt: new Date().toISOString(),
+                      decisionBy: user?.id || null,
+                    }
+                  : {}),
+              }
+            : e,
         ),
       }))
       toast(`Enrollment marked as ${status}.`)
     },
-    [commit, toast],
+    [commit, toast, user],
+  )
+
+  // Super Admin verification of one admission requirement. `decision` is
+  // 'Verified', 'Rejected', or 'Submitted' (re-open after a decision).
+  const verifyEnrollmentRequirement = useCallback(
+    (enrollmentId, requirementName, decision, note = '') => {
+      if (!user || user.role !== 'admin') {
+        return { ok: false, error: 'Only the Super Admin can verify admission requirements.' }
+      }
+      const enrollment = dbRef.current.enrollments.find((e) => e.id === enrollmentId)
+      if (!enrollment) return { ok: false, error: 'Enrollment not found.' }
+      if (!['Verified', 'Rejected', 'Submitted'].includes(decision)) {
+        return { ok: false, error: 'Invalid verification status.' }
+      }
+
+      commit((d) => ({
+        ...d,
+        enrollments: d.enrollments.map((e) =>
+          e.id === enrollmentId
+            ? {
+                ...e,
+                requirements: (e.requirements || []).map((r) =>
+                  r.name === requirementName
+                    ? {
+                        ...r,
+                        status: decision,
+                        note: note || '',
+                        verifiedAt: decision === 'Submitted' ? null : new Date().toISOString(),
+                        verifiedBy: decision === 'Submitted' ? null : user.id,
+                      }
+                    : r,
+                ),
+              }
+            : e,
+        ),
+      }))
+      toast(
+        decision === 'Verified'
+          ? 'Requirement verified.'
+          : decision === 'Rejected'
+            ? 'Requirement rejected.'
+            : 'Requirement reopened.',
+        decision === 'Rejected' ? 'info' : 'success',
+      )
+      return { ok: true }
+    },
+    [commit, toast, user],
+  )
+
+  // Admin-side payment edit (Accounting / Manage Enrollments). When the amount
+  // paid increases, the difference is appended to the transaction history so the
+  // trainee's payment history and receipts stay complete.
+  // A trainee re-uploads one admission document (typically after the registrar
+  // rejected it). The requirement returns to Submitted so it re-enters the
+  // admin verification queue, and any previous verification is cleared.
+  const resubmitEnrollmentRequirement = useCallback(
+    (enrollmentId, requirementName, doc) => {
+      if (!user) return { ok: false, error: 'Not signed in.' }
+      const enrollment = dbRef.current.enrollments.find((e) => e.id === enrollmentId)
+      if (!enrollment) return { ok: false, error: 'Enrollment not found.' }
+      if (enrollment.traineeId !== user.id) {
+        return { ok: false, error: 'You can only update your own application.' }
+      }
+      if (isEnrollmentLocked(enrollment)) {
+        return { ok: false, error: 'This application is closed and can no longer be modified.' }
+      }
+      if (!doc?.url) return { ok: false, error: 'Choose a file to upload.' }
+
+      commit((d) => ({
+        ...d,
+        enrollments: d.enrollments.map((e) =>
+          e.id === enrollmentId ? applyRequirementResubmission(e, requirementName, doc) : e,
+        ),
+      }))
+      toast('Document submitted for review.')
+      return { ok: true }
+    },
+    [commit, toast, user],
   )
 
   const updatePayment = useCallback(
-    (enrollmentId, payment) => {
+    (enrollmentId, patch) => {
       commit((d) => ({
         ...d,
-        enrollments: d.enrollments.map((e) => (e.id === enrollmentId ? { ...e, payment: { ...e.payment, ...payment } } : e)),
+        enrollments: d.enrollments.map((e) => {
+          if (e.id !== enrollmentId) return e
+          const prev = e.payment || {}
+          const before = Number(prev.amountPaid) || 0
+          const after = patch.amountPaid === undefined ? before : Number(patch.amountPaid) || 0
+          const next = { ...prev, ...patch }
+          const delta = after - before
+          if (delta > 0) {
+            const tx = {
+              id: uid('pay'),
+              amount: delta,
+              method: patch.method || prev.method || 'Over-the-Counter',
+              referenceNo: patch.referenceNo || `REF-${Date.now().toString().slice(-8)}`,
+              date: patch.paymentDate || new Date().toISOString().slice(0, 10),
+              note: patch.note || 'Recorded by the registrar',
+            }
+            const history = prev.transactions?.length
+              ? prev.transactions
+              : before > 0
+                ? [
+                    {
+                      id: `${e.id}-opening`,
+                      amount: before,
+                      method: prev.method || 'Over-the-Counter',
+                      referenceNo: prev.referenceNo || '—',
+                      date: prev.paymentDate || tx.date,
+                      note: 'Initial payment',
+                    },
+                  ]
+                : []
+            next.transactions = [...history, tx]
+          }
+          return { ...e, payment: next }
+        }),
       }))
       toast('Payment record updated.')
     },
@@ -966,6 +1237,15 @@ export function AppProvider({ children }) {
       const value = Math.max(0, Number(amount) || 0)
       if (!value) {
         toast('Enter a valid payment amount.', 'error')
+        return false
+      }
+      const enrollment = dbRef.current.enrollments.find((e) => e.id === enrollmentId)
+      if (!enrollment) {
+        toast('Enrollment not found.', 'error')
+        return false
+      }
+      if (!canPayEnrollment(enrollment)) {
+        toast('Payment is available only after the admin approves your enrollment and verifies your requirements.', 'warning')
         return false
       }
       let ok = true
@@ -992,6 +1272,24 @@ export function AppProvider({ children }) {
             date: paidDate,
             note: note || null,
           }
+          // Older enrollments may already carry an amountPaid from the
+          // enrollment form without a transactions array. Keep that opening
+          // payment in the history instead of dropping it on the first
+          // in-app payment.
+          const history = e.payment?.transactions?.length
+            ? e.payment.transactions
+            : alreadyPaid > 0
+              ? [
+                  {
+                    id: `${e.id}-opening`,
+                    amount: alreadyPaid,
+                    method: e.payment?.method || 'Over-the-Counter',
+                    referenceNo: e.payment?.referenceNo || '—',
+                    date: e.payment?.paymentDate || paidDate,
+                    note: 'Initial payment',
+                  },
+                ]
+              : []
           return {
             ...e,
             payment: {
@@ -1002,7 +1300,7 @@ export function AppProvider({ children }) {
               paymentDate: paidDate,
               referenceNo: tx.referenceNo,
               method: tx.method,
-              transactions: [...(e.payment?.transactions || []), tx],
+              transactions: [...history, tx],
             },
           }
         }),
@@ -1192,19 +1490,43 @@ export function AppProvider({ children }) {
       // A started session is already authorized (it may be past its clock now).
       if (!session && !access.canStart) return { ok: false, error: 'This quiz attempt is not authorized.' }
 
+      // The approval counter is NOT incremented here. Writing it before the
+      // attempt row lands let a failed save burn the retake: the gate then saw
+      // "already used" with no attempt stored. The database trigger consumes the
+      // grant when the row is accepted; the caller confirms it afterwards with
+      // markQuizGrantUsed().
       const grantedId = access.approvedRequest?.id || null
       const stored = { ...attempt, id: attempt.id || uid('qa') }
       commit((prev) => ({
         ...prev,
         quizAttempts: [...prev.quizAttempts, stored],
         quizSessions: sessionId ? (prev.quizSessions || []).filter((s) => s.id !== sessionId) : prev.quizSessions || [],
-        quizRequests: grantedId
-          ? (prev.quizRequests || []).map((r) =>
-              r.id === grantedId ? { ...r, attemptsUsed: Number(r.attemptsUsed || 0) + 1 } : r,
-            )
-          : prev.quizRequests || [],
       }))
-      return { ok: true, attempt: stored }
+      return { ok: true, attempt: stored, grantId: grantedId }
+    },
+    [commit],
+  )
+
+  // Called only after the attempt row is confirmed saved, so the trainee's own
+  // view stops offering the attempt they just used. The database trigger has
+  // already consumed the grant at this point — this keeps the client in step.
+  const markQuizGrantUsed = useCallback(
+    (requestId) => {
+      if (!requestId) return
+      commit((prev) => ({
+        ...prev,
+        quizRequests: (prev.quizRequests || []).map((r) =>
+          r.id === requestId
+            ? {
+                ...r,
+                attemptsUsed: Math.min(
+                  Number(r.attemptsGranted ?? 1),
+                  Number(r.attemptsUsed || 0) + 1,
+                ),
+              }
+            : r,
+        ),
+      }))
     },
     [commit],
   )
@@ -1230,12 +1552,180 @@ export function AppProvider({ children }) {
     [commit],
   )
 
+  // Trainees submit a result (new row); trainers then evaluate that same row,
+  // which arrives here with its id and is updated in place.
+  //
+  // A VA trainee gets exactly one attempt: a second row is only accepted when
+  // the trainer approved a retake, which is consumed here in the same commit.
   const recordTypingTest = useCallback(
     (test) => {
-      commit((d) => ({ ...d, typingTests: [...d.typingTests, { ...test, id: uid('typing') }] }))
-      toast('Typing test result submitted.')
+      const updating = Boolean(test?.id)
+      if (!updating) {
+        const access = getTypingAccess({
+          tests: typingTestsOf(dbRef.current, test.traineeId, test.programId),
+          requests: typingRequestsOf(dbRef.current, test.traineeId, test.programId),
+        })
+        if (!access.canStart) {
+          return {
+            ok: false,
+            error: 'You already took the typing test. Request a retake from your trainer.',
+          }
+        }
+      }
+      commit((d) => {
+        if (updating) {
+          return {
+            ...d,
+            typingTests: d.typingTests.map((t) => (t.id === test.id ? { ...t, ...test, id: t.id } : t)),
+          }
+        }
+        const grant = typingRequestsOf(d, test.traineeId, test.programId).find(unusedTypingGrant)
+        return {
+          ...d,
+          typingTests: [
+            ...d.typingTests,
+            { ...test, evaluated: false, evaluatedAt: null, evaluatedBy: null, id: uid('typing') },
+          ],
+          typingRequests: grant
+            ? (d.typingRequests || []).map((r) =>
+                r.id === grant.id
+                  ? {
+                      ...r,
+                      attemptsUsed: Number(r.attemptsUsed || 0) + 1,
+                      consumedAt: new Date().toISOString(),
+                    }
+                  : r,
+              )
+            : d.typingRequests || [],
+        }
+      })
+      toast(updating ? 'Remarks saved.' : 'Typing test result submitted.')
+      return { ok: true }
     },
     [commit, toast],
+  )
+
+  // Trainer evaluation of one result. Saving remarks is what unlocks the
+  // trainee's "Request Retake" button.
+  const evaluateTypingTest = useCallback(
+    (testId, remarks = '') => {
+      if (!user) return { ok: false, error: 'Sign in to evaluate.' }
+      const d = dbRef.current
+      const test = d.typingTests.find((t) => t.id === testId)
+      if (!test) return { ok: false, error: 'Typing test not found.' }
+      const assigned = (d.trainerPrograms || []).some(
+        (tp) => tp.trainerId === user.id && tp.programId === test.programId && tp.status !== 'revoked',
+      )
+      if (user.role !== 'admin' && test.trainerId !== user.id && !assigned) {
+        return { ok: false, error: 'You can only evaluate your own trainees.' }
+      }
+      commit((prev) => ({
+        ...prev,
+        typingTests: prev.typingTests.map((t) =>
+          t.id === testId
+            ? {
+                ...t,
+                remarks,
+                evaluated: true,
+                evaluatedAt: new Date().toISOString(),
+                evaluatedBy: user.id,
+              }
+            : t,
+        ),
+      }))
+      toast('Evaluation saved.')
+      return { ok: true }
+    },
+    [commit, toast, user],
+  )
+
+  // Trainee asks for another attempt. Only available once the current result
+  // has been evaluated; pending requests grant nothing.
+  const requestTypingRetake = useCallback(
+    ({ programId = 'virtual-assistant' } = {}) => {
+      if (!user) return { ok: false, error: 'Sign in to request a retake.' }
+      const d = dbRef.current
+      const tests = typingTestsOf(d, user.id, programId)
+      const requests = typingRequestsOf(d, user.id, programId)
+      const access = getTypingAccess({ tests, requests })
+      if (!tests.length) return { ok: false, error: 'Take the typing test first.' }
+      if (!access.evaluated) {
+        return { ok: false, error: 'Wait for your trainer to evaluate your result first.' }
+      }
+      if (access.pendingRequest) return { ok: false, error: 'You already have a pending retake request.' }
+      if (access.approvedRequest) {
+        return { ok: false, error: 'Your retake is already approved — you can take the test now.' }
+      }
+
+      const latest = access.latest
+      const enrollment = d.enrollments.find((e) => e.traineeId === user.id && e.programId === programId)
+      const request = {
+        id: uid('tqr'),
+        traineeId: user.id,
+        traineeName: user.name,
+        programId,
+        trainerId: latest.trainerId || enrollmentTrainerId(d, enrollment) || null,
+        testId: latest.id,
+        status: 'pending',
+        requestedAt: new Date().toISOString(),
+        decidedAt: null,
+        decidedBy: null,
+        decidedByName: null,
+        note: '',
+        attemptsGranted: 0,
+        attemptsUsed: 0,
+        consumedAt: null,
+      }
+      commit((prev) => ({ ...prev, typingRequests: [...(prev.typingRequests || []), request] }))
+      toast('Retake request sent to your trainer.', 'success')
+      return { ok: true, request }
+    },
+    [commit, toast, user],
+  )
+
+  // Trainer (or Super Admin) decision. Approving grants exactly one attempt.
+  const decideTypingRequest = useCallback(
+    (requestId, decision, note = '') => {
+      if (!user) return { ok: false, error: 'Not signed in.' }
+      const d = dbRef.current
+      const request = (d.typingRequests || []).find((r) => r.id === requestId)
+      if (!request) return { ok: false, error: 'Request not found.' }
+      if (request.status !== 'pending') return { ok: false, error: 'This request has already been decided.' }
+
+      const program = d.programs.find((p) => p.id === request.programId)
+      const assigned = (d.trainerPrograms || []).some(
+        (tp) => tp.trainerId === user.id && tp.programId === request.programId && tp.status !== 'revoked',
+      )
+      if (user.role !== 'admin' && request.trainerId !== user.id && program?.trainerId !== user.id && !assigned) {
+        return { ok: false, error: 'You can only decide requests for your own trainees.' }
+      }
+
+      const approved = decision === 'approved'
+      commit((prev) => ({
+        ...prev,
+        typingRequests: (prev.typingRequests || []).map((r) =>
+          r.id === requestId
+            ? {
+                ...r,
+                status: approved ? 'approved' : 'rejected',
+                decidedAt: new Date().toISOString(),
+                decidedBy: user.id,
+                decidedByName: user.name,
+                note: note || '',
+                attemptsGranted: approved ? 1 : 0,
+                attemptsUsed: 0,
+                consumedAt: null,
+              }
+            : r,
+        ),
+      }))
+      toast(
+        approved ? 'Retake approved — the trainee can take the typing test again.' : 'Retake request rejected.',
+        approved ? 'success' : 'info',
+      )
+      return { ok: true }
+    },
+    [commit, toast, user],
   )
 
   // ------------------------------ Attendance --------------------------------
@@ -1314,21 +1804,60 @@ export function AppProvider({ children }) {
 
   const deleteAnnouncement = useCallback(
     (id) => {
-      commit((d) => ({ ...d, announcements: d.announcements.filter((a) => a.id !== id) }))
+      commit((d) => ({
+        ...d,
+        announcements: d.announcements.filter((a) => a.id !== id),
+        announcementReads: (d.announcementReads || []).filter((r) => r.announcementId !== id),
+      }))
       toast('Announcement deleted.', 'info')
     },
     [commit, toast],
   )
 
+  // ------------------------- Announcement read state -------------------------
+  // One row per (announcement, user). The bell badge counts visible
+  // announcements that have no row for the signed-in user.
+  const markAnnouncementsRead = useCallback(
+    (ids = []) => {
+      if (!user?.id || !ids.length) return
+      commit((d) => {
+        const reads = d.announcementReads || []
+        const have = new Set(reads.filter((r) => r.userId === user.id).map((r) => r.announcementId))
+        const missing = ids.filter((id) => id && !have.has(id))
+        if (!missing.length) return d
+        const now = new Date().toISOString()
+        return {
+          ...d,
+          announcementReads: [
+            ...reads,
+            ...missing.map((announcementId) => ({
+              id: uid('ar'),
+              announcementId,
+              userId: user.id,
+              readAt: now,
+            })),
+          ],
+        }
+      })
+    },
+    [commit, user?.id],
+  )
+
+  const markAnnouncementRead = useCallback((id) => markAnnouncementsRead([id]), [markAnnouncementsRead])
+
   // ------------------------------ Evaluations -------------------------------
   const saveEvaluation = useCallback(
     (payload) => {
       commit((d) => {
-        const existing = d.evaluations.find(
-          (e) => e.traineeId === payload.traineeId && e.programId === payload.programId,
-        )
+        // Update by id only: a trainer may evaluate the same trainee once per
+        // period (mid-term, final, ...), so matching on trainee + program would
+        // overwrite the previous period.
+        const existing = payload.id ? d.evaluations.find((e) => e.id === payload.id) : null
         if (existing) {
-          return { ...d, evaluations: d.evaluations.map((e) => (e.id === existing.id ? { ...e, ...payload } : e)) }
+          return {
+            ...d,
+            evaluations: d.evaluations.map((e) => (e.id === existing.id ? { ...e, ...payload, id: existing.id } : e)),
+          }
         }
         return { ...d, evaluations: [...d.evaluations, { ...payload, id: uid('eval') }] }
       })
@@ -1341,18 +1870,24 @@ export function AppProvider({ children }) {
   // (migration 054/055); the client has no direct write path.
 
   // ------------------------------- Settings ---------------------------------
+  // Persist first, then apply: the page must not report "Settings saved" when
+  // the server refused the write.
   const updateSettings = useCallback(
-    (patch) => {
+    async (patch) => {
       const next = { ...settingsRef.current, ...patch }
+      if (isSupabaseConfigured) {
+        try {
+          await backend.saveSettings(next)
+        } catch (e) {
+          console.error(e)
+          toast(`Failed to save settings: ${e?.message || e}`, 'error')
+          return { ok: false, error: e?.message || String(e) }
+        }
+      }
       settingsRef.current = next
       setSettings(next)
-      if (isSupabaseConfigured) {
-        backend.saveSettings(next).catch((e) => {
-          console.error(e)
-          toast('Failed to save settings.', 'error')
-        })
-      }
       toast('Settings saved.')
+      return { ok: true }
     },
     [toast],
   )
@@ -1418,17 +1953,23 @@ export function AppProvider({ children }) {
       // enrollment
       createEnrollment,
       setEnrollmentStatus,
+      verifyEnrollmentRequirement,
+      resubmitEnrollmentRequirement,
       updatePayment,
       recordPayment,
       // progress
       toggleLessonComplete,
       // assessments
       recordQuizAttempt,
+      markQuizGrantUsed,
       startQuizAttempt,
       requestQuizAccess,
       decideQuizRequest,
       recordExamAttempt,
       recordTypingTest,
+      evaluateTypingTest,
+      requestTypingRetake,
+      decideTypingRequest,
       // attendance
       saveAttendance,
       bulkSaveAttendance,
@@ -1438,6 +1979,8 @@ export function AppProvider({ children }) {
       // announcements
       saveAnnouncement,
       deleteAnnouncement,
+      markAnnouncementRead,
+      markAnnouncementsRead,
       // evaluations
       saveEvaluation,
       // trainer ratings
@@ -1480,15 +2023,21 @@ export function AppProvider({ children }) {
       deleteExam,
       createEnrollment,
       setEnrollmentStatus,
+      verifyEnrollmentRequirement,
+      resubmitEnrollmentRequirement,
       updatePayment,
       recordPayment,
       toggleLessonComplete,
       recordQuizAttempt,
+      markQuizGrantUsed,
       startQuizAttempt,
       requestQuizAccess,
       decideQuizRequest,
       recordExamAttempt,
       recordTypingTest,
+      evaluateTypingTest,
+      requestTypingRetake,
+      decideTypingRequest,
       saveAttendance,
       bulkSaveAttendance,
       saveSchedule,

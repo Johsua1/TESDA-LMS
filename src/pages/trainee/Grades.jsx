@@ -16,7 +16,11 @@ import { DataTable } from '../../components/ui/Table'
 import { formatDate } from '../../lib/utils'
 
 export function Grades() {
-  const { db, user } = useApp()
+  const { db, user, settings } = useApp()
+  // Thresholds come from System Settings so the colours match what the trainer
+  // configured for quizzes/exams and typing tests.
+  const passingScore = Number(settings?.passingScore) || 75
+  const typingPassing = Number(settings?.typingPassingRate) || 40
   const enrollments = activeEnrollmentsOf(db, user.id)
   const [tab, setTab] = useState(enrollments[0]?.programId || '')
 
@@ -72,6 +76,16 @@ export function Grades() {
     { key: 'accuracy', header: 'Accuracy', render: (r) => `${r.accuracy}%` },
     { key: 'score', header: 'Score', sortable: true, render: (r) => <span className="font-semibold">{r.score}%</span> },
     { key: 'passed', header: 'Result', render: (r) => <StatusBadge status={r.passed ? 'Passed' : 'Failed'} /> },
+    {
+      key: 'remarks',
+      header: 'Trainer Remarks',
+      render: (r) =>
+        r.evaluated === false ? (
+          <span className="text-slate-400">Awaiting evaluation</span>
+        ) : (
+          <span className="text-slate-600">{r.remarks || '—'}</span>
+        ),
+    },
   ]
 
   return (
@@ -87,7 +101,7 @@ export function Grades() {
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Overall Grade" value={`${grade}%`} icon={Award} tone={grade >= 75 ? 'success' : 'warning'} hint="Average of all assessments" />
+        <StatCard label="Overall Grade" value={`${grade}%`} icon={Award} tone={grade >= passingScore ? 'success' : 'warning'} hint="Average of all assessments" />
         <StatCard label="Quizzes Taken" value={quizzes.length} icon={ClipboardList} tone="brand" />
         <StatCard label="Exams Taken" value={exams.length} icon={FileCheck2} tone="purple" />
         <StatCard
@@ -114,15 +128,15 @@ export function Grades() {
                   />
                   <Bar dataKey="score" radius={[6, 6, 0, 0]}>
                     {chartData.map((d, i) => (
-                      <Cell key={i} fill={d.score >= 75 ? '#10b981' : d.score >= 50 ? '#3b91f6' : '#f59e0b'} />
+                      <Cell key={i} fill={d.score >= passingScore ? '#10b981' : d.score >= 50 ? '#3b91f6' : '#f59e0b'} />
                     ))}
                   </Bar>
                 </BarChart>
               </ResponsiveContainer>
             </div>
             <div className="mt-3 flex items-center gap-4 text-xs text-slate-500">
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-emerald-500" /> 75%+</span>
-              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-brand-500" /> 50–74%</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-emerald-500" /> {passingScore}%+</span>
+              <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-brand-500" /> 50–{Math.max(50, passingScore - 1)}%</span>
               <span className="flex items-center gap-1.5"><span className="h-2.5 w-2.5 rounded bg-amber-500" /> Below 50%</span>
             </div>
           </CardBody>
@@ -142,7 +156,7 @@ export function Grades() {
 
       {programId === 'virtual-assistant' && (
         <Card className="mt-6">
-          <CardHeader title="Typing Test Results" subtitle="Passing requirement: 40%" icon={Keyboard} action={<Badge tone="warning">{typing.length}</Badge>} />
+          <CardHeader title="Typing Test Results" subtitle={`Passing requirement: ${typingPassing}%`} icon={Keyboard} action={<Badge tone="warning">{typing.length}</Badge>} />
           <DataTable columns={typingCols} data={typing} pageSize={5} emptyState={<EmptyState icon={Keyboard} title="No typing tests yet" />} />
         </Card>
       )}

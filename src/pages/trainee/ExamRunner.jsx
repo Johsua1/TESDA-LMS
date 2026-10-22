@@ -24,6 +24,7 @@ import { cn, formatDate } from '../../lib/utils'
 import { quizWindow, formatQuizSchedule } from '../../lib/quizAccess'
 import { attemptSeconds, formatCountdown } from '../../lib/quizTimer'
 import { getServerExamAttempt } from '../../lib/assessments'
+import { isAnswered, unansweredQuestions, firstUnansweredIndex } from '../../lib/quizAnswers'
 
 const typeLabel = { mcq: 'Multiple Choice', tf: 'True or False', id: 'Identification' }
 
@@ -45,7 +46,7 @@ function buildExamQuestions(program, exam) {
 
 export function ExamRunner() {
   const { programId, examId } = useParams()
-  const { db, user, recordExamAttempt, flushSync, retrySaveRow, toast } = useApp()
+  const { db, user, settings, recordExamAttempt, flushSync, retrySaveRow, toast } = useApp()
 
   const program = programById(programId)
   const enrollment = enrollmentOf(db, user.id, programId)
@@ -62,6 +63,8 @@ export function ExamRunner() {
   const [saveState, setSaveState] = useState('idle') // idle | saving | saved | error
   const [serverResult, setServerResult] = useState(null)
   const [saveError, setSaveError] = useState('')
+  // Shown when the trainee tries to submit with questions left blank.
+  const [submitError, setSubmitError] = useState('')
   const savedAttemptRef = useRef(null)
   const submittedRef = useRef(false)
   const startedAtRef = useRef(null)
@@ -87,11 +90,28 @@ export function ExamRunner() {
   const isOpen = examWindow.scheduled && !examWindow.beforeStart && !examWindow.afterDeadline
 
   const total = questions.length
-  const answeredCount = Object.values(answers).filter((v) => v !== undefined && v !== '').length
+  // Exams saved before the threshold existed fall back to the system default.
+  const passingScore = Number(exam.passing ?? settings?.passingScore ?? 75)
+  const byExamQid = (q) => q.examQid
+  const unanswered = unansweredQuestions(questions, answers, byExamQid)
+  const answeredCount = total - unanswered.length
   const normalize = (v) => String(v ?? '').trim().toLowerCase()
+  const setAnswer = (qid, value) => {
+    setSubmitError('')
+    setAnswers((a) => ({ ...a, [qid]: value }))
+  }
 
   function submit(auto = false) {
     if (submittedRef.current) return
+    // Every question must be answered before a manual submit — an unanswered
+    // question scores zero. The deadline auto-submit still closes the attempt.
+    if (!auto && unanswered.length) {
+      setSubmitError(
+        `Answer all ${total} questions before submitting. ${unanswered.length} still blank.`,
+      )
+      setCurrent(firstUnansweredIndex(questions, answers, byExamQid))
+      return
+    }
     submittedRef.current = true
     const graded = questions.map((q) => {
       const given = answers[q.examQid]
@@ -99,7 +119,7 @@ export function ExamRunner() {
     })
     const score = graded.filter((g) => g.correct).length
     const percentage = Math.round((score / total) * 100)
-    const passed = percentage >= exam.passing
+    const passed = percentage >= passingScore
     const attempt = {
       traineeId: user.id,
       programId,
@@ -177,6 +197,7 @@ export function ExamRunner() {
     }
     startedAtRef.current = new Date().toISOString()
     setAnswers({})
+    setSubmitError('')
     setCurrent(0)
     setSecondsLeft(attemptSeconds('exam'))
     setResult(null)
@@ -204,7 +225,7 @@ export function ExamRunner() {
               {[
                 { label: 'Questions', value: total },
                 { label: 'Time limit', value: '60 min' },
-                { label: 'Passing score', value: `${exam.passing}%` },
+                { label: 'Passing score', value: `${passingScore}%` },
               ].map((s) => (
                 <div key={s.label} className="rounded-lg bg-white/10 p-3 text-center">
                   <p className="text-lg font-bold">{s.value}</p>
@@ -221,7 +242,7 @@ export function ExamRunner() {
               <ul className="mt-2 space-y-1 text-amber-700">
                 <li>• This is a supervised competency assessment exam.</li>
                 <li>• You have 60 minutes — the exam auto-submits when time expires.</li>
-                <li>• A minimum of {exam.passing}% is required to pass.</li>
+                <li>• A minimum of {passingScore}% is required to pass.</li>
               </ul>
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 text-sm text-slate-600">
@@ -320,7 +341,7 @@ export function ExamRunner() {
                   return (
                     <button
                       key={opt}
-                      onClick={() => setAnswers((a) => ({ ...a, [q.examQid]: opt }))}
+                      onClick={() => setAnswer(q.examQid, opt)}
                       className={cn(
                         'flex w-full items-center gap-3 rounded-xl border p-3.5 text-left text-sm transition',
                         selected
@@ -352,7 +373,7 @@ export function ExamRunner() {
                   return (
                     <button
                       key={opt.label}
-                      onClick={() => setAnswers((a) => ({ ...a, [q.examQid]: opt.value }))}
+                      onClick={() => setAnswer(q.examQid, opt.value)}
                       className={cn(
                         'rounded-xl border p-4 text-center text-sm font-semibold transition',
                         selected
@@ -370,7 +391,7 @@ export function ExamRunner() {
               <input
                 type="text"
                 value={answers[q.examQid] ?? ''}
-                onChange={(e) => setAnswers((a) => ({ ...a, [q.examQid]: e.target.value }))}
+                onChange={(e) => setAnswer(q.examQid, e.target.value)}
                 placeholder="Type your answer…"
                 className="input-base"
                 autoComplete="off"
@@ -380,7 +401,7 @@ export function ExamRunner() {
         </Card>
         <div className="flex flex-wrap gap-2">
           {questions.map((qq, i) => {
-            const isAnswered = answers[qq.examQid] !== undefined && answers[qq.examQid] !== ''
+            const done = isAnswered(answers[qq.examQid])
             return (
               <button
                 key={qq.examQid}
@@ -389,7 +410,7 @@ export function ExamRunner() {
                   'h-9 w-9 rounded-lg text-xs font-semibold transition',
                   i === current
                     ? 'bg-brand-600 text-white'
-                    : isAnswered
+                    : done
                       ? 'bg-emerald-100 text-emerald-700'
                       : 'bg-slate-100 text-slate-500 hover:bg-slate-200',
                 )}
@@ -413,6 +434,22 @@ export function ExamRunner() {
             </Button>
           )}
         </div>
+
+        {answeredCount < total && (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+            <p className="flex items-center justify-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5" />
+              {total - answeredCount} question(s) still unanswered — answer them all before submitting.
+            </p>
+          </div>
+        )}
+
+        {submitError && (
+          <p role="alert" className="flex items-center justify-center gap-1.5 text-xs font-semibold text-red-600">
+            <XCircle className="h-3.5 w-3.5" />
+            {submitError}
+          </p>
+        )}
       </div>
     )
   }

@@ -22,6 +22,7 @@ import {
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
 import { currency, formatDate, cn } from '../../lib/utils'
+import { canPayEnrollment } from '../../lib/enrollmentRequirements'
 
 export function Accounting() {
   const { db, updatePayment, toast } = useApp()
@@ -59,6 +60,10 @@ export function Accounting() {
       toast('Enter a valid amount.', 'warning')
       return
     }
+    if (!canPayEnrollment(selected.enrollment)) {
+      toast('Approve the enrollment and verify its requirements before recording a payment.', 'warning')
+      return
+    }
     const newPaid = Math.min(p.fee, p.amountPaid + amount)
     const balance = p.fee - newPaid
     updatePayment(selected.id, {
@@ -66,7 +71,7 @@ export function Accounting() {
       balance,
       status: balance === 0 ? 'Fully Paid' : 'Partially Paid',
       paymentDate: new Date().toISOString().slice(0, 10),
-      referenceNo: p.referenceNo || `REF-${Date.now().toString().slice(-8)}`,
+      referenceNo: `REF-${Date.now().toString().slice(-8)}`,
     })
     setSelected(null)
     setPayAmount('')
@@ -87,11 +92,34 @@ export function Accounting() {
       ),
     },
     { key: 'program', header: 'Program', render: (r) => r.program?.title },
+    {
+      key: 'enrollmentStatus',
+      header: 'Enrollment',
+      render: (r) => <StatusBadge status={r.enrollment.status} />,
+    },
     { key: 'fee', header: 'Fee', sortable: true, sortValue: (r) => r.enrollment.payment?.fee, render: (r) => currency(r.enrollment.payment?.fee) },
     { key: 'paid', header: 'Paid', sortable: true, sortValue: (r) => r.enrollment.payment?.amountPaid, render: (r) => <span className="font-medium text-emerald-600">{currency(r.enrollment.payment?.amountPaid)}</span> },
     { key: 'balance', header: 'Balance', sortable: true, sortValue: (r) => r.enrollment.payment?.balance, render: (r) => <span className={cn('font-medium', r.enrollment.payment?.balance > 0 ? 'text-red-600' : 'text-slate-400')}>{currency(r.enrollment.payment?.balance)}</span> },
     { key: 'status', header: 'Status', render: (r) => <StatusBadge status={r.enrollment.payment?.status} /> },
-    { key: 'actions', header: '', render: (r) => <Button size="sm" variant="secondary" icon={Eye} onClick={() => { setSelected(r); setPayAmount('') }}>Record Payment</Button> },
+    {
+      key: 'actions',
+      header: '',
+      render: (r) => (
+        <Button
+          size="sm"
+          variant="secondary"
+          icon={Eye}
+          disabled={!canPayEnrollment(r.enrollment)}
+          title={canPayEnrollment(r.enrollment) ? undefined : 'Approve the enrollment and verify its requirements first'}
+          onClick={() => {
+            setSelected(r)
+            setPayAmount('')
+          }}
+        >
+          Record Payment
+        </Button>
+      ),
+    },
   ]
 
   return (

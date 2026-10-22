@@ -296,9 +296,8 @@ export function buildTypingTests() {
     const p = presets[i % presets.length]
     const duration = 3 // minutes
     const incorrectWords = p.totalWords - p.correctWords
-    // score = (WPM / 40) * accuracy, capped at 100 (matches the live typing test)
-    const score = Math.round((p.wpm / 40) * p.accuracy)
-    const scorePct = clamp(score, 0, 100)
+    // score = net WPM / 40, capped at 100 (matches the live typing test)
+    const scorePct = clamp(Math.round((p.wpm / 40) * 100), 0, 100)
     return {
       id: `typing-${t.id}`,
       traineeId: t.id,
@@ -477,9 +476,11 @@ export function buildSeed() {
     quizRequests: [],
     examAttempts,
     typingTests,
+    typingRequests: [],
     evaluations,
     trainerRatings,
     announcements,
+    announcementReads: [],
   }
 }
 

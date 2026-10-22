@@ -13,6 +13,10 @@ import {
   Search,
   CreditCard,
   Lock,
+  Eye,
+  Upload,
+  Download,
+  AlertTriangle,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { enrollmentsOf, programById } from '../../store/selectors'
@@ -29,10 +33,23 @@ import {
   FormRow,
   EmptyState,
   SearchInput,
+  Modal,
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 import { currency, formatDate, cn, sanitizePhone } from '../../lib/utils'
+import { documentRequirements } from '../../lib/requirements'
+import {
+  PAYABLE_STATUSES,
+  applyRequirementResubmission,
+  canPayEnrollment,
+  isEnrollmentLocked,
+  requirementCounts,
+} from '../../lib/enrollmentRequirements'
+
+// Admission requirements are stored inline with the enrollment (data URL, like
+// lesson materials), so keep each file small enough for the row to stay usable.
+const MAX_REQUIREMENT_BYTES = 4 * 1024 * 1024
 
 const VOUCHER_OPTIONS = [
   'TESDA Training for Work Scholarship Program (TWSP)',
@@ -41,18 +58,255 @@ const VOUCHER_OPTIONS = [
   'PESO Skills Training Voucher',
 ]
 
+const requirementTone = (status) =>
+  status === 'Verified' ? 'success' : status === 'Rejected' ? 'danger' : status === 'Submitted' ? 'info' : 'neutral'
+
+// The trainee's own copy of the enrollment form. It stays readable after the
+// registrar rejects the application or one of its documents, and a rejected
+// document can be replaced without starting a new application.
+export function ApplicationModal({ enrollment, onClose, onResubmit }) {
+  if (!enrollment) return null
+
+  const program = programById(enrollment.programId)
+  const requirements = enrollment.requirements || []
+  const applicant = enrollment.applicant || {}
+  const closed = isEnrollmentLocked(enrollment)
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Enrollment Form"
+      subtitle={program?.title}
+      icon={ClipboardCheck}
+      size="lg"
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      <div className="space-y-5">
+        {closed && (
+          <div className="space-y-2 rounded-lg bg-red-50 p-3 text-xs text-red-700">
+            <div className="flex items-start gap-2">
+              <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" />
+              <p>
+                {enrollment.status === 'Rejected'
+                  ? 'Your enrollment application was rejected by the registrar.'
+                  : 'This application was cancelled.'}{' '}
+                This record is read-only — you can view it here, but it can no longer be modified.
+              </p>
+            </div>
+            {enrollment.decisionRemarks && (
+              <div className="rounded-lg bg-white/70 p-3">
+                <p className="font-semibold text-red-700">Registrar's remarks</p>
+                <p className="mt-1 whitespace-pre-line text-red-800">{enrollment.decisionRemarks}</p>
+                {enrollment.decisionAt && (
+                  <p className="mt-1 text-[11px] text-red-500">Recorded {formatDate(enrollment.decisionAt)}</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+          {[
+            { label: 'Program', value: program?.title },
+            { label: 'Applied Date', value: formatDate(enrollment.appliedDate) },
+            { label: 'Type', value: enrollment.type === 'scholarship' ? 'Scholarship / Voucher' : 'Self-Pay' },
+          ].map((item) => (
+            <div key={item.label} className="rounded-lg bg-slate-50 p-3">
+              <p className="text-[10px] uppercase tracking-wide text-slate-400">{item.label}</p>
+              <p className="mt-0.5 text-sm font-semibold text-slate-700">{item.value || '—'}</p>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex items-center justify-between rounded-lg border border-slate-100 px-4 py-3">
+          <span className="text-sm text-slate-500">Application status</span>
+          <StatusBadge status={enrollment.status} />
+        </div>
+
+        {Object.keys(applicant).length > 0 && (
+          <div className="rounded-xl border border-slate-100 p-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Applicant Information</p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-3">
+              {[
+                { label: 'Full Name', value: applicant.fullName },
+                { label: 'Email', value: applicant.email },
+                { label: 'Contact Number', value: applicant.contact },
+                { label: 'Date of Birth', value: applicant.birthDate ? formatDate(applicant.birthDate) : '' },
+                { label: 'Education', value: applicant.education },
+                { label: 'Preferred Schedule', value: applicant.preferredSchedule },
+                { label: 'Address', value: applicant.address },
+                { label: 'Emergency Contact', value: applicant.emergencyContactName || applicant.emergencyContact },
+                { label: 'Emergency Number', value: applicant.emergencyContactNumber },
+              ].map((item) => (
+                <div key={item.label}>
+                  <p className="text-xs text-slate-400">{item.label}</p>
+                  <p className="font-medium text-slate-700">{item.value || '—'}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="rounded-xl border border-slate-100 p-4">
+          <p className="flex items-center gap-2 text-xs font-semibold uppercase tracking-wide text-slate-500">
+            <FileText className="h-4 w-4" /> Admission Requirements
+          </p>
+          <p className="mt-1 text-xs text-slate-400">
+            If the registrar rejects a document, upload a new copy here. It goes back to the verification queue.
+          </p>
+          <div className="mt-3 space-y-2">
+            {requirements.length ? (
+              requirements.map((r) => (
+                <div key={r.name} className="rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm text-slate-700">{r.name}</p>
+                      <p className="truncate text-xs text-slate-400">
+                        {r.fileName ? r.fileName : r.status === 'Missing' ? 'Not submitted' : 'No file attached'}
+                      </p>
+                      {r.status === 'Rejected' && (
+                        <p className="mt-1 text-xs font-medium text-red-600">
+                          Rejected by the registrar. Upload a new copy.
+                        </p>
+                      )}
+                      {r.note && <p className="mt-1 text-xs text-slate-500">Note: {r.note}</p>}
+                    </div>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge tone={requirementTone(r.status)}>{r.status}</Badge>
+                      {r.url && (
+                        <a
+                          href={r.url}
+                          download={r.fileName || r.name}
+                          className="inline-flex items-center gap-1 text-xs font-semibold text-brand-600 hover:underline"
+                        >
+                          <Download className="h-3.5 w-3.5" /> Download
+                        </a>
+                      )}
+                      {!closed && r.status !== 'Verified' && (
+                        <label className="inline-flex cursor-pointer items-center gap-1 rounded-lg border border-slate-200 px-2 py-1 text-xs font-semibold text-slate-600 transition hover:border-brand-300 hover:text-brand-700">
+                          <Upload className="h-3.5 w-3.5" />
+                          {r.status === 'Missing' ? 'Upload' : 'Replace'}
+                          <input
+                            type="file"
+                            className="hidden"
+                            accept="image/*,application/pdf"
+                            onChange={(ev) => {
+                              const file = ev.target.files?.[0]
+                              ev.target.value = ''
+                              if (file) onResubmit(r.name, file)
+                            }}
+                          />
+                        </label>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm text-slate-500">No document requirements for this program.</p>
+            )}
+          </div>
+        </div>
+
+        {enrollment.type === 'scholarship' && enrollment.voucher && (
+          <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-emerald-800">
+              <Ticket className="h-4 w-4" /> Scholarship / Voucher
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm">
+              <div>
+                <p className="text-xs text-emerald-700">Voucher</p>
+                <p className="font-medium text-emerald-900">{enrollment.voucher.name}</p>
+              </div>
+              <div>
+                <p className="text-xs text-emerald-700">Number</p>
+                <p className="font-medium text-emerald-900">{enrollment.voucher.number}</p>
+              </div>
+              <div>
+                <p className="text-xs text-emerald-700">Sponsor</p>
+                <p className="font-medium text-emerald-900">{enrollment.voucher.sponsor}</p>
+              </div>
+              <div>
+                <p className="text-xs text-emerald-700">Date</p>
+                <p className="font-medium text-emerald-900">{formatDate(enrollment.voucher.date)}</p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {enrollment.type === 'self-pay' && enrollment.payment && (
+          <div className="rounded-xl border border-slate-100 bg-slate-50/60 p-4">
+            <p className="flex items-center gap-2 text-sm font-semibold text-slate-700">
+              <Wallet className="h-4 w-4" /> Payment Details
+            </p>
+            <div className="mt-3 grid grid-cols-2 gap-3 text-sm sm:grid-cols-4">
+              <div>
+                <p className="text-xs text-slate-400">Training Fee</p>
+                <p className="font-semibold text-slate-700">{currency(enrollment.payment.fee)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Amount Paid</p>
+                <p className="font-semibold text-emerald-600">{currency(enrollment.payment.amountPaid)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Balance</p>
+                <p className="font-semibold text-red-600">{currency(enrollment.payment.balance)}</p>
+              </div>
+              <div>
+                <p className="text-xs text-slate-400">Status</p>
+                <StatusBadge status={enrollment.payment.status} />
+              </div>
+            </div>
+            {!closed && !canPayEnrollment(enrollment) && (
+              <p className="mt-3 text-xs font-medium text-amber-600">
+                {PAYABLE_STATUSES.includes(enrollment.status)
+                  ? 'Payment unlocks after the admin verifies all requirements.'
+                  : 'Payment unlocks after the admin approves this enrollment.'}
+              </p>
+            )}
+          </div>
+        )}
+      </div>
+    </Modal>
+  )
+}
+
 export function Enrollment() {
-  const { db, user, createEnrollment, toast } = useApp()
-  const myEnrollments = enrollmentsOf(db, user.id)
+  const { db, user, settings, createEnrollment, resubmitEnrollmentRequirement, toast } = useApp()
+  // Online self-enrollment can be switched off by the admin. Existing
+  // applications stay visible and editable; only new ones are blocked.
+  const selfEnrollOpen = settings?.allowSelfEnroll !== false
+  const myEnrollments = [...enrollmentsOf(db, user.id)].sort((a, b) => {
+    const dateDiff = new Date(b.appliedDate) - new Date(a.appliedDate)
+    if (dateDiff !== 0) return dateDiff
+    // Same-day re-application: show the live application above the rejected
+    // record it replaces.
+    const rank = (status) =>
+      ['Pending', 'Under Review', 'Approved', 'Enrolled', 'Completed', 'Rejected', 'Cancelled'].indexOf(status)
+    return rank(a.status) - rank(b.status)
+  })
 
   const [step, setStep] = useState(1)
   const [selected, setSelected] = useState(null)
   const [query, setQuery] = useState('')
   const [type, setType] = useState('scholarship')
   const [form, setForm] = useState({})
+  const [reqDocs, setReqDocs] = useState({})
   const [submitted, setSubmitted] = useState(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [viewing, setViewing] = useState(null)
 
-  const enrolledIds = myEnrollments.map((e) => e.programId)
+  // A rejected/cancelled application no longer blocks the program, so Enroll
+  // Now comes back and the trainee can submit a fresh application. The old row
+  // stays in the list as a record.
+  const enrolledIds = myEnrollments
+    .filter((e) => !['Rejected', 'Cancelled'].includes(e.status))
+    .map((e) => e.programId)
   const available = db.programs
   const filtered = available.filter((p) => p.title.toLowerCase().includes(query.toLowerCase()))
 
@@ -60,11 +314,16 @@ export function Enrollment() {
     setStep(1)
     setSelected(null)
     setForm({})
+    setReqDocs({})
     setType('scholarship')
     setSubmitted(null)
   }
 
   const startEnroll = (program) => {
+    if (!selfEnrollOpen) {
+      toast('Online enrollment is currently closed. Please contact the registrar.', 'warning')
+      return
+    }
     setSelected(program)
     setForm({
       fullName: user.name || '',
@@ -73,14 +332,70 @@ export function Enrollment() {
       address: user.address || '',
       birthDate: user.birthDate || '',
       education: user.education || '',
-      emergencyContact: user.emergencyContact || '',
+      emergencyContactName: user.emergencyContactName || '',
+      emergencyContactNumber: user.emergencyContactNumber || '',
       preferredSchedule: '',
     })
+    setReqDocs({})
     setType('self-pay')
     setStep(2)
   }
 
-  const submit = () => {
+  // Read one admission requirement as a data URL (same pattern as lesson
+  // materials and the signup avatar — no storage bucket is required).
+  const attachRequirement = (name, file) => {
+    if (!file) return
+    if (file.size > MAX_REQUIREMENT_BYTES) {
+      toast('File is too large. Upload a file up to 4 MB.', 'error')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      setReqDocs((docs) => ({
+        ...docs,
+        [name]: { fileName: file.name, type: file.type, size: file.size, url: String(reader.result || '') },
+      }))
+    }
+    reader.onerror = () => toast('Could not read that file. Please try again.', 'error')
+    reader.readAsDataURL(file)
+  }
+
+  const removeRequirement = (name) => {
+    setReqDocs((docs) => {
+      const next = { ...docs }
+      delete next[name]
+      return next
+    })
+  }
+
+  // Re-open the live row (not the snapshot captured when the page rendered) so
+  // requirement statuses are current.
+  const openApplication = (enrollment) => {
+    setViewing(db.enrollments.find((e) => e.id === enrollment.id) || enrollment)
+  }
+
+  const resubmitRequirement = (name, file) => {
+    if (!viewing || !file) return
+    if (file.size > MAX_REQUIREMENT_BYTES) {
+      toast('File is too large. Upload a file up to 4 MB.', 'error')
+      return
+    }
+    const reader = new FileReader()
+    reader.onload = () => {
+      const doc = { fileName: file.name, type: file.type, size: file.size, url: String(reader.result || '') }
+      const res = resubmitEnrollmentRequirement(viewing.id, name, doc)
+      if (!res.ok) {
+        toast(res.error, 'error')
+        return
+      }
+      setViewing((v) => applyRequirementResubmission(v, name, doc))
+    }
+    reader.onerror = () => toast('Could not read that file. Please try again.', 'error')
+    reader.readAsDataURL(file)
+  }
+
+  const submit = async () => {
+    if (submitting) return
     const base = {
       traineeId: user.id,
       programId: selected.id,
@@ -98,9 +413,28 @@ export function Enrollment() {
         address: form.address || '',
         birthDate: form.birthDate || '',
         education: form.education || '',
-        emergencyContact: form.emergencyContact || '',
+        emergencyContactName: form.emergencyContactName || '',
+        emergencyContactNumber: form.emergencyContactNumber || '',
+        // Legacy display field for older admin views.
+        emergencyContact: [form.emergencyContactName, form.emergencyContactNumber].filter(Boolean).join(' · '),
         preferredSchedule: form.preferredSchedule || '',
       },
+      requirements: documentRequirements(selected.requirements || []).map((name) => {
+        const doc = reqDocs[name]
+        if (!doc) return { name, status: 'Missing', note: '', submittedAt: null }
+        return {
+          name,
+          fileName: doc.fileName,
+          type: doc.type,
+          size: doc.size,
+          url: doc.url,
+          status: 'Submitted',
+          note: '',
+          submittedAt: new Date().toISOString(),
+          verifiedAt: null,
+          verifiedBy: null,
+        }
+      }),
     }
     if (type === 'scholarship') {
       base.voucher = {
@@ -111,22 +445,30 @@ export function Enrollment() {
       }
       base.payment = { fee: 0, status: 'Fully Paid', amountPaid: 0, balance: 0, paymentDate: null, referenceNo: null, note: 'Fully funded by scholarship/voucher' }
     } else {
-      const fee = selected.fee
-      const amountPaid = Number(form.amountPaid) || 0
-      const balance = Math.max(0, fee - amountPaid)
-      const status = amountPaid <= 0 ? 'Unpaid' : balance === 0 ? 'Fully Paid' : 'Partially Paid'
+      // Payment is intentionally not collected during enrollment: the admin
+      // verifies the requirements and approves the application first, then the
+      // trainee pays from My Payments.
       base.payment = {
-        fee,
-        status,
-        amountPaid,
-        balance,
-        paymentDate: amountPaid > 0 ? form.paymentDate || new Date().toISOString().slice(0, 10) : null,
-        referenceNo: form.referenceNo || null,
+        fee: selected.fee,
+        status: 'Unpaid',
+        amountPaid: 0,
+        balance: selected.fee,
+        paymentDate: null,
+        referenceNo: null,
+        note: 'Payment unlocks after enrollment approval',
       }
     }
-    createEnrollment(base)
-    setSubmitted(base)
-    setStep(4)
+    setSubmitting(true)
+    try {
+      // Awaited: the server can still refuse the row when enrollment was closed
+      // after this form was opened, and then nothing must be shown as submitted.
+      const res = await createEnrollment(base)
+      if (!res.ok) return
+      setSubmitted(base)
+      setStep(4)
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   // ------------------------------- STEP 1 -----------------------------------
@@ -145,6 +487,8 @@ export function Enrollment() {
             <div className="divide-y divide-slate-100">
               {myEnrollments.map((e) => {
                 const p = programById(e.programId)
+                const requirements = e.requirements || []
+                const { total, verified, rejected: rejectedDocs } = requirementCounts(requirements)
                 return (
                   <div key={e.id} className="flex flex-col gap-2 px-5 py-4 sm:flex-row sm:items-center sm:justify-between">
                     <div className="flex items-center gap-3">
@@ -161,14 +505,33 @@ export function Enrollment() {
                         <p className="text-xs text-slate-400">
                           Applied {formatDate(e.appliedDate)} · {e.type === 'scholarship' ? 'Scholarship / Voucher' : 'Self-Pay'}
                         </p>
+                        {['Rejected', 'Cancelled'].includes(e.status) && e.decisionRemarks && (
+                          <p className="mt-0.5 line-clamp-1 text-xs text-red-500">Remarks: {e.decisionRemarks}</p>
+                        )}
                       </div>
                     </div>
                     <div className="flex flex-wrap items-center gap-3">
-                      {e.type === 'self-pay' && <StatusBadge status={e.payment?.status} />}
+                      {requirements.length > 0 && (
+                        <Badge tone={verified === requirements.length ? 'success' : 'warning'}>
+                          Requirements {verified}/{total}
+                        </Badge>
+                      )}
+                      {rejectedDocs > 0 && <Badge tone="danger">{rejectedDocs} rejected</Badge>}
+                      {e.type === 'self-pay' &&
+                        (canPayEnrollment(e) ? (
+                          <StatusBadge status={e.payment?.status} />
+                        ) : (
+                          <Badge tone="neutral">
+                            <Lock className="h-3 w-3" /> Payment locked
+                          </Badge>
+                        ))}
                       <StatusBadge status={e.status} />
+                      <Button size="sm" variant="secondary" icon={Eye} onClick={() => openApplication(e)}>
+                        View form
+                      </Button>
                       {e.type === 'self-pay' &&
                         (e.payment?.balance || 0) > 0 &&
-                        !['Cancelled', 'Rejected'].includes(e.status) && (
+                        canPayEnrollment(e) && (
                           <Link to="/trainee/payments">
                             <Button size="sm" icon={CreditCard}>
                               Pay Now
@@ -228,12 +591,18 @@ export function Enrollment() {
                   ) : p.enrollable ? (
                     <>
                       <div className="mt-4">
-                        <Badge tone="success" dot>
-                          Enrollment Available
+                        <Badge tone={selfEnrollOpen ? 'success' : 'warning'} dot>
+                          {selfEnrollOpen ? 'Enrollment Available' : 'Online enrollment closed'}
                         </Badge>
                       </div>
-                      <Button className="mt-2" size="sm" iconRight={ChevronRight} onClick={() => startEnroll(p)}>
-                        Enroll Now
+                      <Button
+                        className="mt-2"
+                        size="sm"
+                        iconRight={selfEnrollOpen ? ChevronRight : undefined}
+                        onClick={() => startEnroll(p)}
+                        disabled={!selfEnrollOpen}
+                      >
+                        {selfEnrollOpen ? 'Enroll Now' : 'Enrollment closed'}
                       </Button>
                     </>
                   ) : (
@@ -254,6 +623,8 @@ export function Enrollment() {
             />
           </Card>
         )}
+
+        <ApplicationModal enrollment={viewing} onClose={() => setViewing(null)} onResubmit={resubmitRequirement} />
       </div>
     )
   }
@@ -304,7 +675,7 @@ export function Enrollment() {
               <CardHeader title="Admission Requirements" icon={FileText} />
               <CardBody>
                 <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                  {selected.requirements.map((r) => (
+                  {(selected.requirements || []).map((r) => (
                     <li key={r} className="flex items-start gap-2 text-sm text-slate-600">
                       <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0 text-emerald-500" />
                       {r}
@@ -405,6 +776,24 @@ export function Enrollment() {
                     <Input type="date" value={form.date || new Date().toISOString().slice(0, 10)} onChange={(e) => setForm({ ...form, date: e.target.value })} />
                   </FormField>
                 </FormRow>
+                <FormRow>
+                  <FormField label="Emergency Contact Name">
+                    <Input
+                      value={form.emergencyContactName || ''}
+                      onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })}
+                      placeholder="Full name"
+                    />
+                  </FormField>
+                  <FormField label="Emergency Contact Number">
+                    <Input
+                      type="tel"
+                      inputMode="tel"
+                      value={form.emergencyContactNumber || ''}
+                      onChange={(e) => setForm({ ...form, emergencyContactNumber: sanitizePhone(e.target.value) })}
+                      placeholder="+63 917 000 0000"
+                    />
+                  </FormField>
+                </FormRow>
                 <div className="rounded-lg bg-emerald-50 p-4 text-sm text-emerald-800">
                   <p className="flex items-center gap-2 font-semibold">
                     <Info className="h-4 w-4" /> No payment required
@@ -434,8 +823,21 @@ export function Enrollment() {
                     <FormField label="Educational Background">
                       <Input value={form.education || ''} onChange={(e) => setForm({ ...form, education: e.target.value })} placeholder="e.g. Senior High School Graduate" />
                     </FormField>
-                    <FormField label="Emergency Contact">
-                      <Input value={form.emergencyContact || ''} onChange={(e) => setForm({ ...form, emergencyContact: e.target.value })} placeholder="Name & number" />
+                    <FormField label="Emergency Contact Name">
+                      <Input
+                        value={form.emergencyContactName || ''}
+                        onChange={(e) => setForm({ ...form, emergencyContactName: e.target.value })}
+                        placeholder="Full name"
+                      />
+                    </FormField>
+                    <FormField label="Emergency Contact Number">
+                      <Input
+                        type="tel"
+                        inputMode="tel"
+                        value={form.emergencyContactNumber || ''}
+                        onChange={(e) => setForm({ ...form, emergencyContactNumber: sanitizePhone(e.target.value) })}
+                        placeholder="+63 917 000 0000"
+                      />
                     </FormField>
                     <FormField label="Preferred Schedule">
                       <Select value={form.preferredSchedule || ''} onChange={(e) => setForm({ ...form, preferredSchedule: e.target.value })}>
@@ -460,61 +862,94 @@ export function Enrollment() {
                     <Input value={currency(selected.fee)} disabled />
                   </FormField>
                 </FormRow>
-                <FormRow>
-                  <FormField label="Amount Paid (₱)" hint="You may pay partially or in full">
-                    <Input
-                      type="number"
-                      min="0"
-                      max={selected.fee}
-                      value={form.amountPaid || ''}
-                      onChange={(e) => setForm({ ...form, amountPaid: e.target.value })}
-                      placeholder="0"
-                    />
-                  </FormField>
-                  <FormField label="Payment Date">
-                    <Input type="date" value={form.paymentDate || ''} onChange={(e) => setForm({ ...form, paymentDate: e.target.value })} />
-                  </FormField>
-                </FormRow>
-                <FormField label="Reference Number" hint="Bank / GCash / Maya reference number (optional)">
-                  <Input value={form.referenceNo || ''} onChange={(e) => setForm({ ...form, referenceNo: e.target.value })} placeholder="REF-20260001" />
-                </FormField>
-                <div className="rounded-lg bg-slate-50 p-4">
-                  <div className="flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Training Fee</span>
-                    <span className="font-semibold text-slate-700">{currency(selected.fee)}</span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between text-sm">
-                    <span className="text-slate-500">Amount Paid</span>
-                    <span className="font-semibold text-emerald-600">{currency(Number(form.amountPaid) || 0)}</span>
-                  </div>
-                  <div className="mt-2 flex items-center justify-between border-t border-slate-200 pt-2 text-sm">
-                    <span className="font-medium text-slate-600">Balance</span>
-                    <span className="font-bold text-slate-800">{currency(Math.max(0, selected.fee - (Number(form.amountPaid) || 0)))}</span>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <span className="text-xs text-slate-500">Payment Status</span>
-                    <StatusBadge
-                      status={
-                        !Number(form.amountPaid)
-                          ? 'Unpaid'
-                          : Number(form.amountPaid) >= selected.fee
-                            ? 'Fully Paid'
-                            : 'Partially Paid'
-                      }
-                    />
-                  </div>
+                <div className="rounded-lg bg-amber-50 p-4 text-sm text-amber-800">
+                  <p className="flex items-center gap-2 font-semibold">
+                    <Info className="h-4 w-4" /> Payment after approval
+                  </p>
+                  <p className="mt-1 text-amber-700">
+                    No payment is collected here. Once the admin verifies your requirements and approves your
+                    enrollment, you can pay the {currency(selected.fee)} training fee from <strong>My Payments</strong>.
+                  </p>
                 </div>
-                <p className="text-xs text-slate-400">
-                  Note: This is a frontend demonstration. No real payment gateway is used — records are stored locally.
-                </p>
               </>
             )}
 
+            {documentRequirements(selected.requirements || []).length > 0 && (
+            <div className="rounded-xl border border-slate-200 p-4">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Documents to Upload</p>
+              <p className="mt-1 text-xs text-slate-500">
+                Upload a clear photo or PDF of each document below. The Super Admin will verify each one before your
+                enrollment is approved.
+              </p>
+              <div className="mt-3 space-y-2">
+                {documentRequirements(selected.requirements || []).map((name, i) => {
+                  const doc = reqDocs[name]
+                  const inputId = 'requirement-' + selected.id + '-' + i
+                  return (
+                    <div
+                      key={name}
+                      className="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-slate-100 bg-slate-50/60 px-3 py-2"
+                    >
+                      <div className="flex min-w-0 items-center gap-2">
+                        {doc ? (
+                          <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-500" />
+                        ) : (
+                          <FileText className="h-4 w-4 shrink-0 text-slate-400" />
+                        )}
+                        <div className="min-w-0">
+                          <p className="text-sm text-slate-700">{name}</p>
+                          <p className="truncate text-xs text-slate-400">
+                            {doc ? doc.fileName : 'No file uploaded yet'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex shrink-0 gap-2">
+                        {doc && (
+                          <Button size="sm" variant="secondary" onClick={() => removeRequirement(name)}>
+                            Remove
+                          </Button>
+                        )}
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => document.getElementById(inputId)?.click()}
+                        >
+                          {doc ? 'Replace' : 'Upload'}
+                        </Button>
+                        <input
+                          id={inputId}
+                          type="file"
+                          accept="image/*,application/pdf"
+                          className="hidden"
+                          onChange={(e) => {
+                            attachRequirement(name, e.target.files?.[0])
+                            e.target.value = ''
+                          }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            </div>
+            )}
+
+            {!selfEnrollOpen && (
+              <p className="mb-3 flex items-start gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs font-medium text-amber-700">
+                <AlertTriangle className="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                Online enrollment was closed by the administrator. Your answers are kept — please contact the registrar.
+              </p>
+            )}
             <div className="flex flex-wrap justify-end gap-3 border-t border-slate-100 pt-5">
               <Button variant="secondary" onClick={() => setStep(2)}>
                 Back
               </Button>
-              <Button icon={CheckCircle2} onClick={submit}>
+              <Button
+                icon={CheckCircle2}
+                onClick={submit}
+                loading={submitting}
+                disabled={!selfEnrollOpen || submitting}
+              >
                 Submit Enrollment
               </Button>
             </div>
@@ -554,6 +989,30 @@ export function Enrollment() {
               <span className="font-medium text-slate-700">{formatDate(submitted?.appliedDate)}</span>
             </div>
           </div>
+          {submitted?.requirements?.length > 0 && (
+            <div className="rounded-lg bg-slate-50 p-4 text-left">
+              <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">Admission Requirements</p>
+              <ul className="mt-2 space-y-1.5">
+                {submitted.requirements.map((r) => (
+                  <li key={r.name} className="flex items-center justify-between gap-2 text-sm">
+                    <span className="text-slate-600">{r.name}</span>
+                    <Badge tone={r.status === 'Submitted' ? 'info' : 'neutral'}>
+                      {r.status === 'Submitted' ? 'Submitted' : 'Not submitted'}
+                    </Badge>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+          {type === 'self-pay' && (
+            <div className="rounded-lg bg-amber-50 p-4 text-left text-xs text-amber-800">
+              <p className="font-semibold">Payment is not collected yet.</p>
+              <p className="mt-1">
+                Once the admin verifies your requirements and approves your enrollment, <strong>Pay Now</strong> will
+                appear in My Payments.
+              </p>
+            </div>
+          )}
           <p className="text-xs text-slate-400">
             You will be notified once the registrar reviews your application. Track the status on this page.
           </p>

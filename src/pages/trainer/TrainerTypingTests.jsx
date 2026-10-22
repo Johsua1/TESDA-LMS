@@ -1,17 +1,26 @@
 import { useState } from 'react'
-import { Keyboard, Gauge, Target, Trophy, Eye, TrendingUp, Users, Award } from 'lucide-react'
+import { Keyboard, Gauge, Target, Trophy, Eye, TrendingUp, Send, Check, X } from 'lucide-react'
 import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid, Cell } from 'recharts'
 import { useApp } from '../../store/AppContext'
-import { trainerTypingTests, trainerTrainees } from '../../store/selectors'
+import { trainerTypingTests, trainerTrainees, trainerPrograms } from '../../store/selectors'
 import { PageHeader, Card, CardHeader, CardBody, StatCard, EmptyState, Modal, Button, Badge, Avatar, Select, Textarea, FormField } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { DataTable } from '../../components/ui/Table'
-import { formatDate, average, clamp, cn } from '../../lib/utils'
+import { formatDate, average, cn } from '../../lib/utils'
+import { formatDuration } from '../../lib/typingMetrics'
 
 export function TrainerTypingTests() {
-  const { db, user, recordTypingTest } = useApp()
+  const { db, user, settings, evaluateTypingTest, decideTypingRequest, toast } = useApp()
+  // Configured in System Settings; the stored pass/fail flag is what counts.
+  const typingPassing = Number(settings?.typingPassingRate) || 40
   const tests = trainerTypingTests(db, user.id)
   const trainees = trainerTrainees(db, user.id).filter((t) => (t.trainee.enrolledPrograms || []).includes('virtual-assistant'))
+  // Retake requests are addressed to the trainer who owns the result, with the
+  // program assignment as a fallback (legacy rows have no trainer on the test).
+  const programIds = new Set(trainerPrograms(db, user.id).map((p) => p.id))
+  const pendingRequests = (db.typingRequests || []).filter(
+    (r) => r.status === 'pending' && (r.trainerId === user.id || programIds.has(r.programId)),
+  )
 
   const [selected, setSelected] = useState(null)
   const [remarks, setRemarks] = useState('')
@@ -28,12 +37,25 @@ export function TrainerTypingTests() {
 
   const openDetail = (t) => {
     setSelected(t)
-    setRemarks(t.remarks || '')
+    // Start blank for a new evaluation so the trainee does not receive the
+    // system-generated remark as if the trainer wrote it.
+    setRemarks(t.evaluated === false ? '' : t.remarks || '')
   }
 
-  const updateRemarks = () => {
-    recordTypingTest({ ...selected, id: undefined, remarks })
+  // Saving the evaluation marks the result as reviewed, which is what unlocks
+  // the trainee's "Request Retake" button.
+  const saveEvaluation = () => {
+    const res = evaluateTypingTest(selected.id, remarks)
+    if (!res.ok) {
+      toast(res.error, 'error')
+      return
+    }
     setSelected(null)
+  }
+
+  const decide = (request, decision) => {
+    const res = decideTypingRequest(request.id, decision)
+    if (!res.ok) toast(res.error, 'error')
   }
 
   const columns = [
@@ -59,15 +81,75 @@ export function TrainerTypingTests() {
     { key: 'correctWords', header: 'Correct / Incorrect', render: (r) => `${r.correctWords} / ${r.incorrectWords}` },
     { key: 'score', header: 'Score', sortable: true, render: (r) => <span className="font-bold text-slate-700">{r.score}%</span> },
     { key: 'passed', header: 'Result', render: (r) => <StatusBadge status={r.passed ? 'Passed' : 'Failed'} /> },
-    { key: 'actions', header: '', render: (r) => <Button size="sm" variant="secondary" icon={Eye} onClick={() => openDetail(r)}>Evaluate</Button> },
+    {
+      key: 'evaluated',
+      header: 'Evaluation',
+      render: (r) =>
+        r.evaluated === false ? (
+          <Badge tone="warning">Awaiting evaluation</Badge>
+        ) : (
+          <Badge tone="success">Evaluated</Badge>
+        ),
+    },
+    {
+      key: 'actions',
+      header: '',
+      render: (r) => (
+        <Button size="sm" variant="secondary" icon={Eye} onClick={() => openDetail(r)}>
+          {r.evaluated === false ? 'Evaluate' : 'Review'}
+        </Button>
+      ),
+    },
   ]
 
   return (
     <div>
       <PageHeader
         title="Typing Test Evaluation"
-        description="Review and evaluate Virtual Assistant typing test results. Minimum passing rate: 40%."
+        description={`Review and evaluate Virtual Assistant typing test results. Minimum passing rate: ${typingPassing}%. Trainees get one attempt; approve a request to let them test again.`}
       />
+
+      {pendingRequests.length > 0 && (
+        <Card className="mb-6 border-amber-200">
+          <CardHeader
+            title="Retake Requests"
+            subtitle="Trainees asking to take the typing test again"
+            icon={Send}
+            action={<Badge tone="warning">{pendingRequests.length} pending</Badge>}
+          />
+          <CardBody className="space-y-3">
+            {pendingRequests.map((r) => {
+              const trainee = db.users.find((u) => u.id === r.traineeId)
+              const lastTest = db.typingTests.find((t) => t.id === r.testId)
+              return (
+                <div
+                  key={r.id}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50/60 p-4"
+                >
+                  <div className="flex items-center gap-3">
+                    <Avatar name={trainee?.name} color={trainee?.avatarColor} size="sm" />
+                    <div>
+                      <p className="font-medium text-slate-700">{trainee?.name || 'Trainee'}</p>
+                      <p className="text-xs text-slate-500">
+                        Wants another attempt · requested {formatDate(r.requestedAt)}
+                        {lastTest ? ` · last score ${lastTest.score}% (${lastTest.passed ? 'Passed' : 'Failed'})` : ''}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex gap-2">
+                    <Button size="sm" variant="secondary" icon={X} onClick={() => decide(r, 'rejected')}>
+                      Reject
+                    </Button>
+                    <Button size="sm" icon={Check} onClick={() => decide(r, 'approved')}>
+                      Approve
+                    </Button>
+                  </div>
+                </div>
+              )
+            })}
+          </CardBody>
+        </Card>
+      )}
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Tests Taken" value={tests.length} icon={Keyboard} tone="brand" />
@@ -78,7 +160,7 @@ export function TrainerTypingTests() {
 
       {chartData.length > 0 && (
         <Card className="mt-6">
-          <CardHeader title="Typing Test Scores" subtitle="Scores by trainee (passing = 40%)" icon={TrendingUp} />
+          <CardHeader title="Typing Test Scores" subtitle={`Scores by trainee (passing = ${typingPassing}%)`} icon={TrendingUp} />
           <CardBody>
             <div className="h-64 w-full">
               <ResponsiveContainer width="100%" height="100%">
@@ -121,7 +203,7 @@ export function TrainerTypingTests() {
         footer={
           <>
             <Button variant="secondary" onClick={() => setSelected(null)}>Close</Button>
-            <Button onClick={updateRemarks}>Save Remarks</Button>
+            <Button onClick={saveEvaluation}>Save Evaluation</Button>
           </>
         }
       >
@@ -135,20 +217,24 @@ export function TrainerTypingTests() {
                 </div>
                 <div className="text-right">
                   <StatusBadge status={selected.passed ? 'Passed' : 'Failed'} />
-                  <p className="mt-1 text-xs text-white/75">Minimum: 40%</p>
+                  <p className="mt-1 text-xs text-white/75">Minimum: {typingPassing}%</p>
                 </div>
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
               {[
-                { label: 'Words per Minute', value: selected.wpm },
+                { label: 'Net WPM', value: selected.wpm },
+                { label: 'Raw WPM', value: selected.rawWpm ?? selected.wpm },
                 { label: 'Accuracy', value: `${selected.accuracy}%` },
                 { label: 'Errors', value: selected.errors },
                 { label: 'Total Words', value: selected.totalWords },
                 { label: 'Correct Words', value: selected.correctWords },
                 { label: 'Incorrect Words', value: selected.incorrectWords },
-                { label: 'Test Duration', value: `${selected.duration} min` },
+                {
+                  label: 'Test Duration',
+                  value: formatDuration(selected.durationSeconds ?? selected.duration * 60),
+                },
                 { label: 'Date', value: formatDate(selected.date) },
                 { label: 'Result', value: selected.passed ? 'PASSED' : 'FAILED' },
               ].map((s) => (
@@ -162,6 +248,11 @@ export function TrainerTypingTests() {
             <FormField label="Trainer Remarks">
               <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} rows={3} placeholder="Add evaluation remarks…" />
             </FormField>
+            <p className="rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-500">
+              {selected.evaluated === false
+                ? 'Saving the evaluation notifies the trainee and unlocks their retake request.'
+                : 'This result has been evaluated. Saving again updates the remarks.'}
+            </p>
           </div>
         )}
       </Modal>

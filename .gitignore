@@ -15,6 +15,9 @@ build/
 supabase/.temp/
 supabase/.branches/
 
+# Local backups (contain personal data — never commit)
+backups/
+
 # Logs
 logs
 *.log

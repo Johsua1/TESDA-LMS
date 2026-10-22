@@ -206,14 +206,17 @@ Enabled on every protected table.
 
 | Table | SELECT | INSERT/UPDATE/DELETE |
 |-------|--------|----------------------|
-| `profiles` | authenticated (broad — names are shown app-wide) | self **or** Super Admin; privileged columns guarded by trigger |
+| `profiles` | self; every trainer; a trainer's own trainees (via their enrollments); Super Admin | self **or** Super Admin; privileged columns guarded by trigger |
 | `programs` | authenticated | Super Admin, **or** trainer assigned to that program |
-| `schedules` / `attendance` / `evaluations` | authenticated | Super Admin, **or** trainer assigned to `program_id` |
+| `schedules` / `evaluations` | authenticated | Super Admin, **or** trainer assigned to `program_id` |
+| `attendance` | own rows; trainers: their programs; Super Admin: all | Super Admin, **or** trainer assigned to `program_id` |
 | `trainer_programs` | Super Admin, or trainer's own rows | Super Admin only |
 | `specializations` | authenticated | Super Admin only |
 | `trainer_invitations` | Super Admin, or trainer's own rows | none (definer functions only) |
 | `audit_logs` | Super Admin only | none (definer functions only) |
-| `enrollments`, `typing_tests`, `announcements`, `settings` | unchanged (broad) | unchanged |
+| `enrollments` | own rows; trainers: explicitly assigned (`data->>'trainerId'`) or unassigned in their programs; Super Admin: all | trainee INSERT own (self-enroll gate), UPDATE own non-decision fields (protected fields normalised by trigger); trainer of the program; DELETE Super Admin only |
+| `settings` | authenticated (the maintenance gate must load) | Super Admin only |
+| `typing_tests`, `announcements` | unchanged (broad) | unchanged |
 | `quiz_attempts` / `exam_attempts` | own rows; trainers: assigned programs; admin: all | trainee INSERT own + no-op UPDATE (trigger restores scores/timestamps); DELETE admin only |
 | `trainer_feedback` | trainee own; admin all at AAL2 (trainers never see it) | none — definer RPCs only |
 

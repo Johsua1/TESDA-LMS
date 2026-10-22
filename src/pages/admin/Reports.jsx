@@ -91,7 +91,7 @@ function MiniStat({ label, value, tone = 'slate' }) {
 }
 
 export function Reports() {
-  const { db, toast } = useApp()
+  const { db, toast, settings } = useApp()
   const [from, setFrom] = useState('')
   const [to, setTo] = useState('')
   const [programFilter, setProgramFilter] = useState('all')
@@ -326,7 +326,7 @@ export function Reports() {
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total Enrollments" value={data.enrollment.total} icon={Users} tone="brand" hint={`${data.enrollment.pending} pending`} />
         <StatCard label="Active Trainees" value={data.trainee.active} icon={GraduationCap} tone="success" hint={`${data.trainee.total} total trainees`} />
-        <StatCard label="Attendance Rate" value={`${data.att.rate}%`} icon={CalendarCheck} tone={data.att.rate >= 80 ? 'success' : 'warning'} hint={`${data.attTotal} records`} />
+        <StatCard label="Attendance Rate" value={`${data.att.rate}%`} icon={CalendarCheck} tone={data.att.rate >= (Number(settings?.attendanceRequirement) || 80) ? 'success' : 'warning'} hint={`${data.attTotal} records`} />
         <StatCard label="Total Revenue" value={currency(data.accounting.paid)} icon={Wallet} tone="warning" hint={`${data.accounting.collection}% collected`} />
       </div>
 

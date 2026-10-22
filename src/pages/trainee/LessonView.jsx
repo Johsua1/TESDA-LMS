@@ -14,7 +14,7 @@ import {
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { enrollmentOf, programById, traineeQuizAttempts, hasCourseAccess } from '../../store/selectors'
-import { programLessons } from '../../data/programs'
+import { publishedLessons } from '../../data/programs'
 import { Card, CardBody, CardHeader, Button, Badge, ProgressBar } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { CourseBackdrop } from '../../components/courses/CourseBackdrop'
@@ -29,17 +29,22 @@ export function LessonView() {
 
   const program = programById(programId)
   const enrollment = enrollmentOf(db, user.id, programId)
-  const lessons = programLessons(programId)
+  // Unpublished lessons are not part of the trainee's course, so they are not
+  // in the navigation either.
+  const lessons = publishedLessons(programId)
   const index = lessons.findIndex((l) => l.id === lessonId)
   const lesson = lessons[index]
 
-  if (!program || !enrollment || !lesson) return <Navigate to="/trainee/courses" replace />
+  if (!program || !enrollment) return <Navigate to="/trainee/courses" replace />
+  // A direct link to an unpublished (or removed) lesson goes back to the course
+  // instead of rendering its content.
+  if (!lesson) return <Navigate to={`/trainee/courses/${programId}`} replace />
   if (!hasCourseAccess(enrollment)) return <Navigate to={`/trainee/courses/${programId}`} replace />
 
   const prev = lessons[index - 1]
   const next = lessons[index + 1]
   const completed = !!enrollment.progress?.[lesson.id]
-  const quiz = program.quizzes.find((q) => q.id === lesson.quizId)
+  const quiz = program.quizzes.find((q) => q.id === lesson.quizId && q.published !== false)
   const attempt = traineeQuizAttempts(db, user.id, programId).find((a) => a.quizId === lesson.quizId)
   const doneCount = Object.keys(enrollment.progress || {}).length
   const percent = lessons.length ? Math.round((doneCount / lessons.length) * 100) : 0

@@ -15,6 +15,7 @@ import {
   ArrowRight,
   History,
   ShieldCheck,
+  Lock,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { enrollmentsOf, programById, paymentTransactions } from '../../store/selectors'
@@ -35,6 +36,7 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { currency, formatDate, cn } from '../../lib/utils'
+import { PAYABLE_STATUSES, areRequirementsVerified, canPayEnrollment } from '../../lib/enrollmentRequirements'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const PAYMENT_METHODS = [
@@ -51,7 +53,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10)
 // ---------------------------------------------------------------------------
 // A single self-pay enrollment card with balance + transaction history
 // ---------------------------------------------------------------------------
-function PaymentCard({ enrollment, onPay }) {
+function PaymentCard({ enrollment, onPay, onReceipt }) {
   const [showHistory, setShowHistory] = useState(false)
   const program = programById(enrollment.programId)
   const payment = enrollment.payment || {}
@@ -60,7 +62,12 @@ function PaymentCard({ enrollment, onPay }) {
   const balance = Number(payment.balance) || 0
   const paidPct = fee ? Math.round((paid / fee) * 100) : 100
   const settled = balance <= 0
-  const locked = ['Cancelled', 'Rejected'].includes(enrollment.status)
+  const closed = ['Cancelled', 'Rejected'].includes(enrollment.status)
+  // Payment is the step after admin approval: a pending/under-review
+  // application has a fee on record but no Pay Now button yet.
+  const statusApproved = PAYABLE_STATUSES.includes(enrollment.status)
+  const docsReady = areRequirementsVerified(enrollment)
+  const approved = canPayEnrollment(enrollment)
   const transactions = paymentTransactions(enrollment)
 
   return (
@@ -80,7 +87,19 @@ function PaymentCard({ enrollment, onPay }) {
         </div>
         <div className="flex shrink-0 items-center gap-2">
           <StatusBadge status={payment.status} />
-          {settled ? (
+          {closed ? (
+            <Badge tone="danger" dot>
+              Payment closed
+            </Badge>
+          ) : !statusApproved ? (
+            <Badge tone="neutral" dot>
+              Awaiting approval
+            </Badge>
+          ) : !docsReady ? (
+            <Badge tone="warning" dot>
+              Documents pending
+            </Badge>
+          ) : settled ? (
             <Badge tone="success" dot>
               Settled
             </Badge>
@@ -130,15 +149,24 @@ function PaymentCard({ enrollment, onPay }) {
             <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-600">
               <CheckCircle2 className="h-4 w-4" /> Fully paid
             </span>
-          ) : (
-            <Button size="sm" icon={CreditCard} disabled={locked} onClick={() => onPay(enrollment)}>
-              {locked ? 'Payment closed' : 'Pay Now'}
+          ) : approved ? (
+            <Button size="sm" icon={CreditCard} onClick={() => onPay(enrollment)}>
+              Pay Now
             </Button>
+          ) : (
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold text-slate-500">
+              <Lock className="h-4 w-4" />{' '}
+              {closed
+                ? 'Payment closed'
+                : !statusApproved
+                  ? 'Unlocks after approval'
+                  : 'Unlocks after document verification'}
+            </span>
           )}
         </div>
 
         {showHistory && (
-          <div className="mt-4 overflow-hidden rounded-lg border border-slate-100">
+          <div className="mt-4 overflow-x-auto rounded-lg border border-slate-100">
             {transactions.length ? (
               <table className="w-full text-left text-xs">
                 <thead className="bg-slate-50 text-slate-500">
@@ -147,6 +175,7 @@ function PaymentCard({ enrollment, onPay }) {
                     <th className="px-3 py-2 font-medium">Method</th>
                     <th className="px-3 py-2 font-medium">Reference</th>
                     <th className="px-3 py-2 text-right font-medium">Amount</th>
+                    <th className="px-3 py-2 text-right font-medium">Receipt</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
@@ -156,6 +185,14 @@ function PaymentCard({ enrollment, onPay }) {
                       <td className="px-3 py-2">{t.method || '—'}</td>
                       <td className="px-3 py-2 font-mono text-[11px] text-slate-500">{t.referenceNo || '—'}</td>
                       <td className="px-3 py-2 text-right font-semibold text-slate-700">{currency(t.amount)}</td>
+                      <td className="px-3 py-2 text-right">
+                        <button
+                          onClick={() => onReceipt(t)}
+                          className="inline-flex items-center gap-1 text-[11px] font-semibold text-brand-600 transition hover:text-brand-700"
+                        >
+                          <Receipt className="h-3 w-3" /> View
+                        </button>
+                      </td>
                     </tr>
                   ))}
                 </tbody>
@@ -326,11 +363,94 @@ function PayModal({ open, enrollment, onClose, onConfirm }) {
 }
 
 // ---------------------------------------------------------------------------
+// Receipt for one recorded payment
+// ---------------------------------------------------------------------------
+function ReceiptRow({ label, value, strong }) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <dt className="text-slate-500">{label}</dt>
+      <dd className={cn('text-right', strong ? 'text-base font-bold text-slate-800' : 'font-medium text-slate-700')}>
+        {value}
+      </dd>
+    </div>
+  )
+}
+
+function ReceiptModal({ record, onClose, settings, user }) {
+  const enrollment = record?.enrollment
+  const tx = record?.tx
+  if (!enrollment || !tx) return null
+
+  const program = programById(enrollment.programId)
+  const payment = enrollment.payment || {}
+  // Receipts are historical: show the balance as of this payment, not today's.
+  const history = paymentTransactions(enrollment)
+  const index = history.findIndex((t) => t.id === tx.id)
+  const paidToDate =
+    index >= 0 ? history.slice(index).reduce((sum, t) => sum + (Number(t.amount) || 0), 0) : Number(payment.amountPaid) || 0
+  const balanceAfter = Math.max(0, (Number(payment.fee) || 0) - paidToDate)
+  const receiptNo =
+    tx.referenceNo && tx.referenceNo !== '—'
+      ? tx.referenceNo
+      : `RCPT-${String(tx.id || '').slice(-8).toUpperCase()}`
+
+  return (
+    <Modal
+      open
+      onClose={onClose}
+      title="Payment Receipt"
+      subtitle={program?.title}
+      icon={Receipt}
+      footer={
+        <Button variant="secondary" onClick={onClose}>
+          Close
+        </Button>
+      }
+    >
+      <div className="rounded-xl border border-slate-200 p-5">
+        <div className="flex items-start justify-between gap-4 border-b border-dashed border-slate-200 pb-4">
+          <div>
+            <p className="text-sm font-bold text-slate-800">{settings?.institution || 'HYT Global Institute'}</p>
+            {settings?.academicYear && (
+              <p className="text-xs text-slate-500">Academic Year {settings.academicYear}</p>
+            )}
+            <p className="text-xs text-slate-500">Official payment receipt</p>
+          </div>
+          <div className="text-right">
+            <p className="text-[11px] uppercase tracking-wide text-slate-400">Receipt No.</p>
+            <p className="font-mono text-xs font-semibold text-slate-700">{receiptNo}</p>
+          </div>
+        </div>
+
+        <dl className="mt-4 space-y-2 text-sm">
+          <ReceiptRow label="Received from" value={user?.name || '—'} />
+          <ReceiptRow label="Program" value={[program?.code, program?.title].filter(Boolean).join(' · ') || '—'} />
+          <ReceiptRow label="Payment date" value={formatDate(tx.date)} />
+          <ReceiptRow label="Payment method" value={tx.method || '—'} />
+          <ReceiptRow label="Amount received" value={currency(tx.amount)} strong />
+        </dl>
+
+        <dl className="mt-4 space-y-2 border-t border-dashed border-slate-200 pt-4 text-sm">
+          <ReceiptRow label="Total paid to date" value={currency(paidToDate)} />
+          <ReceiptRow label="Balance after this payment" value={currency(balanceAfter)} />
+          <ReceiptRow label="Payment status" value={balanceAfter === 0 ? 'Fully Paid' : 'Partially Paid'} />
+        </dl>
+
+        <p className="mt-4 text-[11px] leading-relaxed text-slate-400">
+          Generated from the payment record dated {formatDate(tx.date)}. Keep this receipt for your records.
+        </p>
+      </div>
+    </Modal>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
 export function Payments() {
-  const { db, user, recordPayment } = useApp()
+  const { db, user, settings, recordPayment } = useApp()
   const [target, setTarget] = useState(null)
+  const [receipt, setReceipt] = useState(null)
 
   const mySelfPay = useMemo(
     () => enrollmentsOf(db, user.id).filter((e) => e.type === 'self-pay' && e.payment),
@@ -343,7 +463,7 @@ export function Payments() {
         (acc, e) => {
           acc.billed += Number(e.payment?.fee) || 0
           acc.paid += Number(e.payment?.amountPaid) || 0
-          if ((Number(e.payment?.balance) || 0) > 0 && !['Cancelled', 'Rejected'].includes(e.status)) acc.due += 1
+          if ((Number(e.payment?.balance) || 0) > 0 && canPayEnrollment(e)) acc.due += 1
           return acc
         },
         { billed: 0, paid: 0, due: 0 },
@@ -352,6 +472,10 @@ export function Payments() {
   )
 
   const balance = Math.max(0, totals.billed - totals.paid)
+  const payableBalance = mySelfPay
+    .filter((e) => canPayEnrollment(e))
+    .reduce((sum, e) => sum + (Number(e.payment?.balance) || 0), 0)
+  const openApplications = mySelfPay.filter((e) => !['Rejected', 'Cancelled'].includes(e.status))
 
   const confirm = (payload) => {
     const ok = recordPayment(target.id, payload)
@@ -376,20 +500,24 @@ export function Payments() {
       <div className="mb-6 grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Total Billed" value={currency(totals.billed)} icon={Receipt} tone="brand" hint="Across self-pay programs" />
         <StatCard label="Total Paid" value={currency(totals.paid)} icon={CheckCircle2} tone="success" hint="Recorded payments" />
-        <StatCard label="Outstanding Balance" value={currency(balance)} icon={Clock} tone={balance > 0 ? 'danger' : 'success'} hint={balance > 0 ? 'Amount still due' : 'You are fully settled'} />
-        <StatCard label="Pending Payments" value={totals.due} icon={CreditCard} tone="warning" hint={totals.due ? 'Program(s) with a balance' : 'No balances due'} />
+        <StatCard label="Outstanding Balance" value={currency(payableBalance)} icon={Clock} tone={payableBalance > 0 ? 'danger' : 'success'} hint={payableBalance > 0 ? 'Amount still due' : 'Nothing payable right now'} />
+        <StatCard label="Payments Due" value={totals.due} icon={CreditCard} tone="warning" hint={totals.due ? 'Approved program(s) with a balance' : 'No payments due'} />
       </div>
 
       {mySelfPay.length ? (
         <div className="space-y-5">
           <div className="flex items-center gap-2 text-xs text-slate-500">
             <Info className="h-3.5 w-3.5" />
-            {balance > 0
-              ? `You have ${currency(balance)} in outstanding balance. Tap “Pay Now” on any program below to settle it.`
-              : 'All your self-pay programs are fully paid. Thank you!'}
+            {payableBalance > 0
+              ? `You have ${currency(payableBalance)} in outstanding balance. Tap “Pay Now” on any program below to settle it.`
+              : !openApplications.length
+                ? 'No payments are due. Closed applications stay listed here as records.'
+                : openApplications.some((e) => (Number(e.payment?.balance) || 0) > 0)
+                  ? 'Your payment will unlock once the admin approves your enrollment and verifies your requirements.'
+                  : 'All your open self-pay programs are fully paid. Thank you!'}
           </div>
           {mySelfPay.map((e) => (
-            <PaymentCard key={e.id} enrollment={e} onPay={setTarget} />
+            <PaymentCard key={e.id} enrollment={e} onPay={setTarget} onReceipt={(tx) => setReceipt({ enrollment: e, tx })} />
           ))}
         </div>
       ) : (
@@ -408,6 +536,7 @@ export function Payments() {
       )}
 
       <PayModal open={!!target} enrollment={target} onClose={() => setTarget(null)} onConfirm={confirm} />
+      <ReceiptModal record={receipt} onClose={() => setReceipt(null)} settings={settings} user={user} />
     </div>
   )
 }

@@ -22,6 +22,7 @@ import {
   EmptyState,
 } from '../../components/ui'
 import { currency, average, cn } from '../../lib/utils'
+import { validateCourse } from '../../lib/courseValidation'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
 const blankCourse = () => ({
@@ -56,6 +57,8 @@ export function ManageCourses() {
   const [openComp, setOpenComp] = useState(null)
   const [addOpen, setAddOpen] = useState(false)
   const [addForm, setAddForm] = useState(blankCourse())
+  const [addErrors, setAddErrors] = useState({})
+  const [editErrors, setEditErrors] = useState({})
   const [deleteTarget, setDeleteTarget] = useState(null)
 
   const trainers = db.users.filter((u) => u.role === 'trainer')
@@ -64,14 +67,21 @@ export function ManageCourses() {
     setSelected(p)
     setEditing(false)
     setEditForm(editCourse(p))
+    setEditErrors({})
     setOpenComp(null)
   }
 
   const saveEdit = () => {
+    const check = validateCourse(editForm, { programs: db.programs, excludeId: selected.id })
+    if (!check.ok) {
+      setEditErrors({ [check.field]: check.error })
+      toast(check.error, 'error')
+      return
+    }
     const description = String(editForm.description || '').trim()
     const patch = {
-      title: String(editForm.title || '').trim() || selected.title,
-      code: String(editForm.code || '').trim() || selected.code,
+      title: String(editForm.title || '').trim(),
+      code: String(editForm.code || '').trim(),
       category: String(editForm.category || '').trim() || selected.category,
       level: editForm.level || selected.level,
       fee: Number(editForm.fee) || 0,
@@ -88,6 +98,7 @@ export function ManageCourses() {
 
   const openAdd = () => {
     setAddForm(blankCourse())
+    setAddErrors({})
     setAddOpen(true)
   }
 
@@ -96,7 +107,11 @@ export function ManageCourses() {
     if (res.ok) {
       setAddOpen(false)
       setAddForm(blankCourse())
+      setAddErrors({})
+      return
     }
+    // addProgram enforces the same rules; mirror the message under the field.
+    setAddErrors(res.field ? { [res.field]: res.error } : {})
   }
 
   const askDelete = (p) => {
@@ -203,7 +218,7 @@ export function ManageCourses() {
             {!editing ? (
               <>
                 <Button variant="danger" icon={Trash2} onClick={() => askDelete(selected)}>Delete</Button>
-                <Button variant="secondary" icon={Pencil} onClick={() => setEditing(true)}>Edit Course</Button>
+                <Button variant="secondary" icon={Pencil} onClick={() => { setEditErrors({}); setEditing(true) }}>Edit Course</Button>
               </>
             ) : (
               <>
@@ -230,17 +245,23 @@ export function ManageCourses() {
             {editing ? (
               <div className="space-y-4">
                 <FormRow>
-                  <FormField label="Course Title">
+                  <FormField label="Course Title" required error={editErrors.title}>
                     <Input
                       value={editForm.title}
-                      onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
+                      onChange={(e) => {
+                        setEditForm({ ...editForm, title: e.target.value })
+                        setEditErrors((err) => ({ ...err, title: '' }))
+                      }}
                       placeholder="e.g. Bread and Pastry Production NC II"
                     />
                   </FormField>
-                  <FormField label="Course Code">
+                  <FormField label="Course Code" required error={editErrors.code} hint="Must be unique across all courses.">
                     <Input
                       value={editForm.code}
-                      onChange={(e) => setEditForm({ ...editForm, code: e.target.value })}
+                      onChange={(e) => {
+                        setEditForm({ ...editForm, code: e.target.value })
+                        setEditErrors((err) => ({ ...err, code: '' }))
+                      }}
                       placeholder="e.g. BP-201"
                     />
                   </FormField>
@@ -263,11 +284,14 @@ export function ManageCourses() {
                   </FormField>
                 </FormRow>
                 <FormRow>
-                  <FormField label="Training Fee (₱)">
+                  <FormField label="Training Fee (₱)" error={editErrors.fee}>
                     <Input
                       type="number"
                       value={editForm.fee}
-                      onChange={(e) => setEditForm({ ...editForm, fee: e.target.value })}
+                      onChange={(e) => {
+                        setEditForm({ ...editForm, fee: e.target.value })
+                        setEditErrors((err) => ({ ...err, fee: '' }))
+                      }}
                       placeholder="0"
                     />
                   </FormField>
@@ -280,11 +304,14 @@ export function ManageCourses() {
                   </FormField>
                 </FormRow>
                 <FormRow>
-                  <FormField label="Total Hours">
+                  <FormField label="Total Hours" error={editErrors.hours}>
                     <Input
                       type="number"
                       value={editForm.hours}
-                      onChange={(e) => setEditForm({ ...editForm, hours: e.target.value })}
+                      onChange={(e) => {
+                        setEditForm({ ...editForm, hours: e.target.value })
+                        setEditErrors((err) => ({ ...err, hours: '' }))
+                      }}
                       placeholder="0"
                     />
                   </FormField>
@@ -403,17 +430,23 @@ export function ManageCourses() {
       >
         <div className="space-y-4">
           <FormRow>
-            <FormField label="Course Title">
+            <FormField label="Course Title" required error={addErrors.title}>
               <Input
                 value={addForm.title}
-                onChange={(e) => setAddForm({ ...addForm, title: e.target.value })}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, title: e.target.value })
+                  setAddErrors((err) => ({ ...err, title: '' }))
+                }}
                 placeholder="e.g. Bread and Pastry Production NC II"
               />
             </FormField>
-            <FormField label="Course Code">
+            <FormField label="Course Code" required error={addErrors.code} hint="Must be unique across all courses.">
               <Input
                 value={addForm.code}
-                onChange={(e) => setAddForm({ ...addForm, code: e.target.value })}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, code: e.target.value })
+                  setAddErrors((err) => ({ ...err, code: '' }))
+                }}
                 placeholder="e.g. BP-201"
               />
             </FormField>
@@ -436,11 +469,14 @@ export function ManageCourses() {
             </FormField>
           </FormRow>
           <FormRow>
-            <FormField label="Training Fee (₱)">
+            <FormField label="Training Fee (₱)" error={addErrors.fee}>
               <Input
                 type="number"
                 value={addForm.fee}
-                onChange={(e) => setAddForm({ ...addForm, fee: e.target.value })}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, fee: e.target.value })
+                  setAddErrors((err) => ({ ...err, fee: '' }))
+                }}
                 placeholder="0"
               />
             </FormField>
@@ -453,11 +489,14 @@ export function ManageCourses() {
             </FormField>
           </FormRow>
           <FormRow>
-            <FormField label="Total Hours">
+            <FormField label="Total Hours" error={addErrors.hours}>
               <Input
                 type="number"
                 value={addForm.hours}
-                onChange={(e) => setAddForm({ ...addForm, hours: e.target.value })}
+                onChange={(e) => {
+                  setAddForm({ ...addForm, hours: e.target.value })
+                  setAddErrors((err) => ({ ...err, hours: '' }))
+                }}
                 placeholder="0"
               />
             </FormField>

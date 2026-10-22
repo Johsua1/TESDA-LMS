@@ -19,7 +19,9 @@ import { DataTable } from '../../components/ui/Table'
 import { average, cn } from '../../lib/utils'
 
 export function TrainerProgress() {
-  const { db, user } = useApp()
+  const { db, user, settings } = useApp()
+  // The attendance cut-off is the one configured in System Settings.
+  const attendanceRequirement = Number(settings?.attendanceRequirement) || 80
   const programs = trainerPrograms(db, user.id)
   const [programFilter, setProgramFilter] = useState('all')
 
@@ -43,7 +45,7 @@ export function TrainerProgress() {
   }))
 
   const avgProgress = rows.length ? Math.round(average(rows.map((r) => r.progress))) : 0
-  const atRisk = rows.filter((r) => r.progress < 50 || r.att.rate < 80).length
+  const atRisk = rows.filter((r) => r.progress < 50 || r.att.rate < attendanceRequirement).length
 
   const columns = [
     { key: 'rank', header: '#', render: (r) => <span className="text-slate-400">{rows.indexOf(r) + 1}</span> },
@@ -99,7 +101,7 @@ export function TrainerProgress() {
       <div className="mb-5 grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Trainees" value={rows.length} icon={Users} tone="brand" />
         <StatCard label="Avg Progress" value={`${avgProgress}%`} icon={TrendingUp} tone="success" />
-        <StatCard label="At Risk" value={atRisk} icon={Target} tone={atRisk ? 'danger' : 'success'} hint="Progress < 50% or attendance < 80%" />
+        <StatCard label="At Risk" value={atRisk} icon={Target} tone={atRisk ? 'danger' : 'success'} hint={`Progress < 50% or attendance < ${attendanceRequirement}%`} />
         <StatCard label="Avg Grade" value={`${rows.length ? Math.round(average(rows.map((r) => r.grade))) : 0}%`} icon={Award} tone="purple" />
       </div>
 

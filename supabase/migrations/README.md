@@ -44,6 +44,20 @@ Run these **in numeric order**, after the baseline `supabase/schema.sql`
 053_ratings_quantitative_only.sql strip legacy comments, enforce stars only
 054_single_feedback_submission.sql stars + text in one submit, rated once
 055_ratings_write_lock.sql     clients read ratings only; RPC is the sole writer
+056_exam_grading_record_fix.sql exam inserts no longer raise 'record v_session is not assigned yet'
+057_announcement_targeting_reads.sql per-program announcements, trainer isolation, read receipts
+058_trainer_evaluation_isolation.sql evaluations/typing results private to their trainer; evaluations keyed by id
+059_typing_test_requests.sql   one typing test attempt + trainer-approved retakes
+060_profile_email_sync.sql     auth email change mirrored into profiles.email
+061_quiz_attempt_grant_count_fix.sql attempt limit counted from real rows, approved retakes bypass the window
+062_maintenance_mode_rls.sql   maintenance mode refuses non-admin writes server-side; settings are Super-Admin only
+063_self_enroll_gate.sql      "allow online self-enrollment" refuses trainee enrollment inserts server-side
+064_enrollment_write_scope.sql enrollment writes scoped by role; trainee cannot approve/move/delete records
+065_enrollment_indexes.sql    indexes on enrollments(trainee_id, program_id, status)
+066_enrollment_read_scope.sql enrollment reads scoped to owner / assigned trainer / Super Admin
+067_profile_attendance_read_scope.sql profile reads scoped to self/trainers/own trainees; attendance to owner or trainer
+068_policy_role_scoping.sql    those read/write policies scoped TO authenticated — anon was reading every trainer profile
+069_enrollment_unique.sql      unique (trainee_id, program_id) — one application per course per trainee
 ```
 
 ## Why the numbering starts at 017

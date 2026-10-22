@@ -68,7 +68,7 @@ values
    jsonb_build_object('trainerId', 'tr-mv55zntx-fw75m', 'progress', '{}'::jsonb)),
   ('zz-fb-enr2', 'tn-mv5614d2-ifto6', 'zz-fb-prog', 'Completed',
    jsonb_build_object('trainerId', 'tr-mv55zntx-fw75m', 'progress', jsonb_build_object('zz-fb-l1', true))),
-  ('zz-fb-other-enr', 'tn-mvg2fxex-0hhe8', 'zz-fb-prog', 'Completed',
+  ('zz-fb-other-enr', 'tn-mvg2kmu2-j36r3', 'zz-fb-prog', 'Completed',
    jsonb_build_object('trainerId', 'tr-mv4lep5i-uwvwj', 'progress', jsonb_build_object('zz-fb-l1', true)));
 
 -- Only trainer 1 is assigned to the feedback program. The unrelated-trainer
@@ -87,7 +87,7 @@ values
   ('zz-fb-qa', 'tn-mv5614d2-ifto6', 'zz-fb-prog',
    '{"quizId":"zz-fb-quiz","answers":[{"questionId":"zz-fb-q1","given":"a"}],"score":1,"total":1,"percentage":100}'::jsonb,
    'graded', 1, 1, 1, 1, 0, 0, 100, now(), now()),
-  ('zz-fb-qa2', 'tn-mvg2fxex-0hhe8', 'zz-fb-prog',
+  ('zz-fb-qa2', 'tn-mvg2kmu2-j36r3', 'zz-fb-prog',
    '{"quizId":"zz-fb-quiz","answers":[{"questionId":"zz-fb-q1","given":"a"}],"score":1,"total":1,"percentage":100}'::jsonb,
    'graded', 1, 1, 1, 1, 0, 0, 100, now(), now());
 
@@ -98,7 +98,7 @@ values
   ('zz-fb-ea', 'tn-mv5614d2-ifto6', 'zz-fb-prog',
    '{"examId":"zz-fb-exam","answers":[{"questionId":"zz-fb-e1","given":"a"}],"score":1,"total":1,"percentage":100}'::jsonb,
    'graded', 1, 1, 1, 1, 0, 0, 100, now(), now()),
-  ('zz-fb-ea2', 'tn-mvg2fxex-0hhe8', 'zz-fb-prog',
+  ('zz-fb-ea2', 'tn-mvg2kmu2-j36r3', 'zz-fb-prog',
    '{"examId":"zz-fb-exam","answers":[{"questionId":"zz-fb-e1","given":"a"}],"score":1,"total":1,"percentage":100}'::jsonb,
    'graded', 1, 1, 1, 1, 0, 0, 100, now(), now());
 
@@ -177,7 +177,7 @@ end $$;
 
 -- Another trainee cannot submit for this enrollment
 select set_config('request.jwt.claims',
-  '{"sub":"93515538-b68f-42a1-9722-e974c7ed9d73","aal":"aal1"}', true);
+  '{"sub":"0601c793-5407-42da-a8bf-2990df2268dd","aal":"aal1"}', true);
 
 do $$
 begin
@@ -223,7 +223,7 @@ end $$;
 insert into public.trainer_feedback
   (id, trainee_id, trainer_id, program_id, enrollment_id, feedback_text, is_submitted, submitted_at)
 values
-  ('zz-fb-other', 'tn-mvg2fxex-0hhe8', 'tr-mv4lep5i-uwvwj', 'zz-fb-prog',
+  ('zz-fb-other', 'tn-mvg2kmu2-j36r3', 'tr-mv4lep5i-uwvwj', 'zz-fb-prog',
    'zz-fb-other-enr', 'Feedback about the other trainer.', true, now());
 
 select set_config('request.jwt.claims',
@@ -866,11 +866,11 @@ select pg_temp.rec(
 select set_config('role', 'postgres', true);
 
 insert into public.enrollments (id, trainee_id, program_id, status, data)
-values ('zz-legacy-enr2', 'tn-mvg2fxex-0hhe8', 'zz-legacy-prog', 'Enrolled',
+values ('zz-legacy-enr2', 'tn-mvg2kmu2-j36r3', 'zz-legacy-prog', 'Enrolled',
         jsonb_build_object('progress', '{}'::jsonb));
 
 insert into public.quiz_sessions (id, trainee_id, program_id, quiz_id, data)
-values ('zz-legacy-session', 'tn-mvg2fxex-0hhe8', 'zz-legacy-prog', 'zz-legacy-quiz',
+values ('zz-legacy-session', 'tn-mvg2kmu2-j36r3', 'zz-legacy-prog', 'zz-legacy-quiz',
         jsonb_build_object('startedAt', '2000-01-01T00:00:00Z'));
 
 create temp table zz_session_clock as
@@ -878,7 +878,7 @@ select started_at, deadline_at from public.quiz_sessions where id = 'zz-legacy-s
 grant select on zz_session_clock to authenticated;
 
 select set_config('request.jwt.claims',
-  '{"sub":"93515538-b68f-42a1-9722-e974c7ed9d73","aal":"aal1"}', true);
+  '{"sub":"0601c793-5407-42da-a8bf-2990df2268dd","aal":"aal1"}', true);
 select set_config('app.assessment_rpc', 'off', true);
 select set_config('role', 'authenticated', true);
 
@@ -899,7 +899,7 @@ select pg_temp.rec(
 insert into public.quiz_attempts (id, trainee_id, program_id, data)
 values (
   'zz-legacy-attempt2',
-  'tn-mvg2fxex-0hhe8',
+  'tn-mvg2kmu2-j36r3',
   'zz-legacy-prog',
   jsonb_build_object(
     'quizId', 'zz-legacy-quiz',
@@ -937,7 +937,7 @@ select pg_temp.rec(
 -- ---------------------------------------------------------------------------
 select set_config('role', 'postgres', true);
 select set_config('request.jwt.claims',
-  '{"sub":"93515538-b68f-42a1-9722-e974c7ed9d73","aal":"aal1"}', true);
+  '{"sub":"0601c793-5407-42da-a8bf-2990df2268dd","aal":"aal1"}', true);
 select set_config('role', 'authenticated', true);
 
 select pg_temp.rec(
@@ -1090,6 +1090,47 @@ begin
   perform pg_temp.rec('grants: attempt tables are not truncatable by clients', not v_attempt_truncate,
     jsonb_build_object('authenticated_can_truncate', v_attempt_truncate));
 end $guard$;
+
+-- ---------------------------------------------------------------------------
+-- 056 — a legacy exam submission has no quiz session row. The grading trigger
+-- must read the session clock only on the quiz branch; referencing the record
+-- on the exam branch raised 'record "v_session" is not assigned yet' and the
+-- attempt was never stored (so trainers saw no exam results).
+-- ---------------------------------------------------------------------------
+select set_config('role', 'postgres', true);
+
+do $legacy_exam$
+declare
+  v_row record;
+begin
+  perform set_config('app.assessment_rpc', 'off', true);
+  begin
+    insert into public.exam_attempts (id, trainee_id, program_id, data)
+    values (
+      'zz-fb-ea-legacy', 'tn-mv5614d2-ifto6', 'zz-fb-prog',
+      jsonb_build_object(
+        'examId', 'zz-fb-exam',
+        'examTitle', 'Feedback Exam',
+        'startedAt', to_jsonb(now() - interval '2 minutes'),
+        'answers', jsonb_build_array(jsonb_build_object('questionId', 'zz-fb-e1', 'given', 'a'))
+      )
+    );
+
+    select status, score, total_questions, percentage into v_row
+    from public.exam_attempts where id = 'zz-fb-ea-legacy';
+
+    perform pg_temp.rec(
+      'exam: legacy submission grades without a session row',
+      v_row.status = 'submitted' and v_row.score = 1 and v_row.total_questions = 1
+        and v_row.percentage = 100,
+      jsonb_build_object('status', v_row.status, 'score', v_row.score,
+                         'total', v_row.total_questions, 'pct', v_row.percentage));
+  exception when others then
+    perform pg_temp.rec(
+      'exam: legacy submission grades without a session row', false,
+      jsonb_build_object('error', sqlerrm, 'sqlstate', sqlstate));
+  end;
+end $legacy_exam$;
 
 -- ---------------------------------------------------------------------------
 -- Results

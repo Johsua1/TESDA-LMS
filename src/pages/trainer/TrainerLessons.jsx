@@ -23,6 +23,8 @@ import { MaterialEditor } from '../../components/content/MaterialEditor'
 import { cn, videoEmbed } from '../../lib/utils'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 
+const MAX_LESSON_MINUTES = 300 // 5 hours
+
 const blankLesson = () => ({
   id: '',
   title: '',
@@ -104,11 +106,16 @@ export function TrainerLessons() {
       toast('Lesson title is required.', 'error')
       return
     }
+    const minutes = Number(form.lesson.duration) || 0
+    if (minutes > MAX_LESSON_MINUTES) {
+      toast('Lesson duration cannot exceed 5 hours (300 minutes).', 'error')
+      return
+    }
     const lesson = {
       ...form.lesson,
       id: form.lesson.id || `${form.programId}-${form.unitId || form.competencyId}-l-${Date.now().toString(36)}`,
       order: Number(form.lesson.order) || 1,
-      duration: Number(form.lesson.duration) || 0,
+      duration: Math.round(minutes),
     }
     saveLesson(form.programId, { competencyId: form.competencyId, unitId: form.unitId || null, lesson })
     setForm(null)
@@ -323,8 +330,15 @@ export function TrainerLessons() {
             </FormField>
 
             <FormRow cols={3}>
-              <FormField label="Duration (minutes)">
-                <Input type="number" min="0" value={form.lesson.duration} onChange={(e) => setLesson({ duration: e.target.value })} />
+              <FormField label="Duration (minutes)" hint="Maximum 5 hours (300 minutes)">
+                <Input
+                  type="number"
+                  min="0"
+                  max={MAX_LESSON_MINUTES}
+                  step="1"
+                  value={form.lesson.duration}
+                  onChange={(e) => setLesson({ duration: e.target.value })}
+                />
               </FormField>
               <FormField label="Lesson Order">
                 <Input type="number" min="1" value={form.lesson.order} onChange={(e) => setLesson({ order: e.target.value })} />
