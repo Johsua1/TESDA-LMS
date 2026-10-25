@@ -13,6 +13,7 @@ import {
   GraduationCap,
   Target,
   CreditCard,
+  Pin,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import {
@@ -37,14 +38,24 @@ import {
   Button,
   EmptyState,
   SectionTitle,
+  Avatar,
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
-import { ScheduleCard, AnnouncementCard } from '../../components/cards/Cards'
+import { ScheduleCard } from '../../components/cards/Cards'
 import { CourseIcon } from '../../components/courses/CourseIcon'
 import { formatDate, formatTime, relativeDay, currency, cn, toExternalUrl, scheduleStatus } from '../../lib/utils'
 import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
 import { useNow } from '../../lib/useNow'
 import { traineeQuizRequests } from '../../lib/quizAccess'
+
+// Announcement priority drives the badge tone, the accent rail on the featured
+// card and the icon chip in the compact list — one source of truth.
+const priorityMeta = {
+  high: { tone: 'danger', label: 'High priority', accent: 'bg-rose-400' },
+  normal: { tone: 'info', label: 'Announcement', accent: 'bg-brand-500' },
+  low: { tone: 'neutral', label: 'Low priority', accent: 'bg-slate-300' },
+}
+const priorityOf = (announcement) => priorityMeta[announcement?.priority] || priorityMeta.normal
 
 export function TraineeDashboard() {
   const { db, user, settings } = useApp()
@@ -59,6 +70,18 @@ export function TraineeDashboard() {
   const nextClass = upcoming[0]
   const scores = traineeQuizAttempts(db, user.id).slice(0, 4)
   const announcements = announcementsFor(db, user).slice(0, 3)
+  // When nothing is scheduled, the left column would collapse to a single
+  // empty card. Surface the next unpublished-by-progress lesson instead so the
+  // space does something useful.
+  const nextLessons = enrollments
+    .map((e) => {
+      const program = programById(e.programId)
+      const lessons = publishedLessons(e.programId)
+      const lesson = lessons.find((l) => !(e.progress || {})[l.id]) || null
+      return { enrollment: e, program, lesson, percent: courseProgress(e, e.programId).percent }
+    })
+    .filter((x) => x.program)
+
   const overall = overallProgress(db, user.id)
   const duePayments = outstandingPayments(db, user.id)
   const quizNotices = traineeQuizRequests(db, user.id).slice(0, 4)
@@ -271,33 +294,128 @@ export function TraineeDashboard() {
             </Card>
           </div>
 
-          {/* Upcoming schedule list */}
-          <div>
-            <SectionTitle
-              action={
-                <Link to="/trainee/schedules" className="text-xs font-semibold text-brand-600 hover:text-brand-700">
-                  View all
-                </Link>
-              }
-            >
-              Class Schedule
-            </SectionTitle>
-            <div className="space-y-3">
-              {upcoming.length ? (
-                upcoming.map((s) => (
+          {/* Upcoming schedule list — or, when nothing is scheduled, the next
+              lesson to work on. One block either way, so the column never
+              collapses into empty space. */}
+          {upcoming.length ? (
+            <div>
+              <SectionTitle
+                action={
+                  <Link to="/trainee/schedules" className="text-xs font-semibold text-brand-600 hover:text-brand-700">
+                    View all
+                  </Link>
+                }
+              >
+                Class Schedule
+              </SectionTitle>
+              <div className="space-y-3">
+                {upcoming.map((s) => (
                   <ScheduleCard
                     key={s.id}
                     schedule={s}
                     trainer={db.users.find((u) => u.id === s.trainerId)}
                     program={programById(s.programId)}
                   />
-                ))
-              ) : (
-                <Card>
-                  <EmptyState icon={CalendarDays} title="No scheduled classes" />
-                </Card>
-              )}
+                ))}
+              </div>
             </div>
+          ) : (
+            <Card>
+              <CardHeader
+                title="Continue Learning"
+                icon={BookOpen}
+                action={
+                  <Link to="/trainee/courses" className="text-xs font-semibold text-brand-600 hover:text-brand-700">
+                    View courses
+                  </Link>
+                }
+              />
+              <CardBody className="space-y-3 pt-4">
+                {nextLessons.length ? (
+                  nextLessons.map(({ enrollment, program, lesson, percent }) => (
+                    <div key={enrollment.id} className="rounded-xl border border-slate-100 p-3">
+                      <div className="flex items-center gap-3">
+                        <CourseIcon program={program} tone="dark" className="h-7 w-7 shrink-0" />
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-semibold text-slate-700">{program.title}</p>
+                          <p className="text-[11px] text-slate-400">{percent}% complete</p>
+                        </div>
+                        <Link to={`/trainee/courses/${program.id}`} className="shrink-0">
+                          <Button size="sm" variant="secondary" iconRight={ArrowRight}>
+                            Resume
+                          </Button>
+                        </Link>
+                      </div>
+                      <p className="mt-2.5 flex items-center gap-1.5 text-xs text-slate-500">
+                        <BookOpen className="h-3.5 w-3.5 shrink-0 text-brand-500" />
+                        <span className="truncate">
+                          {lesson ? lesson.title : 'All lessons completed — review any lesson'}
+                        </span>
+                      </p>
+                      <ProgressBar value={percent} className="mt-2" size="sm" />
+                    </div>
+                  ))
+                ) : (
+                  <EmptyState icon={BookOpen} title="No active course" description="Enroll in a program to start learning." />
+                )}
+              </CardBody>
+            </Card>
+          )}
+
+          {/* Announcements — inside the left column, right under the schedule /
+              continue-learning block, so the page never ends in a separate band
+              below two columns of very different heights. */}
+          <div>
+            <SectionTitle
+              action={
+                <Link to="/trainee/announcements" className="text-xs font-semibold text-brand-600 hover:text-brand-700">
+                  View all
+                </Link>
+              }
+            >
+              Announcements
+            </SectionTitle>
+
+            {announcements.length ? (
+              <div className="grid grid-cols-1 items-start gap-3 sm:grid-cols-2">
+                {announcements.map((a) => {
+                  const meta = priorityOf(a)
+                  const author = db.users.find((u) => u.id === a.authorId)
+                  return (
+                    <Card key={a.id} className="relative overflow-hidden">
+                      <span className={cn('absolute inset-y-0 left-0 w-1', meta.accent)} aria-hidden="true" />
+                      <div className="p-4 pl-5">
+                        <div className="flex items-center gap-2">
+                          <Badge tone={meta.tone}>{meta.label}</Badge>
+                          {a.pinned && (
+                            <Badge tone="warning">
+                              <Pin className="h-3 w-3" /> Pinned
+                            </Badge>
+                          )}
+                          <span className="ml-auto whitespace-nowrap text-[11px] text-slate-400">
+                            {formatDate(a.date)}
+                          </span>
+                        </div>
+                        <h3 className="mt-2.5 line-clamp-2 text-sm font-bold leading-snug text-slate-800">{a.title}</h3>
+                        <p className="mt-1 line-clamp-3 text-xs leading-relaxed text-slate-600">{a.body}</p>
+                        <div className="mt-3 flex items-center gap-2 border-t border-slate-100 pt-2.5">
+                          <Avatar name={author?.name || 'Administration'} color={author?.avatarColor} size="sm" />
+                          <p className="truncate text-[11px] text-slate-500">{author?.name || 'Administration'}</p>
+                        </div>
+                      </div>
+                    </Card>
+                  )
+                })}
+              </div>
+            ) : (
+              <Card>
+                <EmptyState
+                  icon={Megaphone}
+                  title="No announcements yet"
+                  description="Notices from your trainer and administrator will appear here."
+                />
+              </Card>
+            )}
           </div>
         </div>
 
@@ -379,33 +497,9 @@ export function TraineeDashboard() {
               </CardBody>
             </Card>
           )}
-
-          <Card>
-            <CardHeader
-              title="Announcements"
-              icon={Megaphone}
-              action={
-                <Link to="/trainee/announcements" className="text-xs font-semibold text-brand-600 hover:text-brand-700">
-                  View all
-                </Link>
-              }
-            />
-            <CardBody className="space-y-3 pt-4">
-              {announcements.map((a) => (
-                <div key={a.id} className="rounded-lg border border-slate-100 bg-slate-50/60 p-3">
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="truncate text-sm font-semibold text-slate-700">{a.title}</p>
-                    {a.pinned && <Badge tone="warning">Pinned</Badge>}
-                  </div>
-                  <p className="mt-1 line-clamp-2 text-xs text-slate-500">{a.body}</p>
-                  <p className="mt-1.5 text-[11px] text-slate-400">{formatDate(a.date)}</p>
-                </div>
-              ))}
-              {!announcements.length && <p className="py-4 text-center text-sm text-slate-400">No announcements</p>}
-            </CardBody>
-          </Card>
         </div>
       </div>
+
     </div>
   )
 }

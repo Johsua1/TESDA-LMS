@@ -17,6 +17,9 @@ import {
   RotateCcw,
   UserX,
   AlertTriangle,
+  History,
+  ChevronDown,
+  ChevronUp,
 } from 'lucide-react'
 import { useApp } from '../../store/AppContext'
 import { trainerPrograms } from '../../store/selectors'
@@ -41,7 +44,8 @@ import {
 } from '../../components/ui'
 import { StatusBadge } from '../../components/ui/StatusBadge'
 import { QuestionBuilder } from '../../components/content/QuestionBuilder'
-import { average, formatDate, cn } from '../../lib/utils'
+import { average, formatDate, formatDateTime, cn } from '../../lib/utils'
+import { usePersistentState } from '../../lib/usePersistentState'
 import { formatQuizSchedule, validateSchedule, combineDateTime } from '../../lib/quizAccess'
 import { validateQuiz } from '../../lib/assessmentValidation'
 import { ATTEMPT_MINUTES } from '../../lib/quizTimer'
@@ -54,6 +58,29 @@ const localDate = (d = new Date()) =>
   `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`
 const localTime = (d = new Date()) =>
   `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+
+// Short, human timestamp for the decision log ("2h ago"); the exact date/time
+// stays available in the tooltip so nothing is lost for auditing.
+const timeAgo = (value) => {
+  if (!value) return ''
+  const then = new Date(value).getTime()
+  if (Number.isNaN(then)) return ''
+  const mins = Math.floor((Date.now() - then) / 60000)
+  if (mins < 1) return 'Just now'
+  if (mins < 60) return `${mins}m ago`
+  const hours = Math.floor(mins / 60)
+  if (hours < 24) return `${hours}h ago`
+  const days = Math.floor(hours / 24)
+  if (days < 7) return `${days}d ago`
+  return formatDate(value)
+}
+
+const DECISION_FILTERS = [
+  { key: 'all', label: 'All' },
+  { key: 'approved', label: 'Approved' },
+  { key: 'rejected', label: 'Rejected' },
+]
+const HISTORY_PREVIEW = 5
 
 const blankQuiz = (passing = 75) => ({
   id: '',
@@ -71,15 +98,33 @@ const blankQuiz = (passing = 75) => ({
 export function TrainerQuizzes() {
   const { db, user, settings, saveQuiz, deleteQuiz, decideQuizRequest, toast } = useApp()
   const programs = trainerPrograms(db, user.id)
-  const [programFilter, setProgramFilter] = useState('all')
+  const [programFilter, setProgramFilter] = usePersistentState(
+    'tesda-lms-quiz-program-filter-v1',
+    'all',
+    (v) => typeof v === 'string',
+  )
   const [selected, setSelected] = useState(null)
   const [form, setForm] = useState(null)
   const [confirm, setConfirm] = useState(null)
   const [scheduleError, setScheduleError] = useState(null)
+  const [historyFilter, setHistoryFilter] = usePersistentState(
+    'tesda-lms-quiz-history-filter-v1',
+    'all',
+    (v) => DECISION_FILTERS.some((f) => f.key === v),
+  )
+  const [showAllHistory, setShowAllHistory] = usePersistentState(
+    'tesda-lms-quiz-history-expanded-v1',
+    false,
+    (v) => typeof v === 'boolean',
+  )
   // Shown inside the form: a toast can be missed while the modal covers it.
   const [formError, setFormError] = useState('')
 
-  const source = programFilter === 'all' ? programs : programs.filter((p) => p.id === programFilter)
+  // The remembered program can be revoked or deleted between sessions; fall
+  // back to "All programs" instead of rendering an empty page.
+  const activeProgramFilter =
+    programFilter === 'all' || programs.some((p) => p.id === programFilter) ? programFilter : 'all'
+  const source = activeProgramFilter === 'all' ? programs : programs.filter((p) => p.id === activeProgramFilter)
   const quizzes = source.flatMap((p) =>
     p.quizzes.map((q) => ({ ...q, programId: p.id, programTitle: p.title, program: p, programColor: p.color })),
   )
@@ -95,6 +140,17 @@ export function TrainerQuizzes() {
   const decidedRequests = requests
     .filter((r) => r.status !== 'pending')
     .sort((a, b) => new Date(b.decidedAt || 0) - new Date(a.decidedAt || 0))
+
+  // Decision log: counts per outcome for the filter chips, then the visible
+  // slice (collapsed until the trainer asks for the full audit trail).
+  const decisionCounts = {
+    all: decidedRequests.length,
+    approved: decidedRequests.filter((r) => r.status === 'approved').length,
+    rejected: decidedRequests.filter((r) => r.status === 'rejected').length,
+  }
+  const filteredHistory =
+    historyFilter === 'all' ? decidedRequests : decidedRequests.filter((r) => r.status === historyFilter)
+  const visibleHistory = showAllHistory ? filteredHistory : filteredHistory.slice(0, HISTORY_PREVIEW)
 
   // Everyone actively enrolled in a program — used for the "not taken" list.
   const programTrainees = (programId) => {
@@ -121,7 +177,7 @@ export function TrainerQuizzes() {
   const selectedRequests = selected ? (db.quizRequests || []).filter((r) => r.quizId === selected.id) : []
 
   const openCreate = () => {
-    const p = programs.find((x) => x.id === (programFilter === 'all' ? programs[0]?.id : programFilter)) || programs[0]
+    const p = programs.find((x) => x.id === (activeProgramFilter === 'all' ? programs[0]?.id : activeProgramFilter)) || programs[0]
     if (!p) return
     setFormError('')
     setForm({ programId: p.id, quiz: blankQuiz(settings.passingScore || 75) })
@@ -204,7 +260,7 @@ export function TrainerQuizzes() {
         description="Create, manage and monitor quizzes across your assigned programs."
         action={
           <div className="flex flex-wrap gap-2">
-            <Select value={programFilter} onChange={(e) => setProgramFilter(e.target.value)} className="w-56">
+            <Select value={activeProgramFilter} onChange={(e) => setProgramFilter(e.target.value)} className="w-56">
               <option value="all">All programs</option>
               {programs.map((p) => (
                 <option key={p.id} value={p.id}>
@@ -266,23 +322,121 @@ export function TrainerQuizzes() {
           )}
 
           {decidedRequests.length > 0 && (
-            <div className="border-t border-slate-100 pt-3">
-              <p className="mb-2 text-[11px] font-semibold uppercase tracking-wide text-slate-400">Decision history</p>
-              <div className="space-y-1.5">
-                {decidedRequests.slice(0, 6).map((r) => (
-                  <div key={r.id} className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                    <span className="min-w-0 truncate text-slate-600">
-                      {r.traineeName} · {r.quizTitle}
-                    </span>
-                    <span className="flex shrink-0 items-center gap-2">
-                      <Badge tone={r.status === 'approved' ? 'success' : 'danger'}>
-                        {r.status === 'approved' ? 'Approved' : 'Rejected'}
-                      </Badge>
-                      <span className="text-slate-400">{r.decidedAt ? formatDate(r.decidedAt) : ''}</span>
-                    </span>
-                  </div>
-                ))}
+            <div className="border-t border-slate-100 pt-4">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <span className="flex h-6 w-6 items-center justify-center rounded-md bg-slate-100 text-slate-500">
+                    <History className="h-3.5 w-3.5" />
+                  </span>
+                  <p className="text-[11px] font-semibold uppercase tracking-[0.08em] text-slate-500">Decision history</p>
+                  <span className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-slate-500">
+                    {decidedRequests.length}
+                  </span>
+                </div>
+                <div className="flex items-center gap-0.5 rounded-lg bg-slate-100 p-0.5">
+                  {DECISION_FILTERS.map((f) => (
+                    <button
+                      key={f.key}
+                      type="button"
+                      aria-pressed={historyFilter === f.key}
+                      onClick={() => setHistoryFilter(f.key)}
+                      className={cn(
+                        'rounded-md px-2.5 py-1 text-[11px] font-medium transition-colors',
+                        historyFilter === f.key
+                          ? 'bg-white text-slate-800 shadow-sm'
+                          : 'text-slate-500 hover:text-slate-700',
+                      )}
+                    >
+                      {f.label}
+                      <span className="ml-1 tabular-nums text-slate-400">{decisionCounts[f.key]}</span>
+                    </button>
+                  ))}
+                </div>
               </div>
+
+              {visibleHistory.length ? (
+                <ol>
+                  {visibleHistory.map((r, i) => {
+                    const approved = r.status === 'approved'
+                    return (
+                      <li key={r.id} className="group relative flex animate-fade-in gap-3">
+                        <div className="relative flex w-8 shrink-0 justify-center">
+                          <span
+                            className={cn(
+                              'relative z-10 mt-1 flex h-7 w-7 items-center justify-center rounded-full ring-4 ring-white',
+                              approved ? 'bg-emerald-50 text-emerald-600' : 'bg-rose-50 text-rose-600',
+                            )}
+                          >
+                            {approved ? <CheckCircle2 className="h-4 w-4" /> : <XCircle className="h-4 w-4" />}
+                          </span>
+                          {i < visibleHistory.length - 1 && (
+                            <span className="absolute bottom-0 left-1/2 top-8 w-px -translate-x-1/2 bg-slate-200" />
+                          )}
+                        </div>
+
+                        <div className="min-w-0 flex-1 rounded-xl border border-transparent px-3 py-2 transition-colors group-hover:border-slate-200 group-hover:bg-slate-50/70">
+                          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-1">
+                            <div className="min-w-0">
+                              <p className="truncate text-sm font-semibold text-slate-800">
+                                {r.traineeName || 'Trainee'}
+                              </p>
+                              <p className="mt-0.5 flex items-center gap-1.5 text-xs text-slate-500">
+                                {r.type === 'late' ? (
+                                  <Clock className="h-3 w-3 shrink-0 text-slate-400" />
+                                ) : (
+                                  <RotateCcw className="h-3 w-3 shrink-0 text-slate-400" />
+                                )}
+                                <span className="shrink-0">{r.type === 'late' ? 'Late access' : 'Retake'}</span>
+                                <span className="text-slate-300">/</span>
+                                <span className="truncate">{r.quizTitle}</span>
+                              </p>
+                            </div>
+                            <div className="flex shrink-0 items-center gap-2">
+                              <span
+                                className={cn(
+                                  'inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide ring-1 ring-inset',
+                                  approved
+                                    ? 'bg-emerald-50 text-emerald-700 ring-emerald-200'
+                                    : 'bg-rose-50 text-rose-700 ring-rose-200',
+                                )}
+                              >
+                                {approved ? 'Approved' : 'Rejected'}
+                              </span>
+                              <span
+                                className="whitespace-nowrap text-[11px] text-slate-400"
+                                title={formatDateTime(r.decidedAt)}
+                              >
+                                {timeAgo(r.decidedAt)}
+                              </span>
+                            </div>
+                          </div>
+
+                          {(r.note || (r.decidedByName && r.decidedByName !== user.name)) && (
+                            <p className="mt-1.5 border-l-2 border-slate-200 pl-2 text-[11px] italic leading-relaxed text-slate-500">
+                              {r.note || 'Decided by ' + r.decidedByName}
+                            </p>
+                          )}
+                        </div>
+                      </li>
+                    )
+                  })}
+                </ol>
+              ) : (
+                <p className="py-3 text-center text-xs text-slate-400">
+                  No {historyFilter === 'approved' ? 'approved' : 'rejected'} decisions yet.
+                </p>
+              )}
+
+              {filteredHistory.length > HISTORY_PREVIEW && (
+                <button
+                  type="button"
+                  onClick={() => setShowAllHistory((v) => !v)}
+                  className="mt-1 inline-flex items-center gap-1 rounded-md px-2 py-1 text-[11px] font-semibold text-brand-600 transition-colors hover:bg-brand-50"
+                >
+                  {showAllHistory ? 'Show less' : 'Show all ' + filteredHistory.length}
+                  {showAllHistory ? <ChevronUp className="h-3 w-3" /> : <ChevronDown className="h-3 w-3" />}
+                </button>
+              )}
             </div>
           )}
         </CardBody>

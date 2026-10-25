@@ -141,29 +141,23 @@ export function ClassSchedules() {
         </div>
       ) : tab === 'ongoing' ? (
         <Card>
-          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-            <span className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600" />
-            <div>
-              <p className="text-sm font-semibold text-slate-700">Waiting for the next class to start…</p>
-              {nextUpcoming ? (
-                <p className="mt-1 text-xs text-slate-500">
-                  Next: {nextUpcoming.lessonTitle || nextUpcoming.unitTitle} · {relativeDay(nextUpcoming.date)} at {formatTime(nextUpcoming.startTime)}
-                </p>
-              ) : (
-                <p className="mt-1 text-xs text-slate-500">No upcoming class scheduled.</p>
-              )}
-            </div>
-          </div>
+          <EmptyState
+            icon={CalendarClock}
+            title="No class in session"
+            description={
+              nextUpcoming
+                ? `Next: ${nextUpcoming.lessonTitle || nextUpcoming.unitTitle} · ${relativeDay(nextUpcoming.date)} at ${formatTime(nextUpcoming.startTime)}`
+                : 'No upcoming class scheduled.'
+            }
+          />
         </Card>
       ) : tab === 'upcoming' ? (
         <Card>
-          <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
-            <span className="h-8 w-8 animate-spin rounded-full border-2 border-slate-200 border-t-brand-600" />
-            <div>
-              <p className="text-sm font-semibold text-slate-700">No upcoming classes</p>
-              <p className="mt-1 text-xs text-slate-500">New sessions will show up here once your trainer schedules them.</p>
-            </div>
-          </div>
+          <EmptyState
+            icon={CalendarDays}
+            title="No upcoming classes"
+            description="New sessions will show up here once your trainer schedules them."
+          />
         </Card>
       ) : (
         <Card>
