@@ -63,7 +63,7 @@ const authStorage = {
 // hash BEFORE the Supabase client processes and clears it. Lets the app force
 // the set-password screen for an onboarding / reset link even when the account
 // carries no `must_set_password` metadata flag.
-export const initialUrlAuthType = (() => {
+export let initialUrlAuthType = (() => {
   try {
     const m = window.location.hash.match(/[#&]type=([^&]+)/)
     return m ? decodeURIComponent(m[1]) : null
@@ -71,6 +71,14 @@ export const initialUrlAuthType = (() => {
     return null
   }
 })()
+
+// Clear the email-link marker once the link's job is done (password set). It is
+// a live module binding, so AppContext sees the change: without this the app
+// keeps treating every later session in the tab as a recovery session and
+// bounces the user back to the set-password screen.
+export function clearInitialUrlAuthType() {
+  initialUrlAuthType = null
+}
 
 export const supabase = isSupabaseConfigured
   ? createClient(url, anonKey, {

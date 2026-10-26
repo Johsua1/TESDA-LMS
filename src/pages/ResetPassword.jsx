@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { KeyRound, AlertTriangle, ArrowLeft } from 'lucide-react'
 import { useApp } from '../store/AppContext'
-import { supabase } from '../lib/supabase'
+import { supabase, clearInitialUrlAuthType } from '../lib/supabase'
 import * as backend from '../lib/backend'
 import { Button, FormField } from '../components/ui'
 import { PasswordStrengthMeter, getPasswordStrength } from '../components/ui/v-meter-7'
@@ -54,8 +54,13 @@ export function ResetPassword() {
     setLoading(true)
     try {
       await backend.updatePassword(password)
+      // The recovery link has served its purpose: drop the marker so later
+      // sign-ins in this tab are treated as normal sessions.
+      clearInitialUrlAuthType()
       toast('Your password has been updated. Please sign in.', 'success', 'Password changed')
-      logout()
+      // Sign out and wait for it, then go to the sign-in form so the user
+      // logs in again with the new password (no lingering recovery session).
+      await logout()
       navigate('/login', { replace: true })
     } catch (err) {
       setError(err?.message || 'Could not update your password. The link may have expired.')

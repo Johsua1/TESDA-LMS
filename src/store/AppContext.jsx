@@ -469,13 +469,21 @@ export function AppProvider({ children }) {
   )
 
   const logout = useCallback(() => {
+    // Clear the onboarding gate synchronously: the App routes redirect to
+    // /welcome while it is set, so a caller that signs out and immediately
+    // navigates (e.g. /reset-password → /login) would otherwise be bounced to
+    // the set-password screen until the async SIGNED_OUT event lands.
+    setMustSetPassword(false)
     if (isSupabaseConfigured) {
-      backend.signOut().catch(() => {})
       dbRef.current = EMPTY_DB
       setDb(EMPTY_DB)
+      setUser(null)
+      setMfaPending(null)
+      return backend.signOut().catch(() => {})
     }
     setUser(null)
     setMfaPending(null)
+    return Promise.resolve()
   }, [])
 
   const updateProfile = useCallback(
